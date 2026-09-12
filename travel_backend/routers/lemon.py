@@ -1,7 +1,10 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
 from models.itinerary import TripRequest, ItineraryResponse
 from services.itinerary_builder import build_itinerary
+
+logger = logging.getLogger("lemon_ai")
 
 router = APIRouter(prefix="/lemon", tags=["lemon-ai"])
 
@@ -25,6 +28,8 @@ async def plan_trip(trip: TripRequest):
         # Catch-all for provider SDK errors (bad API key, no credits, model
         # retired, rate limited, network issue, etc.) so the client always
         # gets a clean, readable error instead of a raw 500 traceback.
+        # Full traceback still goes to the server log for debugging.
+        logger.exception(f"Unhandled error from provider '{trip.provider}' in /lemon/plan")
         raise HTTPException(
             status_code=502,
             detail=f"The '{trip.provider}' provider failed: {e}",
