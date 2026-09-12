@@ -11,7 +11,9 @@ router = APIRouter(prefix="/weather", tags=["weather"])
 
 async def _geocode_city(city: str) -> dict:
     url = f"{settings.OPENWEATHER_BASE_URL}/geo/1.0/direct"
-    params = {"q": city, "limit": 1, "appid": settings.OPENWEATHER_API_KEY}
+    # Ask for a few candidates instead of just 1 — lets us prefer an exact
+    # name match over an odd fuzzy hit like "Osaka" -> "Orsk".
+    params = {"q": city, "limit": 5, "appid": settings.OPENWEATHER_API_KEY}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(url, params=params)
@@ -24,7 +26,15 @@ async def _geocode_city(city: str) -> dict:
 
     if not results:
         raise HTTPException(status_code=404, detail=f"City '{city}' not found")
-    return {"lat": results[0]["lat"], "lon": results[0]["lon"], "name": results[0]["name"]}
+
+    # Prefer a result whose name matches what was typed (case-insensitive),
+    # since the API's ranking sometimes surfaces an unrelated fuzzy match first.
+    query_name = city.split(",")[0].strip().lower()
+    best = next(
+        (r for r in results if r["name"].strip().lower() == query_name),
+        results[0],  # fall back to the API's top result if nothing matches exactly
+    )
+    return {"lat": best["lat"], "lon": best["lon"], "name": best["name"]}
 
 
 @router.get("/forecast")

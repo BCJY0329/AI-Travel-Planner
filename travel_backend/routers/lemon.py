@@ -21,3 +21,11 @@ async def plan_trip(trip: TripRequest):
     except ValidationError as e:
         # The model returned JSON, but not in the shape we asked for.
         raise HTTPException(status_code=502, detail=f"Itinerary shape was invalid: {e}")
+    except Exception as e:
+        # Catch-all for provider SDK errors (bad API key, no credits, model
+        # retired, rate limited, network issue, etc.) so the client always
+        # gets a clean, readable error instead of a raw 500 traceback.
+        raise HTTPException(
+            status_code=502,
+            detail=f"The '{trip.provider}' provider failed: {e}",
+        )
