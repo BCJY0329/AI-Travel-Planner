@@ -78,13 +78,20 @@ fails (bad city name, API down), the itinerary is still generated using general
 knowledge instead of crashing the whole request.
 
 ### Verified so far
-- `/health`, `/weather`, `/places`, `/hotels`, `/flights`, `/lemon/plan` (mock provider) — all run and return either correct data or a clean HTTP error, never a crash.
-- Found and fixed two real bugs during this verification pass: Gemini's SDK erroring at construction with an empty key, and `_geocode_city` (shared by weather/places/hotels) not catching its own HTTP errors — both now fail cleanly with a proper status code and message.
+- `/health`, `/weather`, `/places`, `/hotels`, `/flights`, `/lemon/plan` (mock, gemini providers) — all run and return either correct data or a clean HTTP error, never a crash.
+- Found and fixed several real bugs during this verification pass:
+  - Gemini's SDK erroring at construction with an empty key.
+  - `_geocode_city` (shared by weather/places/hotels) not catching its own HTTP errors.
+  - `_geocode_city` occasionally resolving a city name to an unrelated place (e.g. "Osaka" → "Orsk") due to OpenWeatherMap's free-tier geocoding ranking; now prefers an exact name match among the top 5 candidates.
+  - `gemini-2.5-flash` was retired for new users as of mid-2026; updated the default model to `gemini-3.6-flash`.
+  - `/lemon/plan` returned a raw 500 traceback on any provider SDK failure (bad key, no credits, retired model, etc.) instead of a clean error; added a catch-all handler that returns a 502 with a readable message and logs the full traceback server-side.
 - All three real LLM provider classes instantiate cleanly and raise a clear, catchable error when their API key is missing.
+- `gemini` provider confirmed working end-to-end with real output (tested with a 6-traveler, 7-day Osaka itinerary).
+- `claude` provider code path confirmed correct — currently blocked only by low Anthropic account credit balance, not a code issue.
 
 ### Not yet verified (needs real API keys + network access to test)
-- Actual output quality/JSON-validity from real Claude/GPT/Gemini calls.
-- The success path (valid data returned) for Geoapify, Duffel, and OpenWeatherMap — only the failure/error paths were exercised here, since this environment has no network access to those domains and no keys.
+- Actual output quality/JSON-validity from real GPT calls (Claude and Gemini are confirmed; GPT still needs a funded key to test).
+- The success path (valid data returned) for Duffel (flights) — only weather, places, and hotels have been confirmed returning real data so far.
 
 ## Next steps
 
