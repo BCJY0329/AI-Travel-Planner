@@ -1,0 +1,41 @@
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# ── Virtual environments ─────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Environment / secrets ────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example        # keep the example template
+
+# ── IDE / editor ─────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+*.code-workspace
+.claude/
+
+# ── OS files ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs & temp ──────────────────────────────────────────
+*.log
+*.tmp
+*.bak
