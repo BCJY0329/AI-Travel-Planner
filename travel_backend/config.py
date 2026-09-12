@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4.1-mini"  # adjust to whatever model your account has access to
 
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"  # adjust to whatever model your account has access to
+    GEMINI_MODEL: str = "gemini-3.6-flash"  # adjust to whatever model your account has access to
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
