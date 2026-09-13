@@ -13,6 +13,7 @@ from models.itinerary import TripRequest, ItineraryResponse
 from services.llm_providers.factory import get_provider
 from routers.weather import get_forecast
 from routers.places import get_attractions
+from services.text_sanitize import strip_markdown
 
 logger = logging.getLogger("lemon_ai")
 
@@ -93,4 +94,30 @@ Attractions data:
 
     # Pydantic validation — if the shape is wrong, this raises a clear error rather
     # than silently returning malformed data to the Flutter app.
+    return ItineraryResponse(**parsed)
+
+    # Step 4: parse and validate before it ever reaches the user
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error(f"{provider.name} returned non-JSON output: {raw[:300]}")
+        raise ValueError(
+            f"{provider.name} did not return valid JSON ({e}). "
+            f"This usually means the prompt needs tightening for that provider."
+        )
+
+    parsed["destination"] = trip.destination
+    parsed["provider_used"] = provider.name
+
+    # Server-side backstop against stray markdown (##, **, etc.) — the
+    # Flutter app also sanitizes, but cleaning it here too means every
+    # client that ever calls this API gets plain text.
+    if parsed.get("summary"):
+        parsed["summary"] = strip_markdown(parsed["summary"])
+    for day in parsed.get("days", []):
+        for activity in day.get("activities", []):
+            for field in ("activity", "location", "notes"):
+                if activity.get(field):
+                    activity[field] = strip_markdown(activity[field])
+
     return ItineraryResponse(**parsed)

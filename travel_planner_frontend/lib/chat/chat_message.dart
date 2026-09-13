@@ -35,9 +35,9 @@ class ChatMessage {
   factory ChatMessage.itineraryResult(ItineraryResponse itinerary) =>
       ChatMessage._(sender: ChatSender.bot, type: ChatMessageType.itinerary, itinerary: itinerary);
 
-  factory ChatMessage.loading() => ChatMessage._(
+  factory ChatMessage.loading([String label = 'Lemon is thinking...']) => ChatMessage._(
         sender: ChatSender.bot,
         type: ChatMessageType.loading,
-        text: 'Lemon is thinking...',
+        text: label,
       );
 }

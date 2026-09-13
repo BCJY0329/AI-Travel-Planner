@@ -87,7 +87,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
 
     return Material(
       elevation: 12,
-      shadowColor: AppTheme.primary.withOpacity(0.25),
+      shadowColor: AppTheme.primary.withValues(alpha: 0.25),
       borderRadius: BorderRadius.circular(20),
       child: Container(
         width: panelWidth,
@@ -100,6 +100,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
         child: Column(
           children: [
             _buildHeader(),
+            _buildProviderRow(),
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -195,7 +196,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                     Text(
                       'Ready to plan your next trip',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
                       ),
@@ -217,13 +218,79 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
     );
   }
 
+  Widget _buildProviderRow() {
+    const options = ['mock', 'claude', 'gpt', 'gemini'];
+    final busy = widget.controller.isBusy;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      decoration: const BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(bottom: BorderSide(color: AppTheme.borderLight)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_awesome_rounded, size: 13, color: AppTheme.textMuted),
+          const SizedBox(width: 6),
+          const SizedBox(height: 8),
+          const Text(
+            'AI engine',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textMuted,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: options.map((opt) {
+                  final selected = widget.controller.provider == opt;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: InkWell(
+                      onTap: busy ? null : () => widget.controller.setProvider(opt),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: selected ? AppTheme.lavenderTint : AppTheme.background,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: selected ? AppTheme.primary : AppTheme.border,
+                            width: selected ? 1.4 : 1,
+                          ),
+                        ),
+                        child: Text(
+                          opt,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                            color: selected ? AppTheme.primary : AppTheme.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInputBar() {
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppTheme.surface,
-        border: const Border(top: BorderSide(color: AppTheme.borderLight)),
-        borderRadius: const BorderRadius.only(
+        border: Border(top: BorderSide(color: AppTheme.borderLight)),
+        borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(19),
           bottomRight: Radius.circular(19),
         ),
@@ -234,7 +301,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
             child: TextField(
               controller: _textController,
               decoration: InputDecoration(
-                hintText: 'Type destination, date, or reply...',
+                hintText: 'e.g. "5 days in Osaka this December, food + temples"',
                 hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
                 filled: true,
                 fillColor: AppTheme.background,

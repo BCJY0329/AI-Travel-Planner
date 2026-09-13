@@ -23,7 +23,7 @@ class _LemonBubbleState extends State<LemonBubble> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          transform: Matrix4.identity()..scale(_isHovered ? 1.05 : 1.0),
+          transform: Matrix4.identity()..scaleByDouble(_isHovered ? 1.05 : 1.0, _isHovered ? 1.05 : 1.0, _isHovered ? 1.05 : 1.0, 1.0),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: AppTheme.surface,
@@ -34,7 +34,7 @@ class _LemonBubbleState extends State<LemonBubble> {
             ),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.primary.withOpacity(_isHovered ? 0.28 : 0.16),
+                color: AppTheme.primary.withValues(alpha: _isHovered ? 0.28 : 0.16),
                 blurRadius: _isHovered ? 16 : 10,
                 offset: const Offset(0, 4),
               ),
