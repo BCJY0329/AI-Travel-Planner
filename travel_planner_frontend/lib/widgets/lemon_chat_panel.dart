@@ -52,13 +52,19 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
     _textController.clear();
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickDate(DateTime? minDate) async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // For the departure date, minDate is null -> floor at today.
+    // For the return date, the controller passes (departureDate + 1 day) so
+    // the calendar can't show anything on or before the chosen departure date.
+    final firstSelectable = minDate ?? today;
+    final initial = firstSelectable.isAfter(today) ? firstSelectable : today;
     final picked = await showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: now.subtract(const Duration(days: 1)),
-      lastDate: now.add(const Duration(days: 730)),
+      initialDate: initial,
+      firstDate: firstSelectable,
+      lastDate: firstSelectable.add(const Duration(days: 730)),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(

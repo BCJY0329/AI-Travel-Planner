@@ -11,12 +11,20 @@ class ChatMessage {
   final List<String>? quickReplies;
   final ItineraryResponse? itinerary;
 
+  /// Only used for [ChatMessageType.datePicker]: the earliest date the user
+  /// should be allowed to pick. Null means "no lower bound beyond today"
+  /// (used for the first/departure date). When asking for the return date,
+  /// this is set to the day after the already-chosen departure date so the
+  /// calendar can't show dates before it.
+  final DateTime? minDate;
+
   ChatMessage._({
     required this.sender,
     required this.type,
     this.text,
     this.quickReplies,
     this.itinerary,
+    this.minDate,
   });
 
   factory ChatMessage.text(ChatSender sender, String text) =>
@@ -29,8 +37,12 @@ class ChatMessage {
         quickReplies: options,
       );
 
-  factory ChatMessage.datePickerPrompt(String prompt) =>
-      ChatMessage._(sender: ChatSender.bot, type: ChatMessageType.datePicker, text: prompt);
+  factory ChatMessage.datePickerPrompt(String prompt, {DateTime? minDate}) => ChatMessage._(
+        sender: ChatSender.bot,
+        type: ChatMessageType.datePicker,
+        text: prompt,
+        minDate: minDate,
+      );
 
   factory ChatMessage.itineraryResult(ItineraryResponse itinerary) =>
       ChatMessage._(sender: ChatSender.bot, type: ChatMessageType.itinerary, itinerary: itinerary);

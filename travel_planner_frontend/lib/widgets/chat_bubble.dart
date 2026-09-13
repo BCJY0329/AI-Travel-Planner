@@ -7,7 +7,7 @@ import 'lemon_avatar_image.dart';
 class ChatBubbleWidget extends StatelessWidget {
   final ChatMessage message;
   final ValueChanged<String> onQuickReply;
-  final VoidCallback onPickDate;
+  final ValueChanged<DateTime?> onPickDate;
 
   const ChatBubbleWidget({
     super.key,
@@ -112,7 +112,7 @@ class ChatBubbleWidget extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(left: 38, top: 6),
                 child: ElevatedButton.icon(
-                  onPressed: onPickDate,
+                  onPressed: () => onPickDate(message.minDate),
                   icon: const Icon(Icons.calendar_today_rounded, size: 15),
                   label: const Text('Pick a Date'),
                   style: ElevatedButton.styleFrom(

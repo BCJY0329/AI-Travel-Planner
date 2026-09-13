@@ -63,6 +63,45 @@ class LemonChatController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Same bookkeeping as [_addBot] (still logs the plain text to history so
+  /// the backend sees a normal assistant turn), but renders a date-picker
+  /// bubble with a "Pick a Date" button instead of a plain text bubble.
+  void _addBotDatePrompt(String text, {DateTime? minDate}) {
+    messages.add(ChatMessage.datePickerPrompt(text, minDate: minDate));
+    _history.add(ChatTurn(role: 'assistant', content: text));
+    notifyListeners();
+  }
+
+  /// Best-effort detection of "Lemon is currently asking about dates" from
+  /// the reply text alone. This is a stopgap: the real fix is for the
+  /// backend to tell us explicitly which field it's asking about next, but
+  /// until that's in place we pattern-match on common phrasing.
+  bool _looksLikeDateQuestion(String text) {
+    final lower = text.toLowerCase();
+    const keywords = [
+      'what date',
+      'which date',
+      'when would you like',
+      'when are you',
+      'when do you plan',
+      'when will you',
+      'when is your trip',
+      'what dates',
+      'travel date',
+      'departure date',
+      'return date',
+      'start date',
+      'end date',
+      'check-in',
+      'check in',
+      'check-out',
+      'check out',
+      'come back',
+      'come home',
+    ];
+    return keywords.any(lower.contains);
+  }
+
   void _addUser(String text) {
     messages.add(ChatMessage.text(ChatSender.user, text));
     _history.add(ChatTurn(role: 'user', content: text));
@@ -111,9 +150,26 @@ class LemonChatController extends ChangeNotifier {
       budgetLevel = result.budgetLevel ?? budgetLevel;
       if (result.interests.isNotEmpty) interests = result.interests;
 
-      _addBot(result.reply.isNotEmpty
+      final reply = result.reply.isNotEmpty
           ? result.reply
-          : "Got it! Anything else you'd like to add, or shall I plan the trip?");
+          : "Got it! Anything else you'd like to add, or shall I plan the trip?";
+
+      // If we still need a date and the reply reads like a date question,
+      // show the calendar-button bubble instead of a plain text bubble, and
+      // constrain it: no lower bound for the departure date, or
+      // "the day after departure" for the return date.
+      if (!result.ready && _looksLikeDateQuestion(reply) && (startDate == null || endDate == null)) {
+        DateTime? minDate;
+        if (startDate != null) {
+          final parsedStart = DateTime.tryParse(startDate!);
+          if (parsedStart != null) {
+            minDate = parsedStart.add(const Duration(days: 1));
+          }
+        }
+        _addBotDatePrompt(reply, minDate: minDate);
+      } else {
+        _addBot(reply);
+      }
 
       final haveMinimum = destination != null && startDate != null && endDate != null;
       if (result.ready && haveMinimum) {
