@@ -19,7 +19,7 @@ from services.text_sanitize import strip_markdown
 
 logger = logging.getLogger("lemon_ai")
 
-SYSTEM_PROMPT_TEMPLATE = """You are Lemon.ai's trip-intake assistant. Have a friendly, natural conversation \
+SYSTEM_PROMPT_TEMPLATE = """You are Lemon.ai, a travel planner assistant. Have a friendly, natural conversation \
 with a traveler to learn these fields about the trip they want to plan:
 
 - destination (a city or place name)
@@ -33,7 +33,11 @@ real YYYY-MM-DD dates. If the user gives a start date and a trip length (e.g. "5
 compute the end date yourself.
 
 Rules:
-- Ask only about whatever fields are still missing, one or two at a time, in a warm tone.
+- For the initial opening message, greet the user as "Hi, I'm Lemon.ai, your travel planner assistant!" and ask where they want to go.
+- Ask ONLY ONE question at a time in a friendly, conversational tone.
+- Start by asking for the destination if missing.
+- Once destination is provided, ask for the start date. If only the start date is provided, ask for the end date (or trip duration) before proceeding.
+- Next, ask about the number of travelers or budget/interests.
 - Once destination, start_date, and end_date are known, summarize everything gathered so far \
 in plain conversational sentences and ask the user to confirm before you proceed.
 - Only set "ready" to true once the user has clearly confirmed (e.g. said yes, sounds good, \
@@ -109,16 +113,23 @@ _CONFIRM_WORDS = ("yes", "yep", "yeah", "sounds good", "let's go", "go ahead", "
 
 
 def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
-    full_text = " ".join(m.content for m in messages if m.role == "user")
+    user_messages = [m.content.strip() for m in messages if m.role == "user"]
+    full_text = " ".join(user_messages)
 
     destination = None
     city_match = _TO_CITY_RE.search(full_text)
     if city_match:
         destination = city_match.group(1).strip().rstrip(".,!?")
+    elif user_messages:
+        first_msg = user_messages[0]
+        if len(first_msg.split()) <= 4 and not _DATE_RE.search(first_msg):
+            destination = first_msg.strip().rstrip(".,!?")
 
     dates = _DATE_RE.findall(full_text)
     start_date = dates[0] if len(dates) >= 1 else None
     end_date = dates[1] if len(dates) >= 2 else None
+
+    # Handle single date entry + duration
     if start_date and not end_date:
         days_match = _NUM_DAYS_RE.search(full_text)
         if days_match:
@@ -129,8 +140,17 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
             except ValueError:
                 pass
 
+    # Extract travelers
+    travelers = None
     travelers_match = _TRAVELERS_RE.search(full_text)
-    travelers = int(travelers_match.group(1)) if travelers_match else None
+    if travelers_match:
+        travelers = int(travelers_match.group(1))
+    
+    # Fallback: check if the latest user response is just a standalone number
+    if travelers is None and user_messages:
+        latest_msg = user_messages[-1]
+        if latest_msg.isdigit():
+            travelers = int(latest_msg)
 
     budget_level = None
     for word, level in _BUDGET_WORDS.items():
@@ -147,16 +167,21 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
     have_minimum = bool(destination and start_date and end_date)
     ready = have_minimum and confirmed
 
+    # Sequential question logic
     if ready:
         reply = f"Perfect, locking it in: {destination}, {start_date} to {end_date}. Give me a moment to put your itinerary together!"
+    elif have_minimum and travelers is None:
+        reply = "How many people will be travelling on this trip?"
     elif have_minimum:
         extra = f", {travelers} traveler(s)" if travelers else ""
         extra += f", {budget_level} budget" if budget_level else ""
         reply = f"Got it — {destination} from {start_date} to {end_date}{extra}. Shall I go ahead and plan it?"
-    elif destination and not start_date:
-        reply = f"{destination} sounds great! When would you like to travel — what dates?"
     elif not destination:
-        reply = "I'd love to help! Where are you thinking of travelling to?"
+        reply = "Hi, I'm Lemon.ai, your travel planner assistant! What city or destination are you thinking of travelling to?"
+    elif destination and not start_date:
+        reply = f"{destination} sounds like a fantastic choice! When would you like to start your trip (start date)?"
+    elif destination and start_date and not end_date:
+        reply = f"Got your start date as {start_date}. What is your end date or how many days will you be staying?"
     else:
         reply = "Thanks! Could you tell me the trip dates too (e.g. 2026-11-01 to 2026-11-05)?"
 

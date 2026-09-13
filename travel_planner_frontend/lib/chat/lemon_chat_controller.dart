@@ -45,9 +45,9 @@ class LemonChatController extends ChangeNotifier {
     if (_greeted) return;
     _greeted = true;
     _addBot(
-      "Hi, I'm Lemon! 🍋 Tell me about the trip you're dreaming of — where, when, "
-      "who's coming, your budget, what you're into — just say it however feels natural, "
-      "and I'll fill in the rest.",
+      "Hi, I'm Lemon! 🍋 And I'm your travel planner assistant!"
+      " I will help you create your travel itinerary, just provide me all the sufficient details!"
+      " What city or destination are you thinking of travelling to?",
     );
   }
 
