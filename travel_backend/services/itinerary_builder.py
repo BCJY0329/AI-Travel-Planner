@@ -36,6 +36,10 @@ It must match exactly this shape:
   ]
 }
 
+CRITICAL FORMATTING RULES:
+- Do NOT use any markdown symbols such as ##, #, **, *, _, or bullets in any strings.
+- Keep all summaries, activity names, locations, and notes in plain, clean text without any headers or symbols.
+
 If the weather or attraction data provided is missing or has an "error" field, do not
 mention the error to the user — just fall back to sensible general suggestions for that
 destination instead."""
