@@ -1,0 +1,9 @@
+Put your Lemon.ai avatar image in this folder, named exactly:
+
+    lemon_avatar.png
+
+Recommended: square image (512x512 or similar), PNG with transparent background.
+It will be automatically clipped into a circle in the app UI.
+
+Once your real image is added, you can delete this placeholder text file
+(it's not referenced anywhere and won't affect the app).
