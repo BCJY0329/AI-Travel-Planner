@@ -23,3 +23,12 @@ class LemonChatResponse(BaseModel):
     budget_level: Optional[str] = None
     interests: List[str] = Field(default_factory=list)
     ready: bool = False
+    next_field: Optional[str] = Field(
+        None,
+        description=(
+            "Which field Lemon is currently asking for: 'destination', 'start_date', "
+            "'end_date', 'travelers', 'budget_level', 'confirm', or null once ready/complete. "
+            "Frontend should key UI (e.g. showing the date picker) off this instead of "
+            "sniffing the reply text for keywords."
+        ),
+    )

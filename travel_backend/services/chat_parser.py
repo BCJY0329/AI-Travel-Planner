@@ -6,12 +6,25 @@ Lemon.ai's chat feel like a normal conversation instead of a rigid form.
 'mock' uses a cheap local heuristic instead of calling a real model, so the
 whole flow stays testable with zero API keys — same philosophy as
 MockProvider for itinerary generation.
+
+Mock-path design note: extraction is split into two passes on purpose.
+  1. `_extract_fields` — broad regex scan over the WHOLE conversation, only
+     matching fields that appear in an unambiguous shape (explicit "to <City>",
+     an actual YYYY-MM-DD date, "3 people", etc). This pass is intentionally
+     conservative so it doesn't misfire on message #1 being a greeting.
+  2. `_interpret_as_field_answer` — looks at ONLY the latest user message and,
+     if the broad pass didn't already fill in whatever field Lemon just asked
+     about, treats that bare reply (e.g. just "Tokyo", or just "2") as the
+     direct answer to that specific field.
+This fixes the old bug where a bare destination reply was only ever checked
+against messages[0], and where the city regex could swallow trailing words
+("Tokyo for 5 days" -> "Tokyo for").
 """
 import json
 import re
 import logging
 from datetime import date, timedelta
-from typing import List
+from typing import List, Optional
 
 from models.chat import ChatTurn, LemonChatRequest, LemonChatResponse
 from services.llm_providers.factory import get_provider
@@ -33,7 +46,10 @@ real YYYY-MM-DD dates. If the user gives a start date and a trip length (e.g. "5
 compute the end date yourself.
 
 Rules:
-- For the initial opening message, greet the user as "Hi, I'm Lemon.ai, your travel planner assistant!" and ask where they want to go.
+- For the initial opening message, greet the user as "Hi, I'm Lemon.ai, your travel planner assistant!" \
+and ask where they want to go, but put the greeting and the question in "reply" as TWO separate \
+sentences separated by a blank line (a "\\n\\n" double newline) — the frontend renders each blank-line-separated \
+chunk as its own chat bubble, so this is what makes it feel like two messages instead of one wall of text.
 - Ask ONLY ONE question at a time in a friendly, conversational tone.
 - Start by asking for the destination if missing.
 - Once destination is provided, ask for the start date. If only the start date is provided, ask for the end date (or trip duration) before proceeding.
@@ -55,6 +71,7 @@ sentences only.
   "budget_level": "low, medium, high, or null",
   "interests": ["..."],
   "ready": true or false,
+  "next_field": "one of 'destination', 'start_date', 'end_date', 'travelers', 'budget_level', 'confirm', or null once ready is true",
   "reply": "your natural-language reply to show the user right now"
 }}"""
 
@@ -108,28 +125,29 @@ _BUDGET_WORDS = {
 _DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 _NUM_DAYS_RE = re.compile(r"\b(\d{1,2})\s*-?\s*day", re.IGNORECASE)
 _TRAVELERS_RE = re.compile(r"\b(\d{1,2})\s*(?:people|travelers|travellers|pax|of us)\b", re.IGNORECASE)
-_TO_CITY_RE = re.compile(r"\b(?:to|in|visiting|around)\s+([A-Z][a-zA-Z\s]{2,25})")
+# Only captures consecutive CAPITALIZED words after the lead-in, so it stops
+# at lowercase connector words instead of swallowing the rest of the sentence
+# (e.g. "to Tokyo for 5 days" -> "Tokyo", not "Tokyo for").
+_TO_CITY_RE = re.compile(r"\b(?:to|in|visiting|around)\s+([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)")
 _CONFIRM_WORDS = ("yes", "yep", "yeah", "sounds good", "let's go", "go ahead", "plan it", "confirm", "sure")
+_NON_DESTINATION_WORDS = {
+    "hi", "hello", "hey", "yes", "no", "ok", "okay", "sure", "thanks", "thank you",
+}
 
 
-def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
-    user_messages = [m.content.strip() for m in messages if m.role == "user"]
-    full_text = " ".join(user_messages)
-
+def _extract_fields(full_text: str) -> dict:
+    """Broad, conservative regex scan across the whole conversation so far.
+    Only fills a field when the text is unambiguous — bare/short replies are
+    intentionally left for `_interpret_as_field_answer` to handle instead."""
     destination = None
     city_match = _TO_CITY_RE.search(full_text)
     if city_match:
         destination = city_match.group(1).strip().rstrip(".,!?")
-    elif user_messages:
-        first_msg = user_messages[0]
-        if len(first_msg.split()) <= 4 and not _DATE_RE.search(first_msg):
-            destination = first_msg.strip().rstrip(".,!?")
 
     dates = _DATE_RE.findall(full_text)
     start_date = dates[0] if len(dates) >= 1 else None
     end_date = dates[1] if len(dates) >= 2 else None
 
-    # Handle single date entry + duration
     if start_date and not end_date:
         days_match = _NUM_DAYS_RE.search(full_text)
         if days_match:
@@ -140,17 +158,10 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
             except ValueError:
                 pass
 
-    # Extract travelers
     travelers = None
     travelers_match = _TRAVELERS_RE.search(full_text)
     if travelers_match:
         travelers = int(travelers_match.group(1))
-    
-    # Fallback: check if the latest user response is just a standalone number
-    if travelers is None and user_messages:
-        latest_msg = user_messages[-1]
-        if latest_msg.isdigit():
-            travelers = int(latest_msg)
 
     budget_level = None
     for word, level in _BUDGET_WORDS.items():
@@ -158,29 +169,157 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
             budget_level = level
             break
 
+    interests: List[str] = []
     interests_match = re.search(r"(?:interested in|into|love|enjoy)\s+([a-zA-Z, ]+)", full_text, re.IGNORECASE)
-    interests = []
     if interests_match:
-        interests = [w.strip() for w in interests_match.group(1).split(",") if w.strip()][:5]
+        raw_interests = interests_match.group(1)
+        # split on commas and " and " so "food and museums" yields two interests
+        parts = re.split(r",|\band\b", raw_interests, flags=re.IGNORECASE)
+        interests = [w.strip() for w in parts if w.strip()][:5]
+
+    return {
+        "destination": destination,
+        "start_date": start_date,
+        "end_date": end_date,
+        "travelers": travelers,
+        "budget_level": budget_level,
+        "interests": interests,
+    }
+
+
+def _determine_next_field(fields: dict) -> Optional[str]:
+    """Which field Lemon should ask about next, given what's known so far."""
+    if not fields["destination"]:
+        return "destination"
+    if not fields["start_date"]:
+        return "start_date"
+    if not fields["end_date"]:
+        return "end_date"
+    if fields["travelers"] is None:
+        return "travelers"
+    return "confirm"
+
+
+def _interpret_as_field_answer(latest_msg: str, asked_field: Optional[str], fields: dict) -> None:
+    """If the broad scan didn't fill `asked_field`, treat the latest bare
+    reply as a direct answer to it. Mutates `fields` in place."""
+    cleaned = latest_msg.strip().rstrip(".,!?")
+    if not cleaned:
+        return
+
+    if asked_field == "destination" and not fields["destination"]:
+        lowered = cleaned.lower()
+        word_count = len(cleaned.split())
+        looks_like_place = (
+            word_count <= 4
+            and lowered not in _NON_DESTINATION_WORDS
+            and not _DATE_RE.search(cleaned)
+            and not cleaned.isdigit()
+        )
+        if looks_like_place:
+            fields["destination"] = cleaned
+
+    elif asked_field == "start_date" and not fields["start_date"]:
+        date_match = _DATE_RE.search(cleaned)
+        if date_match:
+            fields["start_date"] = date_match.group(1)
+
+    elif asked_field == "end_date" and not fields["end_date"]:
+        date_match = _DATE_RE.search(cleaned)
+        if date_match:
+            fields["end_date"] = date_match.group(1)
+        else:
+            days_match = _NUM_DAYS_RE.search(cleaned)
+            if days_match and fields["start_date"]:
+                n_days = max(int(days_match.group(1)) - 1, 0)
+                try:
+                    start = date.fromisoformat(fields["start_date"])
+                    fields["end_date"] = (start + timedelta(days=n_days)).isoformat()
+                except ValueError:
+                    pass
+
+    elif asked_field == "travelers" and fields["travelers"] is None:
+        if cleaned.isdigit():
+            fields["travelers"] = int(cleaned)
+        else:
+            travelers_match = _TRAVELERS_RE.search(cleaned)
+            if travelers_match:
+                fields["travelers"] = int(travelers_match.group(1))
+
+    elif asked_field == "budget_level" and not fields["budget_level"]:
+        lowered = cleaned.lower()
+        for word, level in _BUDGET_WORDS.items():
+            if word in lowered:
+                fields["budget_level"] = level
+                break
+
+
+def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
+    user_messages = [m.content.strip() for m in messages if m.role == "user"]
+    full_text = " ".join(user_messages)
+
+    # Replay the conversation turn by turn rather than scanning the whole
+    # transcript as one blob. This matters because a bare reply (e.g. just
+    # "2" answering "how many travelers?") is only interpretable in light of
+    # what was being asked *at that point* — once later turns are appended,
+    # a single-pass full-text scan has no way to tell "2" was the traveler
+    # count rather than noise, so a plain re-scan silently drops it.
+    fields = {
+        "destination": None,
+        "start_date": None,
+        "end_date": None,
+        "travelers": None,
+        "budget_level": None,
+        "interests": [],
+    }
+    for msg in user_messages:
+        asked_field = _determine_next_field(fields)
+
+        single = _extract_fields(msg)
+        for key in ("destination", "start_date", "end_date", "travelers", "budget_level"):
+            if single[key] is not None and fields[key] is None:
+                fields[key] = single[key]
+        if single["interests"]:
+            fields["interests"] = list(dict.fromkeys(fields["interests"] + single["interests"]))[:5]
+
+        # If the broad scan of this message didn't already answer whatever
+        # was being asked, see if the message is a bare direct answer to it.
+        if asked_field and asked_field != "confirm" and fields.get(asked_field) is None:
+            _interpret_as_field_answer(msg, asked_field, fields)
 
     confirmed = any(word in full_text.lower() for word in _CONFIRM_WORDS)
-    have_minimum = bool(destination and start_date and end_date)
+    have_minimum = bool(fields["destination"] and fields["start_date"] and fields["end_date"])
     ready = have_minimum and confirmed
 
-    # Sequential question logic
+    next_field = None if ready else _determine_next_field(fields)
+
+    destination = fields["destination"]
+    start_date = fields["start_date"]
+    end_date = fields["end_date"]
+    travelers = fields["travelers"]
+    budget_level = fields["budget_level"]
+
     if ready:
-        reply = f"Perfect, locking it in: {destination}, {start_date} to {end_date}. Give me a moment to put your itinerary together!"
-    elif have_minimum and travelers is None:
-        reply = "How many people will be travelling on this trip?"
-    elif have_minimum:
+        reply = (
+            f"Perfect, locking it in: {destination}, {start_date} to {end_date}. "
+            "Give me a moment to put your itinerary together!"
+        )
+    elif next_field == "confirm":
         extra = f", {travelers} traveler(s)" if travelers else ""
         extra += f", {budget_level} budget" if budget_level else ""
         reply = f"Got it — {destination} from {start_date} to {end_date}{extra}. Shall I go ahead and plan it?"
-    elif not destination:
-        reply = "Hi, I'm Lemon.ai, your travel planner assistant! What city or destination are you thinking of travelling to?"
-    elif destination and not start_date:
+    elif next_field == "travelers":
+        reply = "How many people will be travelling on this trip?"
+    elif next_field == "destination":
+        # "\n\n" is the bubble-break delimiter the frontend splits on to render
+        # this as two separate chat bubbles instead of one long message.
+        reply = (
+            "Hi, I'm Lemon.ai, your travel planner assistant!\n\n"
+            "What city or destination are you thinking of travelling to?"
+        )
+    elif next_field == "start_date":
         reply = f"{destination} sounds like a fantastic choice! When would you like to start your trip (start date)?"
-    elif destination and start_date and not end_date:
+    elif next_field == "end_date":
         reply = f"Got your start date as {start_date}. What is your end date or how many days will you be staying?"
     else:
         reply = "Thanks! Could you tell me the trip dates too (e.g. 2026-11-01 to 2026-11-05)?"
@@ -192,6 +331,7 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
         end_date=end_date,
         travelers=travelers,
         budget_level=budget_level,
-        interests=interests,
+        interests=fields["interests"],
         ready=ready,
+        next_field=next_field,
     )

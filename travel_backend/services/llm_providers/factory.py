@@ -2,12 +2,16 @@ from .base import LLMProvider
 from .anthropic_provider import AnthropicProvider
 from .openai_provider import OpenAIProvider
 from .gemini_provider import GeminiProvider
+from .groq_provider import GroqProvider
+from .auto_provider import AutoProvider
 from .mock_provider import MockProvider
 
 _PROVIDERS = {
     "claude": AnthropicProvider,
     "gpt": OpenAIProvider,
     "gemini": GeminiProvider,
+    "groq": GroqProvider,
+    "auto": AutoProvider,
     "mock": MockProvider,
 }
 
