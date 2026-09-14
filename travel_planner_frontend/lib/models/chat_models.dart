@@ -24,6 +24,13 @@ class LemonChatResult {
   final List<String> interests;
   final bool ready;
 
+  /// Which field Lemon is currently asking about — 'destination',
+  /// 'start_date', 'end_date', 'travelers', 'budget_level', 'confirm', or
+  /// null once ready (or if an older backend build doesn't send this yet).
+  /// Drives the date-picker bubble and the input hint text so both track
+  /// the real conversation state instead of guessing from reply wording.
+  final String? nextField;
+
   LemonChatResult({
     required this.reply,
     this.destination,
@@ -33,6 +40,7 @@ class LemonChatResult {
     this.budgetLevel,
     this.interests = const [],
     this.ready = false,
+    this.nextField,
   });
 
   factory LemonChatResult.fromJson(Map<String, dynamic> json) => LemonChatResult(
@@ -48,5 +56,6 @@ class LemonChatResult {
         budgetLevel: json['budget_level'] as String?,
         interests: (json['interests'] as List? ?? []).map((e) => e.toString()).toList(),
         ready: json['ready'] as bool? ?? false,
+        nextField: json['next_field'] as String?,
       );
 }

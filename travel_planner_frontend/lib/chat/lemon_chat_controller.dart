@@ -25,7 +25,10 @@ class LemonChatController extends ChangeNotifier {
   bool get isBusy => _busy;
   bool _busy = false;
 
-  String provider = 'mock';
+  // The backend picks — and silently swaps between — whichever LLM provider
+  // is actually available, so there's no manual engine picker in the UI
+  // anymore. `auto` is the only value ever sent.
+  final String provider = 'auto';
 
   // Best-known trip fields, filled in progressively by the backend as the
   // conversation goes on. Any of these may still be null.
@@ -36,6 +39,12 @@ class LemonChatController extends ChangeNotifier {
   String? budgetLevel;
   List<String> interests = [];
 
+  /// Which field Lemon is currently asking about, per the backend's explicit
+  /// signal — 'destination', 'start_date', 'end_date', 'travelers',
+  /// 'budget_level', 'confirm', or null. Drives the date-picker bubble and
+  /// the input field's hint text.
+  String? nextField;
+
   ItineraryResponse? latestItinerary;
   final ValueNotifier<ItineraryResponse?> itineraryNotifier = ValueNotifier(null);
 
@@ -44,21 +53,26 @@ class LemonChatController extends ChangeNotifier {
   void startIfNeeded() {
     if (_greeted) return;
     _greeted = true;
+    nextField = 'destination';
+    // "\n\n" splits this into two separate bubbles — see _addBot below.
     _addBot(
-      "Hi, I'm Lemon! 🍋 And I'm your travel planner assistant!"
-      " I will help you create your travel itinerary, just provide me all the sufficient details!"
-      " What city or destination are you thinking of travelling to?",
+      "Hi, I'm Lemon! 🍋 I'm your travel planner assistant, and I'm genuinely excited to help you plan something great!\n\n"
+      "So — where are you dreaming of going?",
     );
   }
 
-  void setProvider(String value) {
-    if (_busy) return;
-    provider = value;
-    notifyListeners();
-  }
-
   void _addBot(String text) {
-    messages.add(ChatMessage.text(ChatSender.bot, text));
+    // A blank line ("\n\n") signals a natural break between separate
+    // thoughts (e.g. a greeting and a question) — split those into their
+    // own bubbles instead of rendering everything as one dense block.
+    final segments = text.split('\n\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    if (segments.isEmpty) return;
+    for (final segment in segments) {
+      messages.add(ChatMessage.text(ChatSender.bot, segment));
+    }
+    // The backend only ever sees ONE assistant turn per reply, even though
+    // it may render as multiple bubbles — bubble-splitting is a display
+    // convention the backend doesn't need to know about.
     _history.add(ChatTurn(role: 'assistant', content: text));
     notifyListeners();
   }
@@ -72,10 +86,10 @@ class LemonChatController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Best-effort detection of "Lemon is currently asking about dates" from
-  /// the reply text alone. This is a stopgap: the real fix is for the
-  /// backend to tell us explicitly which field it's asking about next, but
-  /// until that's in place we pattern-match on common phrasing.
+  /// Fallback only, used when the backend doesn't supply `next_field` (an
+  /// older backend build, or a real LLM provider response that ever omits
+  /// it). `nextField` from the backend is the primary signal now — this
+  /// keyword match is a stopgap, not the main detection path anymore.
   bool _looksLikeDateQuestion(String text) {
     final lower = text.toLowerCase();
     const keywords = [
@@ -149,16 +163,18 @@ class LemonChatController extends ChangeNotifier {
       travelers = result.travelers ?? travelers;
       budgetLevel = result.budgetLevel ?? budgetLevel;
       if (result.interests.isNotEmpty) interests = result.interests;
+      nextField = result.nextField;
 
       final reply = result.reply.isNotEmpty
           ? result.reply
           : "Got it! Anything else you'd like to add, or shall I plan the trip?";
 
-      // If we still need a date and the reply reads like a date question,
-      // show the calendar-button bubble instead of a plain text bubble, and
-      // constrain it: no lower bound for the departure date, or
-      // "the day after departure" for the return date.
-      if (!result.ready && _looksLikeDateQuestion(reply) && (startDate == null || endDate == null)) {
+      // Prefer the backend's explicit next_field signal; only fall back to
+      // pattern-matching the reply text if next_field wasn't provided.
+      final isDateField = nextField == 'start_date' || nextField == 'end_date';
+      final looksLikeDate = nextField == null && _looksLikeDateQuestion(reply);
+
+      if (!result.ready && (isDateField || looksLikeDate) && (startDate == null || endDate == null)) {
         DateTime? minDate;
         if (startDate != null) {
           final parsedStart = DateTime.tryParse(startDate!);
@@ -207,7 +223,7 @@ class LemonChatController extends ChangeNotifier {
       latestItinerary = response;
       itineraryNotifier.value = response;
       messages.add(ChatMessage.itineraryResult(response));
-      _addBot("Here's your itinerary! Want to plan another trip?");
+      _addBot("Ta-da! ✨ Here's your itinerary — want to plan another trip?");
       messages.add(ChatMessage.quickReplies('', ['Plan another trip']));
       phase = ChatPhase.done;
       _busy = false;
@@ -229,7 +245,7 @@ class LemonChatController extends ChangeNotifier {
   }
 
   void _handleSnagAndReloop() {
-    _addBot("Sorry, I hit an error. Please try again! 🍋");
+    _addBot("Oops, I tripped over my own suitcase there! 🧳 Let's try that again.");
     _resetFlowState();
     _addBot("So — where would you like to go, and when?");
   }
@@ -241,13 +257,14 @@ class LemonChatController extends ChangeNotifier {
     travelers = null;
     budgetLevel = null;
     interests = [];
+    nextField = 'destination';
     _history.clear();
     phase = ChatPhase.chatting;
   }
 
   void _resetFlow() {
     _resetFlowState();
-    _addBot("Sure! Let's plan a new trip. Where would you like to go, and when?");
+    _addBot("Yay, another adventure! 🌍 Where would you like to go, and when?");
   }
 
   @override

@@ -45,11 +45,18 @@ Today's date is {today}. Resolve relative dates like "next month" or "in Decembe
 real YYYY-MM-DD dates. If the user gives a start date and a trip length (e.g. "5 days"), \
 compute the end date yourself.
 
+Personality: you're warm, upbeat, and genuinely excited about travel — like a well-traveled \
+friend helping someone plan something fun, not a form to fill out. Show real enthusiasm about \
+their destination and choices ("Ooh, Kyoto in autumn is gorgeous!"). Keep it natural though: \
+one light touch (an exclamation mark, a small aside, at most one emoji like 🍋 ✨ 🌍 🧳) per \
+reply is plenty — don't stack multiple emoji or gush in every single sentence, or it starts \
+to feel forced instead of friendly.
+
 Rules:
-- For the initial opening message, greet the user as "Hi, I'm Lemon.ai, your travel planner assistant!" \
-and ask where they want to go, but put the greeting and the question in "reply" as TWO separate \
-sentences separated by a blank line (a "\\n\\n" double newline) — the frontend renders each blank-line-separated \
-chunk as its own chat bubble, so this is what makes it feel like two messages instead of one wall of text.
+- For the initial opening message, greet the user warmly and introduce yourself, then ask \
+where they want to go, as TWO separate sentences separated by a blank line (a "\\n\\n" double \
+newline) — the frontend renders each blank-line-separated chunk as its own chat bubble, so \
+this is what makes it feel like two messages instead of one wall of text.
 - Ask ONLY ONE question at a time in a friendly, conversational tone.
 - Start by asking for the destination if missing.
 - Once destination is provided, ask for the start date. If only the start date is provided, ask for the end date (or trip duration) before proceeding.
@@ -301,26 +308,26 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
 
     if ready:
         reply = (
-            f"Perfect, locking it in: {destination}, {start_date} to {end_date}. "
-            "Give me a moment to put your itinerary together!"
+            f"Yay, {destination} it is! 🎉 Locking in {start_date} to {end_date} — "
+            "give me a moment to whip up your itinerary!"
         )
     elif next_field == "confirm":
         extra = f", {travelers} traveler(s)" if travelers else ""
         extra += f", {budget_level} budget" if budget_level else ""
-        reply = f"Got it — {destination} from {start_date} to {end_date}{extra}. Shall I go ahead and plan it?"
+        reply = f"Love it — {destination} from {start_date} to {end_date}{extra}. Ready for me to plan it out?"
     elif next_field == "travelers":
-        reply = "How many people will be travelling on this trip?"
+        reply = "Awesome! How many of you are jetsetting on this trip?"
     elif next_field == "destination":
         # "\n\n" is the bubble-break delimiter the frontend splits on to render
         # this as two separate chat bubbles instead of one long message.
         reply = (
-            "Hi, I'm Lemon.ai, your travel planner assistant!\n\n"
-            "What city or destination are you thinking of travelling to?"
+            "Hi, I'm Lemon! 🍋 I'm your travel planner assistant, and I'm genuinely excited to help you plan something great!\n\n"
+            "So — where are you dreaming of going?"
         )
     elif next_field == "start_date":
-        reply = f"{destination} sounds like a fantastic choice! When would you like to start your trip (start date)?"
+        reply = f"{destination} — great pick! 🌍 When would you like to kick off the trip?"
     elif next_field == "end_date":
-        reply = f"Got your start date as {start_date}. What is your end date or how many days will you be staying?"
+        reply = f"Got your start date as {start_date}! What's your end date, or how many days will you be away?"
     else:
         reply = "Thanks! Could you tell me the trip dates too (e.g. 2026-11-01 to 2026-11-05)?"
 

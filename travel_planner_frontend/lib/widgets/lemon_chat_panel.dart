@@ -106,7 +106,6 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
         child: Column(
           children: [
             _buildHeader(),
-            _buildProviderRow(),
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -224,70 +223,27 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
     );
   }
 
-  Widget _buildProviderRow() {
-    const options = ['mock', 'claude', 'gpt', 'gemini'];
-    final busy = widget.controller.isBusy;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      decoration: const BoxDecoration(
-        color: AppTheme.surface,
-        border: Border(bottom: BorderSide(color: AppTheme.borderLight)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.auto_awesome_rounded, size: 13, color: AppTheme.textMuted),
-          const SizedBox(width: 6),
-          const SizedBox(height: 8),
-          const Text(
-            'AI engine',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textMuted,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: options.map((opt) {
-                  final selected = widget.controller.provider == opt;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: InkWell(
-                      onTap: busy ? null : () => widget.controller.setProvider(opt),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: selected ? AppTheme.lavenderTint : AppTheme.background,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: selected ? AppTheme.primary : AppTheme.border,
-                            width: selected ? 1.4 : 1,
-                          ),
-                        ),
-                        child: Text(
-                          opt,
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                            color: selected ? AppTheme.primary : AppTheme.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  /// Short example text tailored to whatever Lemon is currently asking
+  /// about, so the user always sees an example that actually matches the
+  /// question in front of them instead of one static hint that only fits
+  /// the very first message.
+  String get _inputHint {
+    switch (widget.controller.nextField) {
+      case 'destination':
+        return 'e.g. "Tokyo" or "a beach town in Bali"';
+      case 'start_date':
+        return 'e.g. "2026-11-01" or "next Friday"';
+      case 'end_date':
+        return 'e.g. "2026-11-07" or "5 days"';
+      case 'travelers':
+        return 'e.g. "2" or "just me"';
+      case 'budget_level':
+        return 'e.g. "medium" or "keep it cheap"';
+      case 'confirm':
+        return 'e.g. "yes, let\'s go!"';
+      default:
+        return 'e.g. "5 days in Osaka this December, food + temples"';
+    }
   }
 
   Widget _buildInputBar() {
@@ -307,7 +263,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
             child: TextField(
               controller: _textController,
               decoration: InputDecoration(
-                hintText: 'e.g. "5 days in Osaka this December, food + temples"',
+                hintText: _inputHint,
                 hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
                 filled: true,
                 fillColor: AppTheme.background,
