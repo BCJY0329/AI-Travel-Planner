@@ -1,110 +1,105 @@
-# AI Travel Planner
+# VoyageAI / Lemon.ai
 
-An AI-assisted travel planning app — FastAPI backend with live weather, attractions, flights, and hotel data, plus an AI itinerary generator powered by Claude, GPT, or Gemini.
+An AI-assisted travel planner with a FastAPI backend and Flutter frontend. VoyageAI is the app; Lemon.ai is its conversational assistant. Project folder: `Work3 - AI Travel Planner`.
 
-> **Status:** Backend complete (v0.2). Flutter frontend in progress.
+## Status
 
----
+Documentation checked against the local working tree on **2026-10-08**, including existing uncommitted changes. This is a development prototype. The frontend includes Discover, Flights, Hotels, Attractions, Itinerary, and Lemon chat views.
 
-## Project Structure
+**Auto provider repaired:** the factory accepts `auto`, with guarded fallback and response validation. Offline regression tests cover fallback and deadlines; see the testing record for separate historical live diagnostics. See [known issues](docs/KNOWN_ISSUES.md).
 
-```
+## Project structure
+
+```text
 Work3 - AI Travel Planner/
-├── travel_backend/        # FastAPI backend (Python)
-│   ├── main.py            # App entry point
-│   ├── config.py          # Settings loaded from .env
-│   ├── requirements.txt   # Python dependencies
-│   ├── .env               # ⚠️ Your real API keys — never committed
-│   ├── routers/           # Route handlers (weather, places, flights, hotels, lemon)
-│   ├── services/          # Business logic & external API clients
-│   └── models/            # Pydantic request/response models
-└── README.md              # This file
+  README.md
+  AGENTS.md
+  CODEX_HANDOVER.md
+  docs/
+    PRD.md
+    ARCHITECTURE.md
+    API.md
+    TASKS.md
+    DECISIONS.md
+    TESTING.md
+    KNOWN_ISSUES.md
+  travel_backend/
+    main.py
+    config.py
+    requirements.txt
+    routers/
+    models/
+    services/
+  travel_planner_frontend/
+    pubspec.yaml
+    lib/
+    test/
 ```
 
----
+## Setup on Windows / PowerShell
 
-## Backend Setup
+Run commands from the project root unless a step changes directory. Python is currently unavailable on PATH, and the existing backend virtual environment points to a missing Python installation. Repair/install Python before using this setup recipe; it was not executed during documentation work. Do not overwrite an existing environment without checking it first.
 
-```bash
-cd travel_backend
-python -m venv venv
-
-# Activate venv:
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
-
-pip install -r requirements.txt
-
-# Copy the example env file and fill in your keys:
-cp .env.example .env
-
-uvicorn main:app --reload
+```powershell
+python --version
+Set-Location .\travel_backend
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload
 ```
 
-Open **http://127.0.0.1:8000/docs** for interactive API docs.
+Using the environment interpreter directly avoids PowerShell activation. API documentation is at `http://127.0.0.1:8000/docs`, with health at `/health`.
 
----
+Use [travel_backend/.env.example](travel_backend/.env.example) as the configuration template. From `travel_backend`, run the following only for initial setup; an existing `.env` is preserved. Fill in keys privately, then restart the backend. See [provider setup](travel_backend/README.md#adding-or-changing-providers) for adding integrations.
 
-## API Keys Required
-
-| Service | Provider | Sign Up | Cost |
-|---|---|---|---|
-| Weather | OpenWeatherMap | https://home.openweathermap.org/users/sign_up | Free, no card |
-| Attractions & Hotels | Geoapify | https://www.geoapify.com/ | Free tier, no card |
-| Flights (sandbox) | Duffel | https://duffel.com/ | Free test key, no card |
-| AI — Claude | Anthropic Console | https://console.anthropic.com/settings/keys | Pay-as-you-go |
-| AI — GPT | OpenAI Platform | https://platform.openai.com/api-keys | Pay-as-you-go |
-| AI — Gemini | Google AI Studio | https://aistudio.google.com/apikey | Free tier available |
-
-Add your keys to `travel_backend/.env` — you only need the LLM providers you plan to use. The `"mock"` provider works with no key at all.
-
----
-
-## Endpoints
-
-| Endpoint | Description |
-|---|---|
-| `GET /health` | Health check |
-| `GET /weather/forecast?city=Tokyo` | 5-day weather forecast |
-| `GET /places/attractions?city=Paris` | Points of interest |
-| `GET /hotels/search?city=Paris` | Hotel listings (no live pricing) |
-| `GET /flights/search?origin=KUL&destination=NRT&departure_date=2026-12-01` | Flight offers (Duffel sandbox) |
-| `POST /lemon/plan` | AI itinerary generation |
-
-### Example: AI Itinerary (`POST /lemon/plan`)
-
-```json
-{
-  "destination": "Kyoto",
-  "start_date": "2026-11-01",
-  "end_date": "2026-11-03",
-  "travelers": 2,
-  "budget_level": "medium",
-  "interests": ["food", "temples"],
-  "provider": "mock"
+```powershell
+if (-not (Test-Path -LiteralPath .env)) {
+    Copy-Item -LiteralPath .env.example -Destination .env
 }
 ```
 
-`provider` can be `"mock"` (no key needed), `"claude"`, `"gpt"`, or `"gemini"`.
+Configure credentials before starting uvicorn. Credential variables:
 
----
+| Feature | Credential variable |
+|---|---|
+| Weather and city geocoding | `OPENWEATHER_API_KEY` |
+| Attractions and hotel locations | `GEOAPIFY_API_KEY` (also needs weather geocoding) |
+| Flights | `DUFFEL_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| Gemini | `GEMINI_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
 
-## Roadmap
+Explicit `mock` chat makes no external calls. Mock itinerary generation still attempts weather and attraction lookups before returning a canned itinerary; it is not an offline test by itself.
 
-- [x] Weather, places, flights, hotels endpoints
-- [x] AI itinerary planner (Lemon.ai) with Claude / GPT / Gemini / mock
-- [ ] Flutter frontend — trip planning form + itinerary display
-- [ ] Local persistence (SQLite) for saved itineraries
-- [ ] Auth / user accounts
-- [ ] Live hotel pricing integration
-- [ ] Caching layer for external API calls
+In a second PowerShell terminal, from the project root:
 
----
+```powershell
+Set-Location .\travel_planner_frontend
+flutter pub get
+flutter run -d chrome
+```
 
-## Notes
+Flutter and Dart launchers were located; build and test execution remain unverified. API addresses in `lib/config/api_config.dart` are loopback for web/desktop and `10.0.2.2` for Android emulator. Physical-device networking needs separate configuration.
 
-- Amadeus for Developers was decommissioned July 17, 2026 — this project uses Duffel for flights instead.
-- Duffel test mode returns realistic but simulated (not live) flight data.
-- No booking or payment logic — view-only data at this stage.
+## Data and provider behavior
+
+- Data routes use OpenWeatherMap, Geoapify, and Duffel. No bookings or payments are implemented.
+- Hotel API results contain name/location, not prices, ratings, or amenities. The frontend displays supplied listings, preserves empty results, and shows errors with Retry. It does not invent hotel details or substitute fictional travel listings.
+- Factory-supported providers: `groq`, `gemini`, `openrouter`, `mock`; request models default to `mock`.
+- The separate, unregistered `AutoProvider` implements Groq → Gemini → OpenRouter → mock with a five-minute in-memory cooldown. Constructor error handling also needs repair.
+- External provider availability, pricing, quotas, and lifecycle claims were not verified in this documentation pass.
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [AGENTS.md](AGENTS.md) | Guidance for future coding sessions |
+| [PRD](docs/PRD.md) | Product scope and proposed acceptance criteria |
+| [Architecture](docs/ARCHITECTURE.md) | Components and data flow |
+| [API](docs/API.md) | Routes, request fields, and response shapes |
+| [Tasks](docs/TASKS.md) | Suggested work and completed implementation |
+| [Decisions](docs/DECISIONS.md) | Observed architectural choices |
+| [Testing](docs/TESTING.md) | Verification record and future checks |
+| [Known issues](docs/KNOWN_ISSUES.md) | Source-backed defects and limitations |
+
+`implementation_plan.md` and component READMEs retain historical context. Prefer this documentation set for the checked current state. The original root README is preserved locally as ignored `README.old.md.bak`. Documentation installation changed no application code and made no commit.
