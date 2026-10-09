@@ -1,17 +1,15 @@
 from .base import LLMProvider
-from .anthropic_provider import AnthropicProvider
-from .openai_provider import OpenAIProvider
-from .gemini_provider import GeminiProvider
 from .groq_provider import GroqProvider
-from .auto_provider import AutoProvider
+from .gemini_provider import GeminiProvider
+from .openrouter_provider import OpenRouterProvider
 from .mock_provider import MockProvider
+from .auto_provider import AutoProvider
 
 _PROVIDERS = {
-    "claude": AnthropicProvider,
-    "gpt": OpenAIProvider,
-    "gemini": GeminiProvider,
-    "groq": GroqProvider,
     "auto": AutoProvider,
+    "groq": GroqProvider,
+    "gemini": GeminiProvider,
+    "openrouter": OpenRouterProvider,
     "mock": MockProvider,
 }
 
@@ -19,7 +17,7 @@ _PROVIDERS = {
 def get_provider(name: str) -> LLMProvider:
     """
     Look up a provider by short name. Raises ValueError (caught by the router
-    and turned into a clean 400) if the name isn't recognized — never fails silently.
+    and turned into a 502) if the name isn't recognized — never fails silently.
     """
     provider_cls = _PROVIDERS.get(name.lower())
     if provider_cls is None:

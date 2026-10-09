@@ -16,7 +16,8 @@ async def plan_trip(trip: TripRequest):
     """
     Generate a full itinerary in a single AI call, using real weather/attraction
     data as context. `provider` in the request body picks which LLM answers:
-    'claude', 'gpt', 'gemini', or 'mock' (no API key needed, for testing).
+    'auto', 'groq', 'gemini', 'openrouter', or 'mock' (local demo output).
+    Auto may attempt multiple providers before falling back to mock.
     """
     try:
         return await build_itinerary(trip)

@@ -10,7 +10,7 @@ class TripRequest(BaseModel):
     travelers: int = Field(1, ge=1, le=20)
     budget_level: str = Field("medium", description="'low', 'medium', or 'high'")
     interests: List[str] = Field(default_factory=list, description="e.g. ['food', 'museums', 'nature']")
-    provider: str = Field("mock", description="'claude', 'gpt', 'gemini', or 'mock' for testing")
+    provider: str = Field("mock", description="'auto', 'groq', 'gemini', 'openrouter', or 'mock' for testing")
 
 
 class ItineraryActivity(BaseModel):

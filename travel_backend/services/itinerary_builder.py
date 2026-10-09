@@ -7,10 +7,12 @@ This is the heart of Lemon.ai's single-call itinerary generation:
 3. Call the user's chosen provider ONCE.
 4. Parse and validate the JSON response before returning it.
 """
+import asyncio
 import json
 import logging
 from models.itinerary import TripRequest, ItineraryResponse
 from services.llm_providers.factory import get_provider
+from services.llm_providers.auto_provider import AutoProvider, _bounded
 from routers.weather import get_forecast
 from routers.places import get_attractions
 
@@ -49,19 +51,18 @@ destination instead."""
 
 
 async def build_itinerary(trip: TripRequest) -> ItineraryResponse:
-    # Step 1: gather context, best-effort. Each call is independently wrapped so one
-    # failing API doesn't take down the whole itinerary request.
-    try:
-        weather_context = await get_forecast(city=trip.destination)
-    except Exception as e:
-        logger.warning(f"Weather lookup failed for '{trip.destination}': {e}")
-        weather_context = {"error": "weather data unavailable"}
+    # Context runs concurrently within a shared ten-second phase budget.
+    async def context_lookup(label, request):
+        try:
+            return await _bounded(request, 10.0)
+        except Exception as exc:
+            logger.warning("%s context unavailable (%s)", label, type(exc).__name__)
+            return {"error": f"{label} data unavailable"}
 
-    try:
-        attractions_context = await get_attractions(city=trip.destination)
-    except Exception as e:
-        logger.warning(f"Attractions lookup failed for '{trip.destination}': {e}")
-        attractions_context = {"error": "attraction data unavailable"}
+    weather_context, attractions_context = await asyncio.gather(
+        context_lookup("weather", get_forecast(city=trip.destination)),
+        context_lookup("attraction", get_attractions(city=trip.destination, radius_km=5)),
+    )
 
     # Step 2: build the single prompt
     user_prompt = f"""Trip request:
@@ -79,7 +80,19 @@ Attractions data:
 
     # Step 3: single call to the chosen provider
     provider = get_provider(trip.provider)
-    raw = await provider.generate_json(SYSTEM_PROMPT, user_prompt)
+    if isinstance(provider, AutoProvider):
+        def validate_itinerary(value: str):
+            parsed = json.loads(value)
+            parsed["destination"] = trip.destination
+            parsed["provider_used"] = "auto"
+            return ItineraryResponse(**parsed)
+
+        raw = await provider.generate_json(
+            SYSTEM_PROMPT, user_prompt, validate=validate_itinerary,
+            attempt_timeout=12.0, total_timeout=36.0,
+        )
+    else:
+        raw = await _bounded(provider.generate_json(SYSTEM_PROMPT, user_prompt), 36.0)
 
     # Step 4: parse and validate before it ever reaches the user
     try:

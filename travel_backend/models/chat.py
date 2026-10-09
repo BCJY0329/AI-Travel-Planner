@@ -11,7 +11,7 @@ class LemonChatRequest(BaseModel):
     """Full conversation so far (oldest first) — the backend is stateless,
     so the whole history is sent on every turn."""
     messages: List[ChatTurn]
-    provider: str = Field("mock", description="'claude', 'gpt', 'gemini', or 'mock'")
+    provider: str = Field("mock", description="'auto', 'groq', 'gemini', 'openrouter', or 'mock'")
 
 
 class LemonChatResponse(BaseModel):
@@ -27,8 +27,8 @@ class LemonChatResponse(BaseModel):
         None,
         description=(
             "Which field Lemon is currently asking for: 'destination', 'start_date', "
-            "'end_date', 'travelers', 'budget_level', 'confirm', or null once ready/complete. "
-            "Frontend should key UI (e.g. showing the date picker) off this instead of "
-            "sniffing the reply text for keywords."
+            "'end_date', 'travelers', 'budget_level', 'interests', 'confirm', or null once "
+            "ready/complete. Frontend should key UI (e.g. showing the date picker) off this "
+            "instead of sniffing the reply text for keywords."
         ),
     )

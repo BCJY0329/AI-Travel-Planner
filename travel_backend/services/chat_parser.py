@@ -19,6 +19,14 @@ Mock-path design note: extraction is split into two passes on purpose.
 This fixes the old bug where a bare destination reply was only ever checked
 against messages[0], and where the city regex could swallow trailing words
 ("Tokyo for 5 days" -> "Tokyo for").
+
+Step-sequence note: `_determine_next_field` is the single source of truth for
+"what does Lemon ask about next" in the mock path. budget_level and interests
+MUST be included here as real steps — a previous version of this file only
+walked destination -> start_date -> end_date -> travelers -> confirm, which
+silently skipped asking about budget/interests entirely. interests is allowed
+to end up empty (the user can say "surprise me" / "no preference" and move
+on) via `interests_skipped`, so that field alone doesn't gate readiness.
 """
 import json
 import re
@@ -28,6 +36,7 @@ from typing import List, Optional
 
 from models.chat import ChatTurn, LemonChatRequest, LemonChatResponse
 from services.llm_providers.factory import get_provider
+from services.llm_providers.auto_provider import AutoProvider
 from services.text_sanitize import strip_markdown
 
 logger = logging.getLogger("lemon_ai")
@@ -58,11 +67,21 @@ where they want to go, as TWO separate sentences separated by a blank line (a "\
 newline) — the frontend renders each blank-line-separated chunk as its own chat bubble, so \
 this is what makes it feel like two messages instead of one wall of text.
 - Ask ONLY ONE question at a time in a friendly, conversational tone.
-- Start by asking for the destination if missing.
-- Once destination is provided, ask for the start date. If only the start date is provided, ask for the end date (or trip duration) before proceeding.
-- Next, ask about the number of travelers or budget/interests.
-- Once destination, start_date, and end_date are known, summarize everything gathered so far \
-in plain conversational sentences and ask the user to confirm before you proceed.
+- Ask about the fields IN THIS EXACT ORDER, one at a time, skipping any field the user has \
+already told you:
+  1. destination
+  2. start_date (and end_date, or trip length, right after in the same step if the user \
+doesn't offer it unprompted)
+  3. travelers
+  4. budget_level (low, medium, or high)
+  5. interests (e.g. food, museums, nature, nightlife) — it is fine if the user has no \
+particular interests; accept "surprise me" / "not sure" / "no preference" as a valid answer \
+and move on, do NOT keep re-asking.
+- Do NOT skip straight from travelers or budget_level to the confirmation summary — interests \
+must always be asked about first, even if the user seems eager to finish.
+- Only AFTER destination, start_date, end_date, travelers, budget_level, and interests have all \
+been asked about, summarize everything gathered so far in plain conversational sentences and \
+ask the user to confirm before you proceed.
 - Only set "ready" to true once the user has clearly confirmed (e.g. said yes, sounds good, \
 let's go) AND destination, start_date, and end_date are all filled in.
 - If the user corrects or changes a detail already filled in, update it.
@@ -78,7 +97,7 @@ sentences only.
   "budget_level": "low, medium, high, or null",
   "interests": ["..."],
   "ready": true or false,
-  "next_field": "one of 'destination', 'start_date', 'end_date', 'travelers', 'budget_level', 'confirm', or null once ready is true",
+  "next_field": "one of 'destination', 'start_date', 'end_date', 'travelers', 'budget_level', 'interests', 'confirm', or null once ready is true",
   "reply": "your natural-language reply to show the user right now"
 }}"""
 
@@ -107,7 +126,16 @@ async def _ai_parse(request: LemonChatRequest) -> LemonChatResponse:
     )
 
     provider = get_provider(request.provider)
-    raw = await provider.generate_json(system_prompt, user_prompt)
+    if isinstance(provider, AutoProvider):
+        raw = await provider.generate_json(
+            system_prompt, user_prompt,
+            validate=lambda value: LemonChatResponse.model_validate_json(value),
+            mock_fallback=lambda: _mock_parse(request.messages).model_dump_json(),
+            attempt_timeout=9.0,
+            total_timeout=30.0,
+        )
+    else:
+        raw = await provider.generate_json(system_prompt, user_prompt)
 
     try:
         parsed = json.loads(raw)
@@ -124,11 +152,27 @@ async def _ai_parse(request: LemonChatRequest) -> LemonChatResponse:
 
 # --- Mock heuristic path (no API key / network needed) ---------------------
 
-_BUDGET_WORDS = {
-    "low": "low", "cheap": "low", "budget": "low",
-    "medium": "medium", "moderate": "medium",
-    "high": "high", "luxury": "high", "splurge": "high",
-}
+# Split into canonical level names vs. generic synonyms and checked in that
+# priority order (see _find_budget_level). Without this split, a phrase like
+# "medium budget" or "high budget" would match the generic word "budget" (a
+# synonym for "low") before ever reaching "medium"/"high", silently
+# mis-classifying the traveler's actual stated level.
+_BUDGET_LEVEL_WORDS = {"low": "low", "medium": "medium", "high": "high"}
+_BUDGET_SYNONYM_WORDS = {"cheap": "low", "budget": "low", "moderate": "medium", "luxury": "high", "splurge": "high"}
+
+
+def _find_budget_level(text: str) -> Optional[str]:
+    """Look for an explicit level name first ('low'/'medium'/'high'); only
+    fall back to a generic synonym ('cheap', 'budget', 'luxury', ...) if none
+    of the three canonical words appear."""
+    lowered = text.lower()
+    for word, level in _BUDGET_LEVEL_WORDS.items():
+        if re.search(rf"\b{word}\b", lowered):
+            return level
+    for word, level in _BUDGET_SYNONYM_WORDS.items():
+        if re.search(rf"\b{word}\b", lowered):
+            return level
+    return None
 _DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 _NUM_DAYS_RE = re.compile(r"\b(\d{1,2})\s*-?\s*day", re.IGNORECASE)
 _TRAVELERS_RE = re.compile(r"\b(\d{1,2})\s*(?:people|travelers|travellers|pax|of us)\b", re.IGNORECASE)
@@ -140,6 +184,16 @@ _CONFIRM_WORDS = ("yes", "yep", "yeah", "sounds good", "let's go", "go ahead", "
 _NON_DESTINATION_WORDS = {
     "hi", "hello", "hey", "yes", "no", "ok", "okay", "sure", "thanks", "thank you",
 }
+# Bare replies to the interests question that mean "I have no particular
+# preference" rather than "I didn't answer" — without this, a user who says
+# "surprise me" would make the mock path re-ask the interests question on
+# every subsequent turn forever, since an empty interests list is otherwise
+# indistinguishable from "not answered yet".
+_INTERESTS_SKIP_WORDS = (
+    "no preference", "not sure", "anything", "surprise me", "skip",
+    "none", "no idea", "whatever", "nothing particular", "no particular",
+    "not really", "no thanks",
+)
 
 
 def _extract_fields(full_text: str) -> dict:
@@ -170,11 +224,7 @@ def _extract_fields(full_text: str) -> dict:
     if travelers_match:
         travelers = int(travelers_match.group(1))
 
-    budget_level = None
-    for word, level in _BUDGET_WORDS.items():
-        if word in full_text.lower():
-            budget_level = level
-            break
+    budget_level = _find_budget_level(full_text)
 
     interests: List[str] = []
     interests_match = re.search(r"(?:interested in|into|love|enjoy)\s+([a-zA-Z, ]+)", full_text, re.IGNORECASE)
@@ -195,7 +245,10 @@ def _extract_fields(full_text: str) -> dict:
 
 
 def _determine_next_field(fields: dict) -> Optional[str]:
-    """Which field Lemon should ask about next, given what's known so far."""
+    """Which field Lemon should ask about next, given what's known so far.
+    budget_level and interests MUST be steps here — omitting them was the
+    root cause of Lemon jumping straight from travelers to the confirmation
+    summary without ever asking about interests."""
     if not fields["destination"]:
         return "destination"
     if not fields["start_date"]:
@@ -204,6 +257,10 @@ def _determine_next_field(fields: dict) -> Optional[str]:
         return "end_date"
     if fields["travelers"] is None:
         return "travelers"
+    if not fields["budget_level"]:
+        return "budget_level"
+    if not fields["interests"] and not fields.get("interests_skipped"):
+        return "interests"
     return "confirm"
 
 
@@ -254,11 +311,19 @@ def _interpret_as_field_answer(latest_msg: str, asked_field: Optional[str], fiel
                 fields["travelers"] = int(travelers_match.group(1))
 
     elif asked_field == "budget_level" and not fields["budget_level"]:
+        found_level = _find_budget_level(cleaned)
+        if found_level:
+            fields["budget_level"] = found_level
+
+    elif asked_field == "interests" and not fields["interests"] and not fields.get("interests_skipped"):
         lowered = cleaned.lower()
-        for word, level in _BUDGET_WORDS.items():
-            if word in lowered:
-                fields["budget_level"] = level
-                break
+        if any(skip_phrase in lowered for skip_phrase in _INTERESTS_SKIP_WORDS):
+            fields["interests_skipped"] = True
+        else:
+            parts = re.split(r",|\band\b", cleaned, flags=re.IGNORECASE)
+            parsed_interests = [w.strip() for w in parts if w.strip()]
+            if parsed_interests:
+                fields["interests"] = parsed_interests[:5]
 
 
 def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
@@ -278,6 +343,7 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
         "travelers": None,
         "budget_level": None,
         "interests": [],
+        "interests_skipped": False,
     }
     for msg in user_messages:
         asked_field = _determine_next_field(fields)
@@ -291,7 +357,15 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
 
         # If the broad scan of this message didn't already answer whatever
         # was being asked, see if the message is a bare direct answer to it.
-        if asked_field and asked_field != "confirm" and fields.get(asked_field) is None:
+        # interests needs special-casing here: it's a list (falsy when
+        # empty) rather than None, and "answered" also includes the user
+        # explicitly opting out via interests_skipped.
+        if asked_field == "interests":
+            field_already_answered = bool(fields["interests"]) or fields.get("interests_skipped")
+        else:
+            field_already_answered = fields.get(asked_field) is not None
+
+        if asked_field and asked_field != "confirm" and not field_already_answered:
             _interpret_as_field_answer(msg, asked_field, fields)
 
     confirmed = any(word in full_text.lower() for word in _CONFIRM_WORDS)
@@ -305,6 +379,7 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
     end_date = fields["end_date"]
     travelers = fields["travelers"]
     budget_level = fields["budget_level"]
+    interests = fields["interests"]
 
     if ready:
         reply = (
@@ -314,7 +389,16 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
     elif next_field == "confirm":
         extra = f", {travelers} traveler(s)" if travelers else ""
         extra += f", {budget_level} budget" if budget_level else ""
+        if interests:
+            extra += f", interested in {', '.join(interests)}"
         reply = f"Love it — {destination} from {start_date} to {end_date}{extra}. Ready for me to plan it out?"
+    elif next_field == "interests":
+        reply = (
+            "Great! Any particular interests for the trip — food, museums, nature, "
+            "nightlife? Totally fine to say \"surprise me\" if nothing comes to mind!"
+        )
+    elif next_field == "budget_level":
+        reply = "Got it! What budget level are you aiming for: low, medium, or high?"
     elif next_field == "travelers":
         reply = "Awesome! How many of you are jetsetting on this trip?"
     elif next_field == "destination":
@@ -338,7 +422,7 @@ def _mock_parse(messages: List[ChatTurn]) -> LemonChatResponse:
         end_date=end_date,
         travelers=travelers,
         budget_level=budget_level,
-        interests=fields["interests"],
+        interests=interests,
         ready=ready,
         next_field=next_field,
     )

@@ -14,6 +14,12 @@ class GeminiProvider(LLMProvider):
         # clear message if the key is missing rather than that constructor error.
         self._client = None
 
+    async def aclose(self):
+        if self._client is not None:
+            close = getattr(self._client.aio, "aclose", None)
+            if close is not None:
+                await close()
+
     async def generate_json(self, system_prompt: str, user_prompt: str) -> str:
         if not settings.GEMINI_API_KEY:
             raise ValueError("Gemini provider selected but GEMINI_API_KEY is not set in .env")
