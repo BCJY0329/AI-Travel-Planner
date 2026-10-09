@@ -70,39 +70,19 @@ class HotelItem {
   final String address;
   final double? lat;
   final double? lon;
-  final double rating;
-  final int pricePerNight;
-  final List<String> amenities;
 
-  HotelItem({
-    required this.name,
-    required this.address,
-    this.lat,
-    this.lon,
-    this.rating = 4.6,
-    this.pricePerNight = 135,
-    this.amenities = const ['Free WiFi', 'Air Conditioning', 'Breakfast', 'City View'],
-  });
+  HotelItem({required this.name, required this.address, this.lat, this.lon});
 
-  factory HotelItem.fromJson(Map<String, dynamic> json, {int index = 0}) {
-    // Generate realistic simulated perks and ratings for visual delight
-    final ratings = [4.8, 4.6, 4.9, 4.5, 4.7, 4.4];
-    final prices = [120, 165, 210, 95, 140, 185];
-    final amenityList = [
-      ['Free WiFi', 'Breakfast Included', 'City View', 'Air Conditioning'],
-      ['Infinity Pool', 'Spa & Wellness', 'Free High-speed WiFi', 'Bar / Lounge'],
-      ['Boutique Interior', 'Metro 2m Walk', 'Concierge Service', 'Coffee Maker'],
-      ['Rooftop Terrace', 'Buffet Breakfast', 'Airport Shuttle', 'Room Service'],
-    ];
-
+  factory HotelItem.fromJson(Map<String, dynamic> json) {
+    String availableText(dynamic value, String fallback) {
+      final text = value?.toString().trim() ?? '';
+      return text.isEmpty ? fallback : text;
+    }
     return HotelItem(
-      name: json['name']?.toString() ?? 'Boutique Hotel',
-      address: json['address']?.toString() ?? 'Central District',
+      name: availableText(json['name'], 'Unnamed hotel'),
+      address: availableText(json['address'], 'Address unavailable'),
       lat: (json['lat'] as num?)?.toDouble(),
       lon: (json['lon'] as num?)?.toDouble(),
-      rating: ratings[index % ratings.length],
-      pricePerNight: prices[index % prices.length],
-      amenities: amenityList[index % amenityList.length],
     );
   }
 }
@@ -119,7 +99,7 @@ class AttractionItem {
     required this.category,
     this.lat,
     this.lon,
-    this.description = 'Popular landmark featuring stunning architecture and rich cultural history.',
+    this.description = 'Description unavailable.',
   });
 
   factory AttractionItem.fromJson(Map<String, dynamic> json) {

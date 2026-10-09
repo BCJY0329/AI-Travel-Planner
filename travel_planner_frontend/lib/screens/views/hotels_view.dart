@@ -4,14 +4,18 @@ import '../../models/travel_models.dart';
 import '../../services/travel_api_service.dart';
 
 class HotelsView extends StatefulWidget {
-  const HotelsView({super.key});
+  const HotelsView({super.key, this.apiService});
+  final TravelApiService? apiService;
 
   @override
   State<HotelsView> createState() => _HotelsViewState();
 }
 
 class _HotelsViewState extends State<HotelsView> {
-  final TravelApiService _apiService = TravelApiService();
+  late final TravelApiService _apiService = widget.apiService ?? TravelApiService();
+  String? _error;
+  String _resultCity = '';
+  int _searchId = 0;
   final TextEditingController _cityCtrl = TextEditingController(text: 'Paris');
   int _radiusKm = 5;
 
@@ -36,16 +40,28 @@ class _HotelsViewState extends State<HotelsView> {
     final city = _cityCtrl.text.trim();
     if (city.isEmpty) return;
 
-    setState(() => _isLoading = true);
-    final results = await _apiService.searchHotels(city: city, radiusKm: _radiusKm);
-    if (mounted) {
+    final searchId = ++_searchId;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _hotels = [];
+      _resultCity = city;
+    });
+    try {
+      final results = await _apiService.searchHotels(city: city, radiusKm: _radiusKm);
+      if (!mounted || searchId != _searchId) return;
       setState(() {
         _hotels = results;
         _isLoading = false;
       });
+    } catch (_) {
+      if (!mounted || searchId != _searchId) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Unable to load hotels. Please try again.';
+      });
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -219,6 +235,13 @@ class _HotelsViewState extends State<HotelsView> {
       );
     }
 
+    if (_error != null) {
+      return Column(children: [
+        Text(_error!),
+        TextButton(onPressed: _search, child: const Text('Retry')),
+      ]);
+    }
+
     if (_hotels.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(32),
@@ -242,7 +265,7 @@ class _HotelsViewState extends State<HotelsView> {
         Row(
           children: [
             Text(
-              '${_hotels.length} Stays in ${_cityCtrl.text}',
+              '${_hotels.length} Stays in $_resultCity',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -251,33 +274,16 @@ class _HotelsViewState extends State<HotelsView> {
             ),
             const Spacer(),
             const Text(
-              'Curated accommodations & guest ratings',
+              'Listings from Geoapify',
               style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 750;
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _hotels.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: isWide ? 2 : 1,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                mainAxisExtent: 190,
-              ),
-              itemBuilder: (context, index) {
-                final hotel = _hotels[index];
-                return _buildHotelCard(context, hotel);
-              },
-            );
-          },
-        ),
-      ],
+        ..._hotels.map((hotel) => Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _buildHotelCard(context, hotel),
+        )),      ],
     );
   }
 
@@ -334,91 +340,17 @@ class _HotelsViewState extends State<HotelsView> {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppTheme.lavenderTint,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.star_rounded, size: 16, color: Color(0xFFEAB308)),
-                    const SizedBox(width: 4),
-                    Text(
-                      hotel.rating.toStringAsFixed(1),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12.5,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: hotel.amenities.take(3).map((amenity) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppTheme.background,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppTheme.border),
-                ),
-                child: Text(
-                  amenity,
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-                ),
-              );
-            }).toList(),
+          const SizedBox(height: 16),
+          const Text(
+            'Prices, ratings and amenities unavailable.',
+            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
           ),
-          const Spacer(),
-          Row(
-            children: [
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '\$${hotel.pricePerNight} ',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const TextSpan(
-                      text: '/ night',
-                      style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Selected ${hotel.name}!'),
-                      backgroundColor: AppTheme.primary,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('View Deal', style: TextStyle(fontSize: 12)),
-              ),
-            ],
+          const SizedBox(height: 8),
+          const Text(
+            'Check directly with the hotel for rates and availability.',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
           ),
         ],
       ),

@@ -4,18 +4,21 @@ import '../../models/travel_models.dart';
 import '../../services/travel_api_service.dart';
 
 class AttractionsView extends StatefulWidget {
-  const AttractionsView({super.key});
+  const AttractionsView({super.key, this.apiService});
+  final TravelApiService? apiService;
 
   @override
   State<AttractionsView> createState() => _AttractionsViewState();
 }
 
 class _AttractionsViewState extends State<AttractionsView> {
-  final TravelApiService _apiService = TravelApiService();
+  late final TravelApiService _apiService = widget.apiService ?? TravelApiService();
   final TextEditingController _cityCtrl = TextEditingController(text: 'Paris');
   String _selectedCategory = 'All';
 
   bool _isLoading = false;
+  String? _error;
+  int _searchId = 0;
   List<AttractionItem> _attractions = [];
 
   final List<String> _categories = ['All', 'Landmark & Sights', 'Culture & Heritage', 'Entertainment'];
@@ -36,14 +39,15 @@ class _AttractionsViewState extends State<AttractionsView> {
   Future<void> _search() async {
     final city = _cityCtrl.text.trim();
     if (city.isEmpty) return;
-
-    setState(() => _isLoading = true);
-    final results = await _apiService.getAttractions(city: city, radiusKm: 8);
-    if (mounted) {
-      setState(() {
-        _attractions = results;
-        _isLoading = false;
-      });
+    final searchId = ++_searchId;
+    setState(() { _isLoading = true; _error = null; _attractions = []; });
+    try {
+      final results = await _apiService.getAttractions(city: city, radiusKm: 8);
+      if (!mounted || searchId != _searchId) return;
+      setState(() { _attractions = results; _isLoading = false; });
+    } catch (_) {
+      if (!mounted || searchId != _searchId) return;
+      setState(() { _isLoading = false; _error = 'Unable to load attractions. Please try again.'; });
     }
   }
 
@@ -192,6 +196,13 @@ class _AttractionsViewState extends State<AttractionsView> {
   }
 
   Widget _buildResultsSection(BuildContext context) {
+    if (_error != null) {
+      return Column(children: [
+        Text(_error!),
+        TextButton(onPressed: _search, child: const Text('Retry')),
+      ]);
+    }
+
     if (_isLoading) {
       return const Center(
         child: Padding(

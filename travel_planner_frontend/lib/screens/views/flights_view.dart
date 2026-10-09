@@ -4,21 +4,37 @@ import '../../models/travel_models.dart';
 import '../../services/travel_api_service.dart';
 
 class FlightsView extends StatefulWidget {
-  const FlightsView({super.key});
+  const FlightsView({super.key, this.apiService, this.now});
+
+  final TravelApiService? apiService;
+  final DateTime Function()? now;
 
   @override
   State<FlightsView> createState() => _FlightsViewState();
 }
 
 class _FlightsViewState extends State<FlightsView> {
-  final TravelApiService _apiService = TravelApiService();
+  late final TravelApiService _apiService;
 
   final TextEditingController _originCtrl = TextEditingController(text: 'KUL');
   final TextEditingController _destCtrl = TextEditingController(text: 'NRT');
-  String _departureDate = '2026-10-01';
+  late DateTime _departure;
+  String get _departureDate =>
+      '${_departure.year.toString().padLeft(4, '0')}-${_departure.month.toString().padLeft(2, '0')}-${_departure.day.toString().padLeft(2, '0')}';
+
+  DateTime get _today => DateUtils.dateOnly((widget.now ?? DateTime.now)());
+
+  DateTime _validDeparture(DateTime today) {
+    final lastDate = DateUtils.addDaysToDate(today, 365);
+    if (_departure.isBefore(today)) return today;
+    if (_departure.isAfter(lastDate)) return lastDate;
+    return _departure;
+  }
   int _adults = 1;
 
   bool _isLoading = false;
+  String? _error;
+  int _searchId = 0;
   List<FlightOffer> _offers = [];
 
   final List<Map<String, String>> _popularRoutes = [
@@ -32,6 +48,8 @@ class _FlightsViewState extends State<FlightsView> {
   @override
   void initState() {
     super.initState();
+    _apiService = widget.apiService ?? TravelApiService();
+    _departure = DateUtils.addDaysToDate(_today, 14);
     _search();
   }
 
@@ -43,28 +61,33 @@ class _FlightsViewState extends State<FlightsView> {
   }
 
   Future<void> _search() async {
-    setState(() => _isLoading = true);
-    final results = await _apiService.searchFlights(
-      origin: _originCtrl.text,
-      destination: _destCtrl.text,
-      departureDate: _departureDate,
-      adults: _adults,
-    );
-    if (mounted) {
-      setState(() {
-        _offers = results;
-        _isLoading = false;
-      });
+    final searchId = ++_searchId;
+    setState(() {
+      _departure = _validDeparture(_today);
+      _isLoading = true;
+      _error = null;
+      _offers = [];
+    });
+    try {
+      final results = await _apiService.searchFlights(
+        origin: _originCtrl.text, destination: _destCtrl.text,
+        departureDate: _departureDate, adults: _adults,
+      );
+      if (!mounted || searchId != _searchId) return;
+      setState(() { _offers = results; _isLoading = false; });
+    } catch (_) {
+      if (!mounted || searchId != _searchId) return;
+      setState(() { _isLoading = false; _error = 'Unable to load flights. Please try again.'; });
     }
   }
 
   Future<void> _pickDate() async {
-    final now = DateTime.now();
+    final today = _today;
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.tryParse(_departureDate) ?? now.add(const Duration(days: 14)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+      initialDate: _validDeparture(today),
+      firstDate: today,
+      lastDate: DateUtils.addDaysToDate(today, 365),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -78,10 +101,10 @@ class _FlightsViewState extends State<FlightsView> {
         );
       },
     );
+    if (!mounted) return;
     if (picked != null) {
       setState(() {
-        _departureDate =
-            '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+        _departure = picked;
       });
       _search();
     }
@@ -127,7 +150,7 @@ class _FlightsViewState extends State<FlightsView> {
               Icon(Icons.flight_takeoff_rounded, color: AppTheme.primary, size: 22),
               SizedBox(width: 8),
               Text(
-                'Search Live Flight Offers',
+                'Search Flight Offers',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -294,6 +317,13 @@ class _FlightsViewState extends State<FlightsView> {
   }
 
   Widget _buildResultsSection(BuildContext context) {
+    if (_error != null) {
+      return Column(children: [
+        Text(_error!),
+        TextButton(onPressed: _search, child: const Text('Retry')),
+      ]);
+    }
+
     if (_isLoading) {
       return const Center(
         child: Padding(

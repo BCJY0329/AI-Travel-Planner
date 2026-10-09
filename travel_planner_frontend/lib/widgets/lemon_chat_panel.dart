@@ -227,6 +227,10 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
   /// about, so the user always sees an example that actually matches the
   /// question in front of them instead of one static hint that only fits
   /// the very first message.
+  // PATCH: in lib/widgets/lemon_chat_panel.dart, replace the existing
+  // `_inputHint` getter with this version. Only one new case was added
+  // ('interests') — everything else is unchanged from your current file.
+
   String get _inputHint {
     switch (widget.controller.nextField) {
       case 'destination':
@@ -239,6 +243,8 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
         return 'e.g. "2" or "just me"';
       case 'budget_level':
         return 'e.g. "medium" or "keep it cheap"';
+      case 'interests':
+        return 'e.g. "food and museums" or "surprise me"';
       case 'confirm':
         return 'e.g. "yes, let\'s go!"';
       default:
