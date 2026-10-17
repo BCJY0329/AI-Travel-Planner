@@ -51,3 +51,34 @@ Status: implemented under the user's repair request. Supersedes the remaining fl
 ## 012 — Bound itinerary context and generation (2026-10-08)
 
 Status: implemented under the user's repair request. Fetch context concurrently with ten-second limits and an explicit 5 km radius. Reuse the existing cancellation-aware bounded-wait helper. Auto generation allows 12 seconds per candidate and 36 seconds total; direct generation waits at most 36 seconds. This reserves headroom under the 60-second frontend timeout while retaining optional context and validated auto demo fallback. Async deadlines do not guarantee SDK cancellation or protect against synchronous event-loop blocking.
+
+## 013 — LemonTrip guided intake and responsive UI (2026-10-16)
+
+Status: implemented under explicit user authorization. LemonTrip is the product name; Lemon.ai remains the assistant with the tagline “Your personal travel companion.” Use a bounded desktop layout, compact navigation on small windows, and a contained assistant launcher. Load search tabs on first visit.
+
+Use AI chat to interpret destination, then collect dates, travelers, budget and interests through deterministic controls. Other preferences remain optional bounded text. Always show an editable review and require explicit Generate confirmation; send the selected fields directly through the existing TripRequest contract. This intentionally trades unrestricted post-destination chat for predictable intake. Preserve local session state on failures and retry only the failed stage. No persistence, model changes, paid photo provider, or new dependencies were introduced. Location links use existing coordinates and do not claim verified entrances.
+
+## 014 - Brighter surfaces and visual day cards (2026-10-16)
+
+Implemented following explicit user feedback. Supersedes decision 013's initial visual treatment, not its guided intake. Use light lemon/mint/sky/peach surfaces with readable ink, a 1720px desktop cap, and two columns of complete day cards when space and text scale permit. Keep chronological order within each day. Expose optional notes through expandable tips; full-copy content remains complete. Frame the existing mascot face at its original aspect ratio rather than generating replacement artwork. No new dependencies or data contracts.
+## 015 - Anchored dates and complete itinerary windows (2026-10-16)
+
+Implemented following the user's explicit six-point request. Replace the full-screen range reset behavior with a compact staged calendar whose start remains anchored; an explicit Change start action unlocks it. Collect travelers through validated numeric entry. Use cool mint/sky/lavender surfaces on Discover, a shared proportional portrait and short entrance motion that honors reduced-motion preferences. This supersedes yellow dashboard treatment from decision 014.
+
+Generate at most three days per provider response and at most three windows concurrently, with a shared 36-second budget rather than extending frontend timeouts. Validate exact requested dates, absolute day numbers and nonempty activities before ordered assembly. Permit one bounded corrective retry for direct-provider invalid output; use existing validation-aware fallback for auto. Mark the entire response mock if any section is demo. This trades extra provider calls and possible cross-window repetition for bounded output size and complete coverage; no provider settings, dependencies or response fields changed.
+
+## 016 - Chat interaction feedback and longer plan budgets (2026-10-17)
+
+Implemented at explicit user request. Desktop chat supports expansion, Enter sends and Shift+Enter provides multiline input. Use small hover/press scaling on requested interactive surfaces, with reduced-motion bypass. Tips retain source content inside a more expressive Lemon presentation.
+
+Supersedes decision 015's timing values: auto plan attempts are 25 seconds, the shared generation budget is 75 seconds, and frontend plan timeout is 100 seconds. The ten-second context phase, date coverage validation, concurrency limit, fallback disclosures and chat budgets remain unchanged. Longer waits trade latency for a better opportunity for slow providers to finish; HTTP 503 failures are separate from timeout behavior.
+
+## 017 - Conservative conversational recovery (2026-10-17)
+
+Use three rotating local greetings, friendly current-step reminders, and nonblocking rejection of obvious malformed input. Keep accepted trip fields unchanged. Remove a rejected destination turn from model history before another extraction attempt. Apply conservative noise checks in mock destination replay as well; do not use an English place-name allowlist. Hide visual composer helper/counter without removing keyboard submission or size bounds. Keep the original portrait asset, enlarge small chat instances and use downsampling suited to small render sizes; final visual acceptance belongs to local review.
+
+## 018 - Finite expressive motion and contextual invitations (2026-10-17)
+
+At the user's request, use flutter_animate for finite entrance effects and built-in implicit widgets for interaction-driven resizing/scaling. Define motion durations (200-400ms) and curve centrally in AppTheme, bypass motion for disableAnimations, and avoid looping attention effects or auto-opening chat. No application-owned AnimationControllers are introduced.
+
+Use a focusable/clickable launcher with rotating invitations and proportional original artwork; hover is optional and touch remains one-tap access. Vary tip introductions without mutating provider advice. Draw the citrus-route logo in Flutter for resolution-independent branding. Only flutter_animate is added from the suggested package list; Web/Android support verified at https://pub.dev/packages/flutter_animate before installation.

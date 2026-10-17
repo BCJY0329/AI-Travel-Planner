@@ -78,9 +78,11 @@ class ChatBubbleWidget extends StatelessWidget {
                     final isPlanIt = opt.contains('plan it');
                     return ActionChip(
                       onPressed: () => onQuickReply(opt),
-                      backgroundColor: isPlanIt ? AppTheme.primary : AppTheme.surface,
+                      backgroundColor:
+                          isPlanIt ? AppTheme.primary : AppTheme.surface,
                       side: BorderSide(
-                        color: isPlanIt ? AppTheme.primary : AppTheme.primaryLight,
+                        color:
+                            isPlanIt ? AppTheme.primary : AppTheme.primaryLight,
                         width: 1.2,
                       ),
                       label: Text(
@@ -118,7 +120,8 @@ class ChatBubbleWidget extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -138,11 +141,12 @@ class ChatBubbleWidget extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
+        mainAxisAlignment:
+            isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (isBot) ...[
-            const LemonAvatarImage(radius: 14),
+            const LemonAvatarImage(radius: 18),
             const SizedBox(width: 8),
           ],
           Flexible(child: bubble),
@@ -221,7 +225,8 @@ class ChatBubbleWidget extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.explore_rounded, color: Colors.white, size: 20),
+                  const Icon(Icons.explore_rounded,
+                      color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -234,7 +239,8 @@ class ChatBubbleWidget extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
@@ -267,7 +273,8 @@ class ChatBubbleWidget extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.auto_awesome_rounded, color: AppTheme.primary, size: 16),
+                      const Icon(Icons.auto_awesome_rounded,
+                          color: AppTheme.primary, size: 16),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -294,7 +301,8 @@ class ChatBubbleWidget extends StatelessWidget {
                     // Day Pill
                     Container(
                       margin: const EdgeInsets.only(top: 8, bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppTheme.lavenderTint,
                         borderRadius: BorderRadius.circular(8),
@@ -318,7 +326,8 @@ class ChatBubbleWidget extends StatelessWidget {
                           children: [
                             // Time Chip
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 3),
                               decoration: BoxDecoration(
                                 color: AppTheme.background,
                                 borderRadius: BorderRadius.circular(6),
@@ -347,11 +356,14 @@ class ChatBubbleWidget extends StatelessWidget {
                                       color: AppTheme.textPrimary,
                                     ),
                                   ),
-                                  if (act.location != null && act.location!.isNotEmpty) ...[
+                                  if (act.location != null &&
+                                      act.location!.isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     Row(
                                       children: [
-                                        const Icon(Icons.place_outlined, size: 12, color: AppTheme.textSecondary),
+                                        const Icon(Icons.place_outlined,
+                                            size: 12,
+                                            color: AppTheme.textSecondary),
                                         const SizedBox(width: 3),
                                         Expanded(
                                           child: Text(
@@ -365,7 +377,8 @@ class ChatBubbleWidget extends StatelessWidget {
                                       ],
                                     ),
                                   ],
-                                  if (act.notes != null && act.notes!.isNotEmpty) ...[
+                                  if (act.notes != null &&
+                                      act.notes!.isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     Text(
                                       '💡 ${act.notes!}',

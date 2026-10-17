@@ -1,434 +1,322 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/app_theme.dart';
-import '../../models/itinerary_models.dart';
 import '../../widgets/lemon_avatar_image.dart';
+import '../../models/itinerary_models.dart';
 
 class ItineraryView extends StatefulWidget {
   final ItineraryResponse? itinerary;
   final VoidCallback onOpenLemon;
-
-  const ItineraryView({
-    super.key,
-    required this.itinerary,
-    required this.onOpenLemon,
-  });
-
+  const ItineraryView(
+      {super.key, required this.itinerary, required this.onOpenLemon});
   @override
   State<ItineraryView> createState() => _ItineraryViewState();
 }
 
 class _ItineraryViewState extends State<ItineraryView> {
-  int _selectedDayFilter = 0; // 0 = all days
+  int _day = 0;
+  @override
+  void didUpdateWidget(covariant ItineraryView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.itinerary, widget.itinerary)) _day = 0;
+  }
+
+  String _date(String? value) {
+    final date = DateTime.tryParse(value ?? '');
+    if (date == null) return value ?? '';
+    return MaterialLocalizations.of(context).formatMediumDate(date);
+  }
+
+  Future<void> _copy(ItineraryResponse trip) async {
+    final text = StringBuffer(
+        '${trip.destination} itinerary${trip.providerUsed == 'mock' ? ' (DEMO)' : ''}\n${trip.summary ?? ''}\n');
+    for (final day in trip.days) {
+      text.writeln('\nDay ${day.day} ${day.date ?? ''}');
+      for (final activity in day.activities) {
+        text.writeln('${activity.time} ${activity.activity}');
+        if (activity.location != null) text.writeln(activity.location);
+        if (activity.notes != null) text.writeln(activity.notes);
+      }
+    }
+    try {
+      await Clipboard.setData(ClipboardData(text: text.toString()));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Full itinerary copied')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not copy. Please try again.')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.itinerary == null) {
-      return _buildEmptyState(context);
-    }
-    return _buildItineraryDetails(context, widget.itinerary!);
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 560),
-          padding: const EdgeInsets.all(36),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppTheme.border),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primary.withValues(alpha: 0.06),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: AppTheme.lavenderTint,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.border, width: 2),
-                ),
-                padding: const EdgeInsets.all(4),
-                child: const LemonAvatarImage(radius: 32),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'No Itinerary Generated Yet',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Let Lemon.ai know where you want to go, your travel dates, and your favorite activities. Lemon will craft a clean, day-by-day plan tailored to your preferences!',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.textSecondary,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: widget.onOpenLemon,
-                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                label: const Text('Start Planning with Lemon.ai 🍋'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildItineraryDetails(BuildContext context, ItineraryResponse itinerary) {
-    final daysToDisplay = _selectedDayFilter == 0
-        ? itinerary.days
-        : itinerary.days.where((d) => d.day == _selectedDayFilter).toList();
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.primary, AppTheme.primaryLight],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'AI GENERATED • ${itinerary.providerUsed.toUpperCase()}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppTheme.accentLemon,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${itinerary.days.length} Days Trip',
-                              style: const TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '${itinerary.destination} Itinerary',
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (itinerary.summary != null && itinerary.summary!.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          itinerary.summary!,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withValues(alpha: 0.92),
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.copy_rounded, color: Colors.white),
-                  tooltip: 'Copy Summary',
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: itinerary.summary ?? itinerary.destination));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Itinerary copied to clipboard!'),
-                        backgroundColor: AppTheme.primary,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Day Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                ChoiceChip(
-                  label: const Text('All Days'),
-                  selected: _selectedDayFilter == 0,
-                  selectedColor: AppTheme.lavenderTint,
-                  backgroundColor: AppTheme.surface,
-                  side: BorderSide(
-                    color: _selectedDayFilter == 0 ? AppTheme.primary : AppTheme.border,
-                  ),
-                  labelStyle: TextStyle(
-                    color: _selectedDayFilter == 0 ? AppTheme.primary : AppTheme.textPrimary,
-                    fontWeight: _selectedDayFilter == 0 ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                  onSelected: (_) => setState(() => _selectedDayFilter = 0),
-                ),
-                const SizedBox(width: 8),
-                for (final day in itinerary.days)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text('Day ${day.day}'),
-                      selected: _selectedDayFilter == day.day,
-                      selectedColor: AppTheme.lavenderTint,
-                      backgroundColor: AppTheme.surface,
-                      side: BorderSide(
-                        color: _selectedDayFilter == day.day ? AppTheme.primary : AppTheme.border,
-                      ),
-                      labelStyle: TextStyle(
-                        color: _selectedDayFilter == day.day ? AppTheme.primary : AppTheme.textPrimary,
-                        fontWeight: _selectedDayFilter == day.day ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                      onSelected: (_) => setState(() => _selectedDayFilter = day.day),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Day Schedule Cards
-          for (final day in daysToDisplay) ...[
-            _buildDayScheduleCard(context, day),
-            const SizedBox(height: 20),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDayScheduleCard(BuildContext context, ItineraryDay day) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppTheme.lavenderTint,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'Day ${day.day}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    color: AppTheme.primary,
-                  ),
-                ),
-              ),
-              if (day.date != null && day.date!.isNotEmpty) ...[
-                const SizedBox(width: 10),
-                Text(
-                  day.date!,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ],
-              const Spacer(),
-              Text(
-                '${day.activities.length} Activities',
-                style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: AppTheme.borderLight),
-          const SizedBox(height: 16),
-          for (var i = 0; i < day.activities.length; i++) ...[
-            _buildActivityTimelineRow(day.activities[i], isLast: i == day.activities.length - 1),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivityTimelineRow(ItineraryActivity act, {required bool isLast}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Time badge & timeline dot
-          SizedBox(
-            width: 75,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.lavenderSubtle,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.border),
-                  ),
-                  child: Text(
-                    act.time,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // Activity Content (no ## or markdown symbols!)
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.background,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.borderLight),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    act.activity,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  if (act.location != null && act.location!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.place_outlined, size: 14, color: AppTheme.primary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            act.location!,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              color: AppTheme.textSecondary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (act.notes != null && act.notes!.isNotEmpty) ...[
-                    const SizedBox(height: 6),
+    final trip = widget.itinerary;
+    if (trip == null) {
+      return Center(
+          child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('💡 ', style: TextStyle(fontSize: 11)),
-                          Expanded(
-                            child: Text(
-                              act.notes!,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: Colors.amber.shade900,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+                        padding: const EdgeInsets.all(24),
+                        decoration: const BoxDecoration(
+                            color: Color(0xFFE1F1EB), shape: BoxShape.circle),
+                        child: const Icon(Icons.route_outlined,
+                            color: AppTheme.teal, size: 44)),
+                    const SizedBox(height: 24),
+                    const Text('Your next adventure starts here',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 28, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 12),
+                    const Text(
+                        'Tell Lemon where you want to go. Choose your dates and interests, then build a day-by-day plan.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: AppTheme.textSecondary, height: 1.6)),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                        onPressed: widget.onOpenLemon,
+                        icon: const Icon(Icons.auto_awesome),
+                        label: const Text('Plan with Lemon')),
+                  ]))));
+    }
+    final demo = trip.providerUsed == 'mock';
+    return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 96),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Chip(
+                    label: Text(demo ? 'Demo itinerary' : 'Your travel plan'),
+                    avatar: Icon(demo ? Icons.info_outline : Icons.auto_awesome,
+                        size: 16),
+                    backgroundColor: demo
+                        ? const Color(0xFFFFECCD)
+                        : const Color(0xFFE1F1EB)),
+                Text(
+                    '${trip.days.length} day${trip.days.length == 1 ? '' : 's'}',
+                    style: const TextStyle(color: AppTheme.textSecondary)),
+                OutlinedButton.icon(
+                    onPressed: () => _copy(trip),
+                    icon: const Icon(Icons.copy_outlined, size: 18),
+                    label: const Text('Copy itinerary')),
+                TextButton(
+                    onPressed: widget.onOpenLemon,
+                    child: const Text('Ask Lemon')),
+              ]),
+          const SizedBox(height: 14),
+          Text('${trip.destination} itinerary',
+              style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6)),
+          if (demo)
+            const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text(
+                    'This is a sample plan, not a personalized itinerary for your dates. Open Lemon to retry generation.',
+                    style: TextStyle(color: AppTheme.accentLemonDark))),
+          if (trip.summary?.isNotEmpty == true)
+            Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 850),
+                    child: Text(trip.summary!,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            height: 1.6,
+                            color: AppTheme.textSecondary)))),
+          const SizedBox(height: 24),
+          if (trip.days.length > 1)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: Wrap(spacing: 8, runSpacing: 8, children: [
+                  ChoiceChip(
+                      label: const Text('All days'),
+                      selected: _day == 0,
+                      onSelected: (_) => setState(() => _day = 0)),
+                  for (final day in trip.days)
+                    ChoiceChip(
+                        label: Text('Day ${day.day}'),
+                        selected: _day == day.day,
+                        onSelected: (_) => setState(() => _day = day.day)),
+                ])),
+          LayoutBuilder(builder: (context, box) {
+            final days =
+                trip.days.where((d) => _day == 0 || d.day == _day).toList();
+            final columns = box.maxWidth >= 1050 &&
+                    days.length > 1 &&
+                    MediaQuery.textScalerOf(context).scale(16) <= 22
+                ? 2
+                : 1;
+            final width = (box.maxWidth - (columns - 1) * 20) / columns;
+            return Wrap(spacing: 20, runSpacing: 20, children: [
+              for (final day in days)
+                SizedBox(width: width, child: _dayCard(day)),
+            ]);
+          }),
+        ]));
+  }
+
+  Widget _dayCard(ItineraryDay day) {
+    const colors = [
+      AppTheme.mint,
+      AppTheme.sky,
+      AppTheme.peach,
+      AppTheme.lemon
+    ];
+    final tint = colors[(day.day - 1).abs() % colors.length];
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          color: tint,
+          padding: const EdgeInsets.all(14),
+          child: Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Icon(Icons.calendar_today_outlined, size: 22),
+                Text('Day ${day.day}',
+                    style: const TextStyle(
+                        fontSize: 23, fontWeight: FontWeight.w800)),
+                if (day.date != null) Text(_date(day.date)),
+                Text('${day.activities.length} activities',
+                    style: const TextStyle(color: AppTheme.textSecondary)),
+              ]),
+        ),
+        Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (day.activities.isEmpty)
+                    const Text('No activities planned for this day.'),
+                  for (var i = 0; i < day.activities.length; i++)
+                    _activity(day.activities[i], i + 1, tint, day.day + i - 1),
+                ])),
+      ]),
     );
   }
+
+  static const _tipIntros = [
+    'Psst... a little something for your adventure ✨',
+    'A tiny tip for a happier wander 🌿',
+    'Before you head off, adventure buddy... 🧭',
+    'Let’s make this stop a little sweeter 💫',
+    'Tuck this one into your travel pocket 🎒',
+    'A little nudge from your travel buddy 💬',
+  ];
+
+  Widget _activity(
+          ItineraryActivity activity, int number, Color tint, int tipIndex) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: tint, borderRadius: BorderRadius.circular(8)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.schedule, size: 16),
+                        const SizedBox(width: 6),
+                        Text(activity.time,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w700)),
+                      ])),
+                  Text('STOP $number',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          letterSpacing: 1,
+                          color: AppTheme.textSecondary)),
+                ]),
+            const SizedBox(height: 12),
+            Text(activity.activity,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w700, height: 1.4)),
+            if (activity.location?.isNotEmpty == true)
+              Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.place_outlined,
+                            size: 18, color: AppTheme.teal),
+                        const SizedBox(width: 6),
+                        Expanded(
+                            child: Text(activity.location!,
+                                style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    height: 1.4))),
+                      ])),
+            if (activity.notes?.isNotEmpty == true)
+              Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Theme(
+                      data: Theme.of(context)
+                          .copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+                        collapsedBackgroundColor: AppTheme.mint,
+                        backgroundColor: AppTheme.mint,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        collapsedShape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        childrenPadding:
+                            const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        leading: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                                color: Colors.white, shape: BoxShape.circle),
+                            child: const LemonAvatarImage(radius: 20)),
+                        title: const Text("A little tip from Lemon",
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.teal)),
+                        subtitle: Text(
+                            _tipIntros[tipIndex.abs() % _tipIntros.length],
+                            style: const TextStyle(fontSize: 12, height: 1.4)),
+                        children: [
+                          Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: .8),
+                                      borderRadius: BorderRadius.circular(12)),
+                                  child: Text(activity.notes!,
+                                      style: const TextStyle(
+                                          height: 1.5,
+                                          color: AppTheme.textPrimary))))
+                        ],
+                      ))),
+          ]),
+        ),
+      );
 }

@@ -86,3 +86,71 @@ Gemini follow-up: read-only metadata lookup for the configured model succeeded a
 ## Auto chat deadline update — 2026-10-08
 
 KI-15 timing mitigation implemented: auto chat has 9-second per-attempt and 30-second overall real-provider budgets, cancellation and bounded client cleanup. Local chat fallback remains available when the budget expires. Seventeen offline regressions pass. No live API calls performed for this change. This does not fix provider quota/availability, frontend chat reset behavior, or provider availability. Itinerary timing was subsequently bounded; see API.md. Synchronous event-loop blocking and network delivery can still delay responses. Older Gemini SDKs without a public async close method skip explicit close; cancelled SDK tasks may take time to stop.
+
+## LemonTrip implementation checkpoint — 2026-10-16
+
+This status update supersedes the 2026-10-09 UI review where noted. User authorized implementation; original observations above are retained as history.
+
+- KI-11: frontend context loss repaired. Request failures retain trip fields/history and offer retry or editing. Backend exception-detail exposure remains open.
+- KI-16: original app smoke test now passes. New dashboard/assistant layout checks cover 360, 800, and 1440px; this is not exhaustive device, text-scale, or accessibility certification.
+- KI-17: compact navigation menu now exposes all five views.
+- KI-18: busy submissions are disabled/guarded; unsent drafts survive panel closure. Regression covered.
+- KI-19: removed the false attraction Save notification; location actions open Google Maps on web (copyable link dialog on other platforms). View Deal replaced with a real flight details dialog. Persistent saves and bookings remain unimplemented.
+- KI-20: copy now includes all days/activities and reports success after the clipboard call completes.
+- KI-21: still open. Search tabs retain independent defaults; automatic trip-to-airport matching is not part of this batch.
+- KI-22: mock output explicitly labeled Demo itinerary, with retry available in chat. One-day mock content is unchanged. Singular/plural duration copy corrected.
+- KI-23: Discover copy no longer promises live flight offers, hotel amenities, or guaranteed generation speed.
+- KI-24: flight cards use returned currency and label the amount as total for all travelers. Live upstream pricing semantics were not reverified.
+- KI-09: partially addressed for /lemon/plan: ISO calendar dates, ordered 1–30-day range, bounded destination/interests, and budget enum. Chat roles/payload sizes and travel-search validation remain open. Server accepts historical date ranges; the UI picker requires today or later.
+
+Lessons: guided values should remain structured rather than be round-tripped through AI. A model-ready flag must not substitute for explicit user confirmation. Failed request retries must not duplicate the user turn or restart intake. Responsive cards should size to content instead of fixed aspect ratios. Display demo provenance and avoid showing successful saves that do not exist.
+
+Current limitations: destination interpretation still uses /lemon/chat and depends on provider/local parser behavior. The guided UI deliberately asks users to confirm dates and preferences even if included in their initial message. Typed conversation after destination is replaced by structured controls plus Other preferences; unrestricted travel Q&A is not implemented. Photo integration and shared search context remain future work. Existing backend issues outside structured intake are unchanged.
+
+## Visual refinement lessons - 2026-10-16
+
+User feedback supersedes the dark hero and narrow desktop direction of the first batch. Light pastel surfaces now carry the visual identity; dark colors remain for readable text. Desktop itinerary days share rows rather than stretching each activity across the page. Preserve portrait aspect ratio: specifying both square cacheWidth and cacheHeight distorted the rectangular Lemon artwork. The shared avatar now frames the face from the original source without forced decode dimensions. Photos, real route maps and activity categories still need verified data; icons and stop numbers are presentational only. Browser visual review remains outstanding.
+
+## Desktop browser review - 2026-10-16
+
+Observed in the running frontend at 1440x1000 and 1920x1080 using a generated three-day Bali sample through normal guided intake. Two-column days and tip expansion work. Remaining visual issues: activities without notes can shrink into centered narrow cards while other activities fill their column; stretch the day activity Column consistently. Cards with tips remain tall (roughly three stops per viewport). Lemon's portrait is proportionate but sits low in the circular frame, favoring hair over chin; adjust the vertical crop after visual comparison. These are observed findings, not fixes. The sample content was not fact-checked.
+
+## User-reported refinement and long-trip issue - 2026-10-16
+
+User reports that longer trips sometimes stop after day 3 or 4. Source inspection of itinerary_builder.py confirms validation currently checks the ItineraryResponse structure but does not compare returned days/dates with the requested inclusive date range. The prompt supplies dates but does not explicitly specify the required count. This explains why incomplete output can be accepted, but does not prove the original truncation cause; provider token limits, output and fallback paths still need investigation. No runtime reproduction or backend fix in this checkpoint.
+
+Additional user feedback: tips need Lemon's portrait and warmer presentation; traveler count should be typed; another calendar click should adjust the end rather than reset the entire range; dashboard should use cool colors without yellow and have more visual character; mascot crop must include the full face, with a slightly larger animated launcher. These requests are authorized and tracked in TASKS.md. Preserve validation and reduced-motion support when implementing.
+## Refinement implementation follow-up - 2026-10-16
+
+Implemented the six authorized requests. Tipless cards now stretch like cards with tips; regression test covers mixed content. Tips use the shared original image portrait in a mint expandable section. Portrait viewport widened to include more of the face and launcher increased to 76px; visual acceptance is pending the user's local review, not claimed verified from tests.
+
+Long itineraries now generate in three-day windows, up to three concurrent calls, sharing a 36-second generation budget after best-effort context. Every window must include exact dates, absolute day numbers and nonempty activities. Direct providers get one corrective retry for invalid output within the same budget; auto validates before accepting each provider. Any mock window marks the full response mock, so mixed demo results never masquerade as wholly personalized. Offline tests cover 30-day demo output, 11-day ordered assembly with out-of-order completion, partial rejection, missing dates and empty activities. This fixes incomplete-output acceptance; it does not guarantee live availability or establish the original provider-side cause. Long trips use more API calls and may hit quotas; independently generated windows can repeat suggestions across sections. Live long-trip quality remains to be assessed.
+
+Calendar dates are staged locally until Use these dates. Repeated end selection preserves the start, earlier dates show feedback, Change start explicitly begins a new range, and Just this day supports same-day travel. Entrance animation is brief and bypassed when reduced motion is enabled.
+
+## Timeout screenshot and interaction follow-up - 2026-10-17
+
+User screenshot shows real Groq/OpenRouter attempts timing out at about 12 seconds, plus Gemini HTTP 503 (unavailable), not a mock-provider timeout. Plan attempts now allow 25 seconds inside a shared 75-second generation deadline; frontend waits 100 seconds to leave room for context and cleanup. This may help slow providers but does not repair availability, rate limits or exhausted quotas. Five-minute process cooldown remains. Offline budget/fallback tests pass; live success has not been verified.
+
+Multiline destination composer now explicitly handles physical Enter and numpad Enter, preserving Shift+Enter and guarding active input composition. Enlarging chat preserves the mounted panel/draft. Hover effects wrap existing controls rather than replacing their semantics or click handlers; reduced-motion users get no scale effect.
+
+## Greeting/recovery checkpoint - 2026-10-17
+
+Three local greeting responses now rotate without provider calls. Clearly malformed messages and a limited set of unrelated request patterns get friendly recovery while preserving trip fields/current step; a parser response without a destination also triggers recovery. This is conservative filtering, not comprehensive semantic validation. The backend mock bare-place heuristic remains permissive for short alphabetic nonsense and needs follow-up. Prompt instructions were strengthened but not runtime-verified this batch.
+
+Composer hint/counter hidden with Enter sending and 600-character limit retained. Original avatar dimensions confirmed 675x856; chat avatars enlarged and downsampling changed to medium with antialiasing. Pixelation improvement awaits local visual confirmation. Work paused at user's request after 32 frontend tests passed.
+
+## Recovery follow-up - 2026-10-17
+
+The mock replay now skips obvious invalid destination turns before broad field extraction. Offline coverage confirms garbage followed by a valid non-English place recovers correctly. This closes the obvious-noise fallback gap from the checkpoint; plausible alphabetic nonsense is still not geographically validated. AI prompt guidance and conservative frontend checks do not guarantee rejection of every irrelevant input. Portrait rendering changes still need the user's local visual check; source resolution was preserved, not artificially increased.
+## Lemon tone follow-up - 2026-10-17
+
+Local chat copy and backend generation prompts now ask for a cheerful, playful travel companion rather than brochure-style advice. This affects newly generated content; existing itinerary notes are not rewritten. Prompt guidance cannot guarantee every provider follows the desired tone, and live responses still need local review. Practical facts, uncertainty and safety/accessibility advice must remain clear.
+
+## Expressive UI follow-up - 2026-10-17
+
+Tip subtitles now vary deterministically by day/stop with restrained emoji, including existing itineraries; stored/generated advice is preserved rather than rewritten with invented information. Six variants repeat on longer itineraries. Launcher invitations rotate on hover/focus entry, not on a timer; touch users can open chat directly. Original artwork is shown proportionally when expanded, not rigged into a talking/animated character.
+
+Regression testing caught a zero-duration AnimatedSize layout assertion under reduced motion; bypassing that widget fixes it. Header navigation now scrolls horizontally when its labels exceed available desktop space. Flutter animation entrances require the smoke test to settle before teardown. 36 frontend tests and analyzer pass; actual desktop/Android visual review remains pending with the user.
+
+Launcher tooltip lesson: removing Tooltip.message alone violates Flutter's tooltip content requirement. Remove the Tooltip wrapper to suppress the popup, while retaining Semantics for accessibility.

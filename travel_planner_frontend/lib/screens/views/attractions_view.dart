@@ -1,3 +1,4 @@
+import '../../widgets/map_action.dart';
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
 import '../../models/travel_models.dart';
@@ -12,7 +13,8 @@ class AttractionsView extends StatefulWidget {
 }
 
 class _AttractionsViewState extends State<AttractionsView> {
-  late final TravelApiService _apiService = widget.apiService ?? TravelApiService();
+  late final TravelApiService _apiService =
+      widget.apiService ?? TravelApiService();
   final TextEditingController _cityCtrl = TextEditingController(text: 'Paris');
   String _selectedCategory = 'All';
 
@@ -21,8 +23,20 @@ class _AttractionsViewState extends State<AttractionsView> {
   int _searchId = 0;
   List<AttractionItem> _attractions = [];
 
-  final List<String> _categories = ['All', 'Landmark & Sights', 'Culture & Heritage', 'Entertainment'];
-  final List<String> _suggestedCities = ['Paris', 'Tokyo', 'Rome', 'Barcelona', 'Kyoto'];
+  final List<String> _categories = [
+    'All',
+    'Sightseeing',
+    'Landmark & Sights',
+    'Culture & Heritage',
+    'Entertainment'
+  ];
+  final List<String> _suggestedCities = [
+    'Paris',
+    'Tokyo',
+    'Rome',
+    'Barcelona',
+    'Kyoto'
+  ];
 
   @override
   void initState() {
@@ -40,14 +54,24 @@ class _AttractionsViewState extends State<AttractionsView> {
     final city = _cityCtrl.text.trim();
     if (city.isEmpty) return;
     final searchId = ++_searchId;
-    setState(() { _isLoading = true; _error = null; _attractions = []; });
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _attractions = [];
+    });
     try {
       final results = await _apiService.getAttractions(city: city, radiusKm: 8);
       if (!mounted || searchId != _searchId) return;
-      setState(() { _attractions = results; _isLoading = false; });
+      setState(() {
+        _attractions = results;
+        _isLoading = false;
+      });
     } catch (_) {
       if (!mounted || searchId != _searchId) return;
-      setState(() { _isLoading = false; _error = 'Unable to load attractions. Please try again.'; });
+      setState(() {
+        _isLoading = false;
+        _error = 'Unable to load attractions. Please try again.';
+      });
     }
   }
 
@@ -59,7 +83,7 @@ class _AttractionsViewState extends State<AttractionsView> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -91,7 +115,9 @@ class _AttractionsViewState extends State<AttractionsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          const Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               Icon(Icons.place_rounded, color: AppTheme.primary, size: 22),
               SizedBox(width: 8),
@@ -112,7 +138,7 @@ class _AttractionsViewState extends State<AttractionsView> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SizedBox(
-                width: 280,
+                width: (MediaQuery.sizeOf(context).width - 88).clamp(0, 280),
                 child: TextField(
                   controller: _cityCtrl,
                   decoration: const InputDecoration(
@@ -130,8 +156,10 @@ class _AttractionsViewState extends State<AttractionsView> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
@@ -143,7 +171,10 @@ class _AttractionsViewState extends State<AttractionsView> {
               children: [
                 const Text(
                   'Popular: ',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary),
                 ),
                 ..._suggestedCities.map((c) {
                   return Padding(
@@ -155,7 +186,10 @@ class _AttractionsViewState extends State<AttractionsView> {
                       },
                       child: Text(
                         '$c • ',
-                        style: const TextStyle(fontSize: 12.5, color: AppTheme.primary, fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppTheme.primary,
+                            fontWeight: FontWeight.w500),
                       ),
                     ),
                   );
@@ -181,7 +215,8 @@ class _AttractionsViewState extends State<AttractionsView> {
               selected: isSelected,
               selectedColor: AppTheme.lavenderTint,
               backgroundColor: AppTheme.surface,
-              side: BorderSide(color: isSelected ? AppTheme.primary : AppTheme.border),
+              side: BorderSide(
+                  color: isSelected ? AppTheme.primary : AppTheme.border),
               labelStyle: TextStyle(
                 color: isSelected ? AppTheme.primary : AppTheme.textPrimary,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -213,7 +248,8 @@ class _AttractionsViewState extends State<AttractionsView> {
               SizedBox(height: 16),
               Text(
                 'Fetching top attractions & sights...',
-                style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                    color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -242,7 +278,10 @@ class _AttractionsViewState extends State<AttractionsView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
               '${list.length} Attractions in ${_cityCtrl.text}',
@@ -252,7 +291,6 @@ class _AttractionsViewState extends State<AttractionsView> {
                 color: AppTheme.textPrimary,
               ),
             ),
-            const Spacer(),
             const Text(
               'Points of Interest & Heritage',
               style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
@@ -261,116 +299,36 @@ class _AttractionsViewState extends State<AttractionsView> {
         ),
         const SizedBox(height: 16),
         LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 750;
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: list.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: isWide ? 2 : 1,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                mainAxisExtent: 170,
-              ),
-              itemBuilder: (context, index) {
-                final item = list[index];
-                return _buildAttractionCard(context, item);
-              },
-            );
-          },
-        ),
+            builder: (context, box) =>
+                Wrap(spacing: 16, runSpacing: 16, children: [
+                  for (final item in list)
+                    SizedBox(
+                        width: box.maxWidth > 750
+                            ? (box.maxWidth - 16) / 2
+                            : box.maxWidth,
+                        child: _buildAttractionCard(context, item)),
+                ])),
       ],
     );
   }
 
-  Widget _buildAttractionCard(BuildContext context, AttractionItem item) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppTheme.lavenderTint,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  item.category,
-                  style: const TextStyle(
-                    color: AppTheme.primary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.bookmark_border_rounded, size: 20, color: AppTheme.primary),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Saved "${item.name}" to trip wish list!'),
-                      backgroundColor: AppTheme.primary,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
-                tooltip: 'Save to Trip',
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            item.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            item.description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12.5,
-              color: AppTheme.textSecondary,
-              height: 1.3,
-            ),
-          ),
-          const Spacer(),
-          if (item.lat != null && item.lon != null)
-            Row(
-              children: [
-                const Icon(Icons.map_outlined, size: 14, color: AppTheme.textMuted),
-                const SizedBox(width: 4),
-                Text(
-                  '${item.lat!.toStringAsFixed(4)}, ${item.lon!.toStringAsFixed(4)}',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
+  Widget _buildAttractionCard(BuildContext context, AttractionItem item) =>
+      Card(
+          child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Chip(
+                        label: Text(item.category),
+                        backgroundColor: const Color(0xFFE1F1EB)),
+                    const SizedBox(height: 10),
+                    Text(item.name,
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            height: 1.4)),
+                    const SizedBox(height: 12),
+                    MapAction(lat: item.lat, lon: item.lon),
+                  ])));
 }

@@ -4,271 +4,332 @@ import '../models/itinerary_models.dart';
 import '../services/lemon_api_service.dart';
 import 'chat_message.dart';
 
-/// Phase of the overall flow. The freeform conversation itself has no fixed
-/// steps anymore — Lemon (via the backend) decides what to ask about next —
-/// this just tracks the coarse state of the widget.
 enum ChatPhase { chatting, generating, done }
 
 class LemonChatController extends ChangeNotifier {
-  final LemonApiService _api = LemonApiService();
-
-  /// Everything rendered in the chat UI (text bubbles, quick replies, the
-  /// itinerary card, loading indicators).
+  LemonChatController({LemonApiService? api}) : _api = api ?? LemonApiService();
+  final LemonApiService _api;
   final List<ChatMessage> messages = [];
-
-  /// The raw conversational turns only (no UI-only elements like loading
-  /// spinners or quick-reply chips) — this is what gets sent to the backend
-  /// so it has full context, since the backend itself is stateless.
   final List<ChatTurn> _history = [];
-
-  ChatPhase phase = ChatPhase.chatting;
-  bool get isBusy => _busy;
-  bool _busy = false;
-
-  // The backend picks — and silently swaps between — whichever LLM provider
-  // is actually available, so there's no manual engine picker in the UI
-  // anymore. `auto` is the only value ever sent.
   final String provider = 'auto';
-
-  // Best-known trip fields, filled in progressively by the backend as the
-  // conversation goes on. Any of these may still be null.
-  String? destination;
-  String? startDate;
-  String? endDate;
-  int? travelers;
-  String? budgetLevel;
-  List<String> interests = [];
-
-  /// Which field Lemon is currently asking about, per the backend's explicit
-  /// signal — 'destination', 'start_date', 'end_date', 'travelers',
-  /// 'budget_level', 'confirm', or null. Drives the date-picker bubble and
-  /// the input field's hint text.
-  String? nextField;
-
-  ItineraryResponse? latestItinerary;
-  final ValueNotifier<ItineraryResponse?> itineraryNotifier = ValueNotifier(null);
-
+  ChatPhase phase = ChatPhase.chatting;
+  bool _busy = false;
+  bool _disposed = false;
   bool _greeted = false;
+  int _greetingIndex = 0;
+  bool _interestsAnswered = false;
+  bool _retryPlan = false;
+  String? error;
+  String draft = '';
+  String otherInterests = '';
+  final Set<String> selectedInterests = {};
+  static const interestOptions = [
+    'Food',
+    'Culture & history',
+    'Nature',
+    'Beaches',
+    'Shopping',
+    'Adventure',
+    'Nightlife',
+    'Relaxation'
+  ];
+  bool get canRetryPlan => _retryPlan;
+  bool get isBusy => _busy;
+  String? destination, startDate, endDate, budgetLevel;
+  int? travelers;
+  List<String> interests = [];
+  String? nextField = 'destination';
+  ItineraryResponse? latestItinerary;
+  final itineraryNotifier = ValueNotifier<ItineraryResponse?>(null);
+
+  void _changed() {
+    if (!_disposed) notifyListeners();
+  }
+
+  void _bot(String text) {
+    messages.add(ChatMessage.text(ChatSender.bot, text));
+    _history.add(ChatTurn(role: 'assistant', content: text));
+    _changed();
+  }
+
+  void _user(String text) {
+    messages.add(ChatMessage.text(ChatSender.user, text));
+    _history.add(ChatTurn(role: 'user', content: text));
+  }
 
   void startIfNeeded() {
     if (_greeted) return;
     _greeted = true;
-    nextField = 'destination';
-    // "\n\n" splits this into two separate bubbles — see _addBot below.
-    _addBot(
-      "Hi, I'm Lemon! 🍋 I'm your travel planner assistant, and I'm genuinely excited to help you plan something great!\n\n"
-      "So — where are you dreaming of going?",
-    );
+    _bot(
+        "Hi, I'm Lemon! 👋 Think of me as your travel buddy with a very enthusiastic planning habit. Where are we dreaming of going?");
   }
 
-  void _addBot(String text) {
-    // A blank line ("\n\n") signals a natural break between separate
-    // thoughts (e.g. a greeting and a question) — split those into their
-    // own bubbles instead of rendering everything as one dense block.
-    final segments = text.split('\n\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-    if (segments.isEmpty) return;
-    for (final segment in segments) {
-      messages.add(ChatMessage.text(ChatSender.bot, segment));
-    }
-    // The backend only ever sees ONE assistant turn per reply, even though
-    // it may render as multiple bubbles — bubble-splitting is a display
-    // convention the backend doesn't need to know about.
-    _history.add(ChatTurn(role: 'assistant', content: text));
-    notifyListeners();
+  String _next() {
+    if (destination == null) return 'destination';
+    if (startDate == null || endDate == null) return 'dates';
+    if (travelers == null) return 'travelers';
+    if (budgetLevel == null) return 'budget_level';
+    if (!_interestsAnswered) return 'interests';
+    return 'confirm';
   }
 
-  /// Same bookkeeping as [_addBot] (still logs the plain text to history so
-  /// the backend sees a normal assistant turn), but renders a date-picker
-  /// bubble with a "Pick a Date" button instead of a plain text bubble.
-  void _addBotDatePrompt(String text, {DateTime? minDate}) {
-    messages.add(ChatMessage.datePickerPrompt(text, minDate: minDate));
-    _history.add(ChatTurn(role: 'assistant', content: text));
-    notifyListeners();
+  void _advance() {
+    nextField = _next();
+    const prompts = {
+      'destination': 'Which city or region would you like to visit?',
+      'dates':
+          'Time to put this adventure on the calendar! Pick your arrival and departure dates below.',
+      'travelers':
+          'Solo adventure or bringing your favorite people? How many travelers should I plan for?',
+      'budget_level':
+          'Let us find out your kind of treat for this adventure! '
+          'How high of a budget are we looking at? Budget-friendly journey, a little more for comfort, or a crazyyy splurge?',
+      'interests':
+          'Now for the fun part: what makes a trip feel like you? Pick your favorites, add your own, or let me surprise you!',
+      'confirm':
+          'Your adventure is taking shape! Give this trip brief a quick look, then I can turn it into a day-by-day plan.',
+    };
+    _bot(prompts[nextField]!);
   }
 
-  /// Fallback only, used when the backend doesn't supply `next_field` (an
-  /// older backend build, or a real LLM provider response that ever omits
-  /// it). `nextField` from the backend is the primary signal now — this
-  /// keyword match is a stopgap, not the main detection path anymore.
-  bool _looksLikeDateQuestion(String text) {
-    final lower = text.toLowerCase();
-    const keywords = [
-      'what date',
-      'which date',
-      'when would you like',
-      'when are you',
-      'when do you plan',
-      'when will you',
-      'when is your trip',
-      'what dates',
-      'travel date',
-      'departure date',
-      'return date',
-      'start date',
-      'end date',
-      'check-in',
-      'check in',
-      'check-out',
-      'check out',
-      'come back',
-      'come home',
-    ];
-    return keywords.any(lower.contains);
+  static const greetings = [
+    "Greetings! I'm Lemon! We can start whenever you're ready!",
+    "Hello! Lemon here! And I'm super excited to help you start planning your travels!",
+    "Hey! My imaginary suitcase is ready. Let's make room for your next adventure!",
+  ];
+  String get _stepReminder => switch (nextField) {
+        'dates' => 'Your trip is saved. Choose your travel dates below.',
+        'travelers' =>
+          'Your trip is saved. Enter the number of travelers below.',
+        'budget_level' => 'Choose your spending style below.',
+        'interests' => 'Choose a few interests below, or add your own.',
+        'confirm' => 'Your trip brief is ready to review below.',
+        null => 'Your itinerary is ready to explore.',
+        _ => 'Which city or region would you like to visit?',
+      };
+  bool _greeting(String text) => RegExp(
+          r'^(hi|hello|hey|hiya|howdy|greetings|good morning|good afternoon|good evening)( there| lemon| lemon\.ai)?[!.? ]*$',
+          caseSensitive: false)
+      .hasMatch(text);
+  bool _obviousNoise(String text) {
+    final value = text.toLowerCase().trim();
+    return !RegExp(r'\p{L}', unicode: true).hasMatch(value) ||
+        RegExp(r'^(.)\1{4,}$', unicode: true).hasMatch(value) ||
+        RegExp(r'^(asdf|qwer|zxcv|hjkl)[a-z]*$').hasMatch(value) ||
+        RegExp(r'\b(write (me )?(code|an essay)|solve (this|my) (math|equation)|ignore (all|previous) instructions)\b')
+            .hasMatch(value);
   }
 
-  void _addUser(String text) {
-    messages.add(ChatMessage.text(ChatSender.user, text));
-    _history.add(ChatTurn(role: 'user', content: text));
-    notifyListeners();
-  }
-
-  void handleQuickReply(String value) {
-    if (value == 'Plan another trip') {
-      _resetFlow();
-      return;
-    }
-    handleUserInput(value);
+  void _recoverInput() {
+    _bot(
+        "Oops, I lost the trail there! Let's try that again - your trip details are still here. $_stepReminder");
   }
 
   Future<void> handleUserInput(String raw) async {
     final text = raw.trim();
-    if (text.isEmpty || _busy) return;
-
-    if (phase == ChatPhase.done) {
-      final lower = text.toLowerCase();
-      if (lower.contains('another') || lower.contains('new trip')) {
-        _resetFlow();
-        return;
-      }
+    if (_busy || text.isEmpty || error != null) return;
+    if (text.length > 600) {
+      _bot('Please keep your message under 600 characters. $_stepReminder');
+      return;
     }
-
-    _addUser(text);
+    if (_greeting(text)) {
+      messages.add(ChatMessage.text(ChatSender.user, text));
+      draft = '';
+      _bot('${greetings[_greetingIndex++ % greetings.length]} $_stepReminder');
+      return;
+    }
+    if (_obviousNoise(text) || nextField != 'destination') {
+      messages.add(ChatMessage.text(ChatSender.user, text));
+      draft = '';
+      _recoverInput();
+      return;
+    }
+    _user(text);
+    draft = '';
     await _sendToLemon();
   }
 
   Future<void> _sendToLemon() async {
     _busy = true;
-    messages.add(ChatMessage.loading('Lemon is thinking...'));
-    notifyListeners();
-
+    error = null;
+    _retryPlan = false;
+    _changed();
     try {
-      final result = await _api.sendChatTurn(messages: _history, provider: provider);
-      _removeTrailingLoading();
-
-      // Only overwrite a known field when the backend actually returned a
-      // fresh value for it, so earlier answers aren't clobbered by nulls.
-      destination = result.destination ?? destination;
-      startDate = result.startDate ?? startDate;
-      endDate = result.endDate ?? endDate;
-      travelers = result.travelers ?? travelers;
-      budgetLevel = result.budgetLevel ?? budgetLevel;
-      if (result.interests.isNotEmpty) interests = result.interests;
-      nextField = result.nextField;
-
-      final reply = result.reply.isNotEmpty
-          ? result.reply
-          : "Got it! Anything else you'd like to add, or shall I plan the trip?";
-
-      // Prefer the backend's explicit next_field signal; only fall back to
-      // pattern-matching the reply text if next_field wasn't provided.
-      final isDateField = nextField == 'start_date' || nextField == 'end_date';
-      final looksLikeDate = nextField == null && _looksLikeDateQuestion(reply);
-
-      if (!result.ready && (isDateField || looksLikeDate) && (startDate == null || endDate == null)) {
-        DateTime? minDate;
-        if (startDate != null) {
-          final parsedStart = DateTime.tryParse(startDate!);
-          if (parsedStart != null) {
-            minDate = parsedStart.add(const Duration(days: 1));
-          }
+      final result = await _api.sendChatTurn(
+          messages: List.of(_history), provider: provider);
+      if (_disposed) return;
+      final place = result.destination?.trim();
+      if (place == null || place.isEmpty || place.length > 120) {
+        // Do not let rejected messages influence the next extraction attempt.
+        if (_history.isNotEmpty && _history.last.role == 'user') {
+          _history.removeLast();
         }
-        _addBotDatePrompt(reply, minDate: minDate);
+        _recoverInput();
       } else {
-        _addBot(reply);
-      }
-
-      final haveMinimum = destination != null && startDate != null && endDate != null;
-      if (result.ready && haveMinimum) {
-        await _generateItinerary();
-      } else {
-        _busy = false;
-        notifyListeners();
+        destination = place;
+        _bot('Ooh, $destination! Let us make this one your kind of adventure.');
+        _advance();
       }
     } catch (_) {
-      _removeTrailingLoading();
+      if (!_disposed) {
+        error =
+            'I couldn’t connect just now. Your message is kept. Try again when you’re ready.';
+      }
+    } finally {
       _busy = false;
-      _handleSnagAndReloop();
+      _changed();
     }
+  }
+
+  void setDates(DateTime start, DateTime end) {
+    if (_busy) return;
+    final today = DateTime.now();
+    final floor = DateTime(today.year, today.month, today.day);
+    if (start.isBefore(floor) ||
+        end.isBefore(start) ||
+        end.difference(start).inDays >= 30) {
+      return;
+    }
+    String iso(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    startDate = iso(start);
+    endDate = iso(end);
+    error = null;
+    _user('$startDate to $endDate');
+    _advance();
+  }
+
+  void setTravelers(int count) {
+    if (_busy || count < 1 || count > 20) return;
+    travelers = count;
+    error = null;
+    _user('$count traveler${count == 1 ? '' : 's'}');
+    _advance();
+  }
+
+  void setBudget(String value) {
+    if (_busy || !['low', 'medium', 'high'].contains(value)) return;
+    budgetLevel = value;
+    error = null;
+    _user('Budget: $value');
+    _advance();
+  }
+
+  void setInterests(List<String> values) {
+    if (_busy) return;
+    final clean =
+        values.map((v) => v.trim()).where((v) => v.isNotEmpty).toSet().toList();
+    if (clean.length > 12 || clean.any((v) => v.length > 120)) return;
+    interests = clean;
+    _interestsAnswered = true;
+    error = null;
+    selectedInterests.clear();
+    otherInterests = '';
+    _user(clean.isEmpty ? 'Surprise me' : clean.join(', '));
+    _advance();
+  }
+
+  void editField(String field) {
+    if (_busy) return;
+    error = null;
+    phase = ChatPhase.chatting;
+    nextField = field;
+    if (field == 'destination') {
+      destination = null;
+      _history.clear();
+      _bot('Which city or region would you like to visit?');
+    }
+    if (field == 'interests') {
+      selectedInterests
+        ..clear()
+        ..addAll(interests.where(interestOptions.contains));
+      otherInterests = interests
+          .where((value) => !interestOptions.contains(value))
+          .join(', ');
+    }
+    _changed();
+  }
+
+  Future<void> confirmTrip() async {
+    if (_busy || _next() != 'confirm') return;
+    _user('Generate my itinerary');
+    await _generateItinerary();
   }
 
   Future<void> _generateItinerary() async {
+    _busy = true;
+    _retryPlan = true;
+    error = null;
     phase = ChatPhase.generating;
-    messages.add(ChatMessage.loading('Lemon is crafting your itinerary...'));
-    notifyListeners();
-
+    _changed();
     try {
-      final response = await _api.planTrip(
-        TripRequest(
+      final result = await _api.planTrip(TripRequest(
           destination: destination!,
           startDate: startDate!,
           endDate: endDate!,
-          travelers: travelers ?? 1,
-          budgetLevel: budgetLevel ?? 'medium',
-          interests: interests,
-          provider: provider,
-        ),
-      );
-      _removeTrailingLoading();
-
-      latestItinerary = response;
-      itineraryNotifier.value = response;
-      messages.add(ChatMessage.itineraryResult(response));
-      _addBot("Ta-da! ✨ Here's your itinerary — want to plan another trip?");
-      messages.add(ChatMessage.quickReplies('', ['Plan another trip']));
+          travelers: travelers!,
+          budgetLevel: budgetLevel!,
+          interests: List.of(interests),
+          provider: provider));
+      if (_disposed) return;
+      latestItinerary = result;
+      itineraryNotifier.value = result;
       phase = ChatPhase.done;
-      _busy = false;
-      notifyListeners();
+      nextField = null;
+      _bot(result.providerUsed == 'mock'
+          ? 'A demo itinerary is available. It is a sample, not your personalized trip. You can retry generation.'
+          : 'Your adventure has a plan! Take a peek at each day - and look out for my little tips along the way. Want a different direction? You can edit your trip brief.');
     } catch (_) {
-      // Whenever Lemon.ai faces an error or a snag, never show a raw
-      // backend/terminal error — just say something friendly and reloop
-      // back to the start of the conversation.
-      _removeTrailingLoading();
+      if (!_disposed) {
+        error =
+            'I couldn’t finish your itinerary. Your trip details are safe here; retry without starting over.';
+        phase = ChatPhase.chatting;
+      }
+    } finally {
       _busy = false;
-      _handleSnagAndReloop();
+      _changed();
     }
   }
 
-  void _removeTrailingLoading() {
-    if (messages.isNotEmpty && messages.last.type == ChatMessageType.loading) {
-      messages.removeLast();
+  Future<void> retry() async {
+    if (_busy) return;
+    if (_retryPlan) {
+      await _generateItinerary();
+    } else {
+      await _sendToLemon();
     }
   }
 
-  void _handleSnagAndReloop() {
-    _addBot("Oops, I tripped over my own suitcase there! 🧳 Let's try that again.");
-    _resetFlowState();
-    _addBot("So — where would you like to go, and when?");
+  void handleQuickReply(String value) {
+    if (_busy) return;
+    if (value == 'Plan another trip') {
+      startOver();
+    } else {
+      handleUserInput(value);
+    }
   }
 
-  void _resetFlowState() {
-    destination = null;
-    startDate = null;
-    endDate = null;
+  void startOver() {
+    if (_busy) return;
+    destination = startDate = endDate = budgetLevel = null;
     travelers = null;
-    budgetLevel = null;
     interests = [];
-    nextField = 'destination';
+    _interestsAnswered = false;
+    error = null;
+    draft = '';
+    otherInterests = '';
+    selectedInterests.clear();
+    messages.clear();
     _history.clear();
     phase = ChatPhase.chatting;
-  }
-
-  void _resetFlow() {
-    _resetFlowState();
-    _addBot("Yay, another adventure! 🌍 Where would you like to go, and when?");
+    nextField = 'destination';
+    _bot(
+        'A fresh adventure - my favorite kind of blank page! Where shall we go this time?');
   }
 
   @override
   void dispose() {
+    _disposed = true;
     itineraryNotifier.dispose();
     super.dispose();
   }

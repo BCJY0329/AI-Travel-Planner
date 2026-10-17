@@ -1,24 +1,39 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Brand Lavender & Periwinkle Palette
-  static const Color primary = Color(0xFF6E7BF5);       // Periwinkle primary
-  static const Color primaryDark = Color(0xFF5864E0);   // Darker periwinkle for hover/emphasis
-  static const Color primaryLight = Color(0xFF909CFC);  // Soft periwinkle light
-  static const Color lavenderTint = Color(0xFFEDE9FE);  // Soft lavender container/badge
-  static const Color lavenderSubtle = Color(0xFFF4F2FF);// Very subtle lavender highlight
-  static const Color background = Color(0xFFF8F7FD);    // Soft off-white lavender page background
-  static const Color surface = Color(0xFFFFFFFF);       // Clean pure white card surface
-  static const Color border = Color(0xFFE5E2F8);        // Gentle periwinkle border
-  static const Color borderLight = Color(0xFFF0EDFC);
+  static const motionFast = Duration(milliseconds: 200);
+  static const motionStandard = Duration(milliseconds: 300);
+  static const motionEntrance = Duration(milliseconds: 400);
+  static const motionCurve = Curves.easeOutCubic;
+  static const Color mint = Color(0xFFE3F7EF);
+  static const Color peach = Color(0xFFFFEADF);
+  static const Color sky = Color(0xFFE5F3FF);
+  static const Color lemon = Color(0xFFFFF3BD);
+  static const Color teal = Color(0xFF167565);
+  // Light travel surfaces with readable ink and saturated actions.
+  static const Color primary = Color(0xFF4F46C8); // Periwinkle primary
+  static const Color primaryDark =
+      Color(0xFF24324B); // Darker periwinkle for hover/emphasis
+  static const Color primaryLight = Color(0xFF7165D8); // Soft periwinkle light
+  static const Color lavenderTint =
+      Color(0xFFEDEAFF); // Soft lavender container/badge
+  static const Color lavenderSubtle =
+      Color(0xFFF4F2FF); // Very subtle lavender highlight
+  static const Color background =
+      Color(0xFFF7FAFD); // Soft off-white lavender page background
+  static const Color surface =
+      Color(0xFFFFFFFF); // Clean pure white card surface
+  static const Color border = Color(0xFFE3E5E8); // Gentle periwinkle border
+  static const Color borderLight = Color(0xFFEEF0F2);
 
   // Text colors
-  static const Color textPrimary = Color(0xFF1E1B4B);   // Deep indigo-slate
+  static const Color textPrimary = Color(0xFF24324B); // Deep indigo-slate
   static const Color textSecondary = Color(0xFF64748B); // Slate muted
-  static const Color textMuted = Color(0xFF94A3B8);     // Light muted slate
+  static const Color textMuted = Color(0xFF69778B); // Light muted slate
 
   // Accent colors
-  static const Color accentLemon = Color(0xFFFBBF24);   // Lemon gold accent for Lemon.ai
+  static const Color accentLemon =
+      Color(0xFFFFD95A); // Lemon gold accent for Lemon.ai
   static const Color accentLemonDark = Color(0xFFD97706);
   static const Color success = Color(0xFF10B981);
   static const Color error = Color(0xFFEF4444);
@@ -34,7 +49,7 @@ class AppTheme {
         onPrimary: Colors.white,
         primaryContainer: lavenderTint,
         onPrimaryContainer: textPrimary,
-        secondary: primaryLight,
+        secondary: teal,
         onSecondary: Colors.white,
         secondaryContainer: lavenderSubtle,
         onSecondaryContainer: textPrimary,
@@ -77,7 +92,8 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
       ),
@@ -86,7 +102,8 @@ class AppTheme {
           foregroundColor: primary,
           side: const BorderSide(color: primary, width: 1.2),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
       ),
@@ -94,7 +111,8 @@ class AppTheme {
         filled: true,
         fillColor: surface,
         hintStyle: const TextStyle(color: textMuted, fontSize: 14),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: border, width: 1),

@@ -31,12 +31,12 @@ JSON request:
 
 | Field | Type | Required/default | Validation in model |
 |---|---|---|---|
-| `destination` | string | Required | No minimum length |
-| `start_date` | string | Required | Described as YYYY-MM-DD; not a date type |
-| `end_date` | string | Required | No ordering validation |
+| `destination` | string | Required | Trimmed, 1–120 characters |
+| `start_date` | string | Required | Valid calendar date in exact YYYY-MM-DD form |
+| `end_date` | string | Required | Valid YYYY-MM-DD; end >= start; 1–30 inclusive days |
 | `travelers` | integer | 1 | 1–20 |
-| `budget_level` | string | `medium` | Suggested low/medium/high, not an enum |
-| `interests` | string array | `[]` | List of strings |
+| `budget_level` | string | `medium` | Enum: low, medium, high |
+| `interests` | string array | `[]` | At most 12 trimmed, nonempty strings, each at most 120 characters |
 | `provider` | string | `mock` | Resolved by provider factory |
 
 ```json
@@ -104,3 +104,15 @@ POST /lemon/chat with provider=auto now allows 9 seconds per real-provider attem
 ## Itinerary deadlines — 2026-10-08
 
 Plan context lookups run concurrently with ten-second wait bounds, using an explicit 5 km attraction radius. Auto generation gets 12 seconds per provider and a 36-second total real-provider budget, then validated mock fallback. Explicit plan providers get a 36-second generation wait bound and return the existing 502 on timeout. These roughly 46 seconds of asynchronous waits leave margin under the frontend's 60-second timeout. Event-loop blocking, local processing, and network delivery are not hard wall-clock guarantees. Late SDK cancellation may continue in the background. Response schemas are unchanged.
+
+
+## Guided intake update — 2026-10-16
+
+The LemonTrip UI uses /lemon/chat for destination interpretation, then collects structured fields locally and calls /lemon/plan only after explicit confirmation. Plan validation above now rejects malformed dates, reversed/overlong ranges, invalid budgets and oversized/empty preference items with 422. Historical dates remain accepted by the server; UI dates start at today. Endpoint names and response fields are unchanged.
+## Plan completeness update - 2026-10-16
+
+/lemon/plan retains its request/response fields. The builder divides the inclusive range into windows of up to three days (at most three concurrent windows). Each real response must include exactly its requested dates and absolute day numbers in order, with nonempty activities. Invalid partial responses are retried/fallback-validated, never returned as a successful complete real plan. Demo windows also cover their dates; any demo window sets provider_used to mock for the whole response and a disclosure summary. Mixed successful real providers use provider_used auto. Generation shares a 36-second budget after context lookup; timeouts/provider failures remain possible. Restart the backend to activate this change.
+
+## Plan latency update - 2026-10-17
+
+No endpoint schema changes. /lemon/plan now uses a shared 75-second generation deadline with auto-provider attempts capped at 25 seconds or remaining budget. Context still has its ten-second bound. Frontend plan HTTP timeout is 100 seconds; chat timeout stays 45 seconds. Direct providers share the generation deadline. Restart both frontend and backend for coordinated timeout values.

@@ -129,3 +129,46 @@ Passed: 20 offline backend unittest cases with the bundled Python runtime and ex
 New backend checks verify numeric attraction radius and context in the prompt, bounded slow-context/provider fallback, and plan budget configuration. Frontend checks verify empty responses, HTTP/JSON/transport failures, URL encoding, and error-to-retry recovery for flights and attractions. Existing hotel and flight-date regressions still pass.
 
 Flutter's initial sandbox test failed SDK ownership checks; the same focused command passed with approved execution outside the sandbox. No Git trust settings, dependencies, credentials, or provider models were changed. No live requests, full-app smoke test, or production build were run in this repair; the previously recorded full-app layout issue remains outside scope.
+
+## LemonTrip first UI/UX batch — 2026-10-16
+
+Passed: all 22 Flutter tests, including the formerly failing app smoke test. New tests exercise explicit confirmation, structured preference preservation, chat and generation retries without duplicate turns, invalid field guards, busy submission/draft preservation across panel recreation, interests with Other, itinerary day-filter reset, and dashboard/assistant layouts at 360, 800, and 1440px. Test services are fake; no live APIs were called.
+
+Passed: all 23 isolated backend tests using the existing bundled runtime and existing site-packages, with provider/context stubs. Three new validation tests cover selected preferences, invalid dates/ranges/budget/destination/interests, and same-day/30-day boundaries. No private configuration or credentials were loaded.
+
+Passed: Flutter web production build (`flutter build web --no-pub`), including its Wasm dry run. `git diff --check` passed with line-ending warnings only. The new test fixture initially had an async conditional return type error; it was corrected and the final full suite passed. Analyzer style warnings were corrected with brace-only fixes.
+
+Not performed: interactive browser visual review, live AI generation, photo-provider integration, Android/macOS release builds, exhaustive accessibility checks, or deployment. Source edits after the production build started were limited to assistant editing/recovery details and brace fixes; final source is covered by the full Flutter test rerun. Rebuild before deploying. No dependencies were installed; pre-existing pubspec.lock edits were preserved.
+
+Final frontend analyzer: flutter analyze --no-pub passed with no issues after all source edits.
+
+## Brighter UI refinement - 2026-10-16
+
+Final flutter test --no-pub: all 24 tests pass. Added phone/desktop itinerary card placement and tip expansion checks. Final flutter analyze --no-pub: no issues found. An intermediate tip-background assertion was fixed by removing the opaque decoration over Material; rerun passed. Source formatting passed after correcting an intermediate text encoding issue. No new production web build or interactive browser visual review performed for this refinement. Backend unchanged in this batch.
+
+## Desktop browser visual review - 2026-10-16
+
+Started current source with flutter run -d web-server --web-hostname 127.0.0.1 --web-port 5187 --no-pub. Inspected actual browser rendering at 1440x1000 and 1920x1080. Completed destination, dates, traveler, budget, interests, explicit generation and View itinerary for a three-day Bali sample; expanded an activity tip. Confirmed proportionate mascot portrait and side-by-side day cards, but found inconsistent activity widths and remaining density/crop issues documented in KNOWN_ISSUES.md. No application source changes in this review. Preview left running for the user; no new test/build claims.
+## Six-point refinement verification - 2026-10-16
+
+Passed: flutter test --no-pub (28 tests), flutter analyze --no-pub (no issues), isolated backend unittest suite (27 tests) with bundled Python and pre-existing packages. No secrets/config imported by the offline test harness. New regressions cover numeric traveler entry, anchored calendar edits, mixed-note card widths, reduced motion, 30-day demo coverage, ordered 11-day assembly with concurrent/out-of-order completion, and rejection of partial/missing-date/empty-activity results. Intermediate syntax and outdated-fixture failures were corrected before final successful runs.
+
+No production web build or live long-trip provider validation for this batch. A new frontend dev server compiled successfully, but was stopped when the user asked to test locally; no claim of final visual acceptance. The user should restart frontend and backend and inspect the portrait/calendar/dashboard locally.
+
+## Interaction polish checks - 2026-10-17
+
+Passed: full frontend suite (31 tests), backend offline suite (27 tests), focused physical Enter check after adding an input-composition guard. New tests cover physical Enter, Shift+Enter not sending, busy draft retention, enlarge/shrink with draft preservation, hover scale and reduced-motion bypass. Backend tests assert updated attempt/deadline values while retaining bounded fallback coverage. A formatting-only lint was corrected afterward. No browser or live-provider test was run for this batch, per user preference; no production web build.
+Final flutter analyze --no-pub: no issues found. git diff --check passed.
+
+## Greeting and portrait checkpoint - 2026-10-17
+
+Full flutter test --no-pub passed all 32 tests; dart format passed. New coverage checks three distinct local greetings, no provider calls for greetings/obvious noise, and retained destination/date step after invalid input. Final analysis, backend tests for prompt changes, and visual avatar confirmation were not run before the user's requested pause. Previous batch's clean analysis/backend results must not be treated as verification of these latest edits.
+
+## Resumed recovery verification - 2026-10-17
+
+Backend offline suite: 28 passed, including invalid mock destination recovery to a Unicode place name. Frontend suite at the prior checkpoint: 32 passed; subsequent frontend change was brace-only lint correction. git diff --check passed before documentation update. No live-provider, image-quality or browser verification this session.
+Final flutter analyze --no-pub: no issues found after brace correction.
+
+## Expressive UI checks - 2026-10-17
+
+`flutter analyze --no-pub`: no issues. `flutter test --no-pub`: 36 tests passed. New coverage exercises launcher invitation rotation, no accidental opening on hover, keyboard activation, reduced-motion bypass, direct touch activation and desktop layout. Existing layout tests cover 360/800/1440 widths. `git diff --check`: passed. No browser or live-provider session was run; user will review locally. Backend unchanged in this batch.

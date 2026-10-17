@@ -1,313 +1,418 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../chat/lemon_chat_controller.dart';
 import '../config/app_theme.dart';
 import 'chat_bubble.dart';
+import 'trip_date_dialog.dart';
 import 'lemon_avatar_image.dart';
 
 class LemonChatPanel extends StatefulWidget {
   final LemonChatController controller;
   final VoidCallback onClose;
-
-  const LemonChatPanel({super.key, required this.controller, required this.onClose});
-
+  final VoidCallback? onViewItinerary;
+  final VoidCallback? onToggleSize;
+  final bool expanded;
+  const LemonChatPanel(
+      {super.key,
+      required this.controller,
+      required this.onClose,
+      this.onViewItinerary,
+      this.onToggleSize,
+      this.expanded = false});
   @override
   State<LemonChatPanel> createState() => _LemonChatPanelState();
 }
 
 class _LemonChatPanelState extends State<LemonChatPanel> {
-  final TextEditingController _textController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-
+  late final TextEditingController _text;
+  late final TextEditingController _other;
+  final _scroll = ScrollController();
+  LemonChatController get c => widget.controller;
+  late final TextEditingController _travelers;
+  String? _travelerError;
+  String? _dateError;
+  String? _lastField;
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_onUpdate);
+    _text = TextEditingController(text: c.draft);
+    _travelers = TextEditingController(text: '${c.travelers ?? 1}');
+    _other = TextEditingController(text: c.otherInterests);
+    _lastField = c.nextField;
+    c.addListener(_update);
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onUpdate);
-    _textController.dispose();
-    _scrollController.dispose();
+    c.removeListener(_update);
+    _text.dispose();
+    _travelers.dispose();
+    _other.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  void _onUpdate() {
+  void _update() {
+    if (_lastField != c.nextField) {
+      _lastField = c.nextField;
+      _other.text = c.otherInterests;
+      _travelers.text = '${c.travelers ?? 1}';
+      _travelerError = null;
+    }
     setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
+      if (mounted && _scroll.hasClients) {
+        _scroll.animateTo(_scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
       }
     });
   }
 
   void _send() {
-    final text = _textController.text;
-    if (text.trim().isEmpty) return;
-    widget.controller.handleUserInput(text);
-    _textController.clear();
+    if (c.isBusy || c.error != null || _text.text.trim().isEmpty) return;
+    if (_text.value.composing.isValid && !_text.value.composing.isCollapsed) {
+      return;
+    }
+    if (_text.text.length > 600) return;
+    final value = _text.text;
+    _text.clear();
+    c.draft = '';
+    c.handleUserInput(value);
   }
 
-  Future<void> _pickDate(DateTime? minDate) async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    // For the departure date, minDate is null -> floor at today.
-    // For the return date, the controller passes (departureDate + 1 day) so
-    // the calendar can't show anything on or before the chosen departure date.
-    final firstSelectable = minDate ?? today;
-    final initial = firstSelectable.isAfter(today) ? firstSelectable : today;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: firstSelectable,
-      lastDate: firstSelectable.add(const Duration(days: 730)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppTheme.primary,
-              onPrimary: Colors.white,
-              onSurface: AppTheme.textPrimary,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      final iso =
-          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-      widget.controller.handleUserInput(iso);
+  void _submitTravelers() {
+    final raw = _travelers.text.trim();
+    final value = int.tryParse(raw);
+    if (!RegExp(r'^\d+$').hasMatch(raw) ||
+        value == null ||
+        value < 1 ||
+        value > 20) {
+      setState(() => _travelerError = 'Enter a whole number from 1 to 20.');
+      return;
     }
+    setState(() => _travelerError = null);
+    c.setTravelers(value);
+  }
+
+  Future<void> _pickDates() async {
+    if (c.isBusy) return;
+    final now = DateUtils.dateOnly(DateTime.now());
+    final start = DateTime.tryParse(c.startDate ?? '');
+    final end = DateTime.tryParse(c.endDate ?? '');
+    final last = DateUtils.addDaysToDate(now, 730);
+    final valid = start != null &&
+        end != null &&
+        !start.isBefore(now) &&
+        !end.isBefore(start) &&
+        !end.isAfter(last);
+    final picked = await showDialog<DateTimeRange>(
+        context: context,
+        builder: (_) => TripDateDialog(
+            today: now,
+            initial: valid ? DateTimeRange(start: start, end: end) : null));
+    if (!mounted || picked == null) return;
+    if (picked.duration.inDays >= 30) {
+      setState(() => _dateError = 'Choose a trip of 30 days or fewer.');
+      return;
+    }
+    setState(() => _dateError = null);
+    c.setDates(picked.start, picked.end);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final panelWidth = size.width < 500 ? size.width - 24 : 390.0;
-    final panelHeight = size.height < 680 ? size.height - 100 : 560.0;
-
-    return Material(
-      elevation: 12,
-      shadowColor: AppTheme.primary.withValues(alpha: 0.25),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: panelWidth,
-        height: panelHeight,
-        decoration: BoxDecoration(
-          color: AppTheme.background,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.border, width: 1.2),
-        ),
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                itemCount: widget.controller.messages.length,
-                itemBuilder: (context, index) {
-                  final msg = widget.controller.messages[index];
-                  return ChatBubbleWidget(
-                    message: msg,
-                    onQuickReply: widget.controller.handleQuickReply,
-                    onPickDate: _pickDate,
-                  );
-                },
-              ),
-            ),
-            _buildInputBar(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppTheme.primary, AppTheme.primaryLight],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(19),
-          topRight: Radius.circular(19),
-        ),
-      ),
-      child: Row(
-        children: [
+  Widget build(BuildContext context) => Material(
+        color: AppTheme.surface,
+        elevation: 8,
+        shadowColor: Colors.black26,
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: [
           Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1.5),
-            ),
-            child: const LemonAvatarImage(radius: 15),
-          ),
-          const SizedBox(width: 10),
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              color: AppTheme.mint,
+              child: Row(children: [
+                const LemonAvatarImage(radius: 24),
+                const SizedBox(width: 10),
+                const Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('Lemon.ai',
+                          style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700)),
+                      Text('Your personal travel companion',
+                          style: TextStyle(
+                              color: AppTheme.textPrimary, fontSize: 12)),
+                    ])),
+                if (widget.onToggleSize != null)
+                  IconButton(
+                      onPressed: widget.onToggleSize,
+                      tooltip: widget.expanded ? 'Shrink chat' : 'Enlarge chat',
+                      icon: Icon(widget.expanded
+                          ? Icons.close_fullscreen
+                          : Icons.open_in_full)),
+                IconButton(
+                    onPressed: widget.onClose,
+                    tooltip: 'Close assistant',
+                    icon: const Icon(Icons.close, color: AppTheme.textPrimary)),
+              ])),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
+              child: ListView(
+                  controller: _scroll,
+                  padding: const EdgeInsets.all(16),
                   children: [
-                    const Text(
-                      'Lemon.ai',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                for (final message in c.messages)
+                  ChatBubbleWidget(
+                      message: message,
+                      onQuickReply: c.handleQuickReply,
+                      onPickDate: (_) => _pickDates()),
+                if (c.isBusy)
+                  Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(children: [
+                        const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: Text(c.phase == ChatPhase.generating
+                                ? 'Building your itinerary. Longer trips can take over a minute.'
+                                : 'Finding your destination…')),
+                      ])),
+                if (c.error != null)
+                  Container(
+                      padding: const EdgeInsets.all(14),
+                      margin: const EdgeInsets.only(top: 12),
                       decoration: BoxDecoration(
-                        color: AppTheme.accentLemon,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'TRIP GENIE',
-                        style: TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 1),
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF86EFAC),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Ready to plan your next trip',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            onPressed: widget.onClose,
-            tooltip: 'Close Assistant',
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Short example text tailored to whatever Lemon is currently asking
-  /// about, so the user always sees an example that actually matches the
-  /// question in front of them instead of one static hint that only fits
-  /// the very first message.
-  // PATCH: in lib/widgets/lemon_chat_panel.dart, replace the existing
-  // `_inputHint` getter with this version. Only one new case was added
-  // ('interests') — everything else is unchanged from your current file.
-
-  String get _inputHint {
-    switch (widget.controller.nextField) {
-      case 'destination':
-        return 'e.g. "Tokyo" or "a beach town in Bali"';
-      case 'start_date':
-        return 'e.g. "2026-11-01" or "next Friday"';
-      case 'end_date':
-        return 'e.g. "2026-11-07" or "5 days"';
+                          color: const Color(0xFFFFF0E9),
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(c.error!),
+                            TextButton.icon(
+                                onPressed: c.isBusy ? null : c.retry,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry')),
+                            TextButton(
+                                onPressed: c.isBusy
+                                    ? null
+                                    : () => c.editField(c.canRetryPlan
+                                        ? 'confirm'
+                                        : 'destination'),
+                                child: Text(c.canRetryPlan
+                                    ? 'Edit trip details'
+                                    : 'Change destination')),
+                          ])),
+                if (!c.isBusy && c.error == null) ..._controls(),
+              ])),
+          if (c.nextField == 'destination')
+            Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                          child: CallbackShortcuts(
+                              bindings: {
+                            const SingleActivator(LogicalKeyboardKey.enter):
+                                _send,
+                            const SingleActivator(
+                                LogicalKeyboardKey.numpadEnter): _send,
+                          },
+                              child: TextField(
+                                controller: _text,
+                                textInputAction: TextInputAction.send,
+                                maxLength: 600,
+                                buildCounter: (context,
+                                        {required currentLength,
+                                        required isFocused,
+                                        maxLength}) =>
+                                    null,
+                                minLines: 1,
+                                maxLines: 3,
+                                onChanged: (v) => c.draft = v,
+                                onSubmitted: (_) => _send(),
+                                decoration: const InputDecoration(
+                                    labelText: 'Where would you like to go?',
+                                    hintText:
+                                        'For example, Kyoto or a beach trip in Bali',
+                                    counterText: ''),
+                              ))),
+                      IconButton(
+                          onPressed: c.isBusy || c.error != null ? null : _send,
+                          tooltip: 'Send message',
+                          icon: const Icon(Icons.send_rounded)),
+                    ])),
+        ]),
+      );
+  List<Widget> _controls() {
+    switch (c.nextField) {
+      case 'dates':
+        return [
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+              onPressed: _pickDates,
+              icon: const Icon(Icons.date_range),
+              label: const Text('Choose travel dates')),
+          if (_dateError != null)
+            Text(_dateError!, style: const TextStyle(color: AppTheme.error))
+        ];
       case 'travelers':
-        return 'e.g. "2" or "just me"';
+        return [
+          const SizedBox(height: 12),
+          TextField(
+              controller: _travelers,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submitTravelers(),
+              decoration: InputDecoration(
+                  labelText: 'Number of travelers',
+                  helperText: 'Enter a whole number from 1 to 20',
+                  errorText: _travelerError)),
+          const SizedBox(height: 10),
+          ElevatedButton(
+              onPressed: _submitTravelers, child: const Text('Continue'))
+        ];
       case 'budget_level':
-        return 'e.g. "medium" or "keep it cheap"';
+        return [
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final choice in [
+              ('low', 'Budget-friendly'),
+              ('medium', 'Comfortable'),
+              ('high', 'Premium')
+            ])
+              ActionChip(
+                  label: Text(choice.$2),
+                  onPressed: () => c.setBudget(choice.$1)),
+          ])
+        ];
       case 'interests':
-        return 'e.g. "food and museums" or "surprise me"';
+        return [
+          const SizedBox(height: 12),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final interest in [
+              'Food',
+              'Culture & history',
+              'Nature',
+              'Beaches',
+              'Shopping',
+              'Adventure',
+              'Nightlife',
+              'Relaxation'
+            ])
+              FilterChip(
+                  label: Text(interest),
+                  selected: c.selectedInterests.contains(interest),
+                  onSelected: (selected) => setState(() {
+                        if (selected) {
+                          c.selectedInterests.add(interest);
+                        } else {
+                          c.selectedInterests.remove(interest);
+                        }
+                      })),
+          ]),
+          const SizedBox(height: 12),
+          TextField(
+              controller: _other,
+              maxLength: 120,
+              onChanged: (v) {
+                c.otherInterests = v;
+                setState(() {});
+              },
+              decoration: const InputDecoration(
+                  labelText: 'Other interests or preferences',
+                  hintText: 'For example, vegetarian food or gentle walks')),
+          const SizedBox(height: 8),
+          ElevatedButton(
+              onPressed: c.selectedInterests.isEmpty &&
+                      _other.text.trim().isEmpty
+                  ? null
+                  : () {
+                      c.setInterests([
+                        ...c.selectedInterests,
+                        if (_other.text.trim().isNotEmpty) _other.text.trim()
+                      ]);
+                      _other.clear();
+                    },
+              child: const Text('Continue with these interests')),
+          TextButton(
+              onPressed: () {
+                c.setInterests([]);
+                _other.clear();
+              },
+              child: const Text('Surprise me'))
+        ];
       case 'confirm':
-        return 'e.g. "yes, let\'s go!"';
+        return [
+          _brief(),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+              onPressed: c.confirmTrip,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Generate my itinerary'))
+        ];
       default:
-        return 'e.g. "5 days in Osaka this December, food + temples"';
+        return [
+          if (c.latestItinerary != null) ...[
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+                onPressed: widget.onViewItinerary,
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('View itinerary')),
+            if (c.latestItinerary!.providerUsed == 'mock')
+              TextButton(
+                  onPressed: c.retry,
+                  child: const Text('Retry personalized generation')),
+            TextButton(
+                onPressed: () => c.editField('confirm'),
+                child: const Text('Edit trip details')),
+            TextButton(
+                onPressed: c.startOver, child: const Text('Plan another trip')),
+          ]
+        ];
     }
   }
 
-  Widget _buildInputBar() {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: const BoxDecoration(
-        color: AppTheme.surface,
-        border: Border(top: BorderSide(color: AppTheme.borderLight)),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(19),
-          bottomRight: Radius.circular(19),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              decoration: InputDecoration(
-                hintText: _inputHint,
-                hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
-                filled: true,
-                fillColor: AppTheme.background,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: const BorderSide(color: AppTheme.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: const BorderSide(color: AppTheme.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
-                ),
-              ),
-              onSubmitted: (_) => _send(),
-            ),
+  Widget _brief() => Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+          color: AppTheme.lavenderSubtle,
+          borderRadius: BorderRadius.circular(16)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('YOUR TRIP BRIEF',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.primary)),
+        for (final item in [
+          ('destination', 'Destination', c.destination ?? ''),
+          ('dates', 'Dates', '${c.startDate} → ${c.endDate}'),
+          ('travelers', 'Travelers', '${c.travelers}'),
+          ('budget_level', 'Budget', c.budgetLevel ?? ''),
+          (
+            'interests',
+            'Interests',
+            c.interests.isEmpty ? 'Surprise me' : c.interests.join(', ')
           ),
-          const SizedBox(width: 8),
-          Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.primary, AppTheme.primaryLight],
-              ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
-              onPressed: _send,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ])
+          ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(item.$2,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppTheme.textSecondary)),
+              subtitle: Text(item.$3,
+                  style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600)),
+              trailing: IconButton(
+                  tooltip: 'Edit ${item.$2.toLowerCase()}',
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  onPressed: () => c.editField(item.$1))),
+      ]));
 }

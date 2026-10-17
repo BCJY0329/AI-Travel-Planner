@@ -53,3 +53,14 @@ Itinerary building fetches weather and attractions concurrently, bounding each c
 ## Boundaries
 
 External APIs provide data, not bookings/payments. Hotel results have no live pricing contract. CORS allows all origins with credentials enabled; routes have no authentication. These are development settings. See `KNOWN_ISSUES.md` and `API.md` for limitations and contracts.
+
+## LemonTrip guided flow update — 2026-10-16
+
+Supersedes the earlier frontend conversation-flow description: /lemon/chat now interprets the destination in the web UI. Date range, traveler count, budget and interests are collected locally through guided controls, reviewed, and posted directly to /lemon/plan after explicit confirmation. Errors preserve the local session; retry repeats only the failed stage. Search tabs are created on first visit, with state retained afterward. Search defaults still do not automatically follow trip context. The product name is LemonTrip; Lemon.ai remains the assistant. See decision 013 and TESTING.md.
+## Itinerary windowing - 2026-10-16
+
+The earlier single-call generation description is superseded: context is gathered once, then requested dates are divided into three-day windows. A semaphore limits active windows to three, each creates its own provider instance, and a shared monotonic deadline bounds generation. Caller validation checks exact dates/day indices and activity presence before results are assembled in request order. Failed aggregate requests cancel outstanding window tasks. Direct clients are closed after each window; auto manages its candidate clients. Any mock window labels the full itinerary mock. UI date selection is staged in TripDateDialog and submitted only on confirmation.
+
+## Interaction and timeout update - 2026-10-17
+
+Plan generation retains three-day windows with at most three concurrent windows, now sharing a 75-second deadline and 25-second auto attempts. Frontend waits 100 seconds. Earlier 36/12/60-second values are historical. HomeScreen owns expanded chat size while keeping LemonChatPanel mounted; CallbackShortcuts handles destination Enter submission and HoverLift provides visual scaling without taking over child actions.

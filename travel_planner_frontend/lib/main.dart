@@ -12,7 +12,7 @@ class TravelPlannerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VoyageAI — AI Travel Planner',
+      title: 'LemonTrip — AI Travel Planner',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const HomeScreen(),

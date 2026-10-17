@@ -1,3 +1,4 @@
+import '../../widgets/map_action.dart';
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
 import '../../models/travel_models.dart';
@@ -12,7 +13,8 @@ class HotelsView extends StatefulWidget {
 }
 
 class _HotelsViewState extends State<HotelsView> {
-  late final TravelApiService _apiService = widget.apiService ?? TravelApiService();
+  late final TravelApiService _apiService =
+      widget.apiService ?? TravelApiService();
   String? _error;
   String _resultCity = '';
   int _searchId = 0;
@@ -22,7 +24,14 @@ class _HotelsViewState extends State<HotelsView> {
   bool _isLoading = false;
   List<HotelItem> _hotels = [];
 
-  final List<String> _popularCities = ['Paris', 'Tokyo', 'Rome', 'London', 'Kyoto', 'Bali'];
+  final List<String> _popularCities = [
+    'Paris',
+    'Tokyo',
+    'Rome',
+    'London',
+    'Kyoto',
+    'Bali'
+  ];
 
   @override
   void initState() {
@@ -48,7 +57,8 @@ class _HotelsViewState extends State<HotelsView> {
       _resultCity = city;
     });
     try {
-      final results = await _apiService.searchHotels(city: city, radiusKm: _radiusKm);
+      final results =
+          await _apiService.searchHotels(city: city, radiusKm: _radiusKm);
       if (!mounted || searchId != _searchId) return;
       setState(() {
         _hotels = results;
@@ -62,10 +72,11 @@ class _HotelsViewState extends State<HotelsView> {
       });
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -97,7 +108,9 @@ class _HotelsViewState extends State<HotelsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          const Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               Icon(Icons.hotel_rounded, color: AppTheme.primary, size: 22),
               SizedBox(width: 8),
@@ -118,7 +131,7 @@ class _HotelsViewState extends State<HotelsView> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SizedBox(
-                width: 260,
+                width: (MediaQuery.sizeOf(context).width - 88).clamp(0, 260),
                 child: TextField(
                   controller: _cityCtrl,
                   decoration: const InputDecoration(
@@ -131,7 +144,8 @@ class _HotelsViewState extends State<HotelsView> {
               ),
               DropdownButtonHideUnderline(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppTheme.surface,
                     borderRadius: BorderRadius.circular(12),
@@ -139,7 +153,8 @@ class _HotelsViewState extends State<HotelsView> {
                   ),
                   child: DropdownButton<int>(
                     value: _radiusKm,
-                    icon: const Icon(Icons.arrow_drop_down, color: AppTheme.primary),
+                    icon: const Icon(Icons.arrow_drop_down,
+                        color: AppTheme.primary),
                     items: const [
                       DropdownMenuItem(value: 3, child: Text('Within 3 km')),
                       DropdownMenuItem(value: 5, child: Text('Within 5 km')),
@@ -162,8 +177,10 @@ class _HotelsViewState extends State<HotelsView> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
@@ -188,7 +205,8 @@ class _HotelsViewState extends State<HotelsView> {
           ),
           const SizedBox(width: 8),
           ..._popularCities.map((city) {
-            final isSelected = _cityCtrl.text.toLowerCase() == city.toLowerCase();
+            final isSelected =
+                _cityCtrl.text.toLowerCase() == city.toLowerCase();
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
@@ -227,7 +245,8 @@ class _HotelsViewState extends State<HotelsView> {
               SizedBox(height: 16),
               Text(
                 'Locating hotels near city center...',
-                style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                    color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -262,7 +281,10 @@ class _HotelsViewState extends State<HotelsView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
               '${_hotels.length} Stays in $_resultCity',
@@ -272,88 +294,48 @@ class _HotelsViewState extends State<HotelsView> {
                 color: AppTheme.textPrimary,
               ),
             ),
-            const Spacer(),
             const Text(
               'Listings from Geoapify',
               style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        ..._hotels.map((hotel) => Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: _buildHotelCard(context, hotel),
-        )),      ],
+        const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Text('Prices, ratings and amenities unavailable.',
+                style: TextStyle(color: AppTheme.textSecondary))),
+        LayoutBuilder(
+          builder: (context, box) => Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              for (final hotel in _hotels)
+                SizedBox(
+                  width: box.maxWidth > 750
+                      ? (box.maxWidth - 16) / 2
+                      : box.maxWidth,
+                  child: _buildHotelCard(context, hotel),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildHotelCard(BuildContext context, HotelItem hotel) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      hotel.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.place_outlined, size: 14, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            hotel.address,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Prices, ratings and amenities unavailable.',
-            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Check directly with the hotel for rates and availability.',
-            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildHotelCard(BuildContext context, HotelItem hotel) => Card(
+      child: Padding(
+          padding: const EdgeInsets.all(20),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(hotel.name,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(hotel.address,
+                style: const TextStyle(
+                    color: AppTheme.textSecondary, height: 1.5)),
+            const SizedBox(height: 10),
+            MapAction(lat: hotel.lat, lon: hotel.lon),
+          ])));
 }

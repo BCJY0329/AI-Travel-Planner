@@ -30,6 +30,7 @@ class _FlightsViewState extends State<FlightsView> {
     if (_departure.isAfter(lastDate)) return lastDate;
     return _departure;
   }
+
   int _adults = 1;
 
   bool _isLoading = false;
@@ -70,14 +71,22 @@ class _FlightsViewState extends State<FlightsView> {
     });
     try {
       final results = await _apiService.searchFlights(
-        origin: _originCtrl.text, destination: _destCtrl.text,
-        departureDate: _departureDate, adults: _adults,
+        origin: _originCtrl.text,
+        destination: _destCtrl.text,
+        departureDate: _departureDate,
+        adults: _adults,
       );
       if (!mounted || searchId != _searchId) return;
-      setState(() { _offers = results; _isLoading = false; });
+      setState(() {
+        _offers = results;
+        _isLoading = false;
+      });
     } catch (_) {
       if (!mounted || searchId != _searchId) return;
-      setState(() { _isLoading = false; _error = 'Unable to load flights. Please try again.'; });
+      setState(() {
+        _isLoading = false;
+        _error = 'Unable to load flights. Please try again.';
+      });
     }
   }
 
@@ -113,7 +122,7 @@ class _FlightsViewState extends State<FlightsView> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -145,9 +154,12 @@ class _FlightsViewState extends State<FlightsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          const Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Icon(Icons.flight_takeoff_rounded, color: AppTheme.primary, size: 22),
+              Icon(Icons.flight_takeoff_rounded,
+                  color: AppTheme.primary, size: 22),
               SizedBox(width: 8),
               Text(
                 'Search Flight Offers',
@@ -180,7 +192,8 @@ class _FlightsViewState extends State<FlightsView> {
               ),
               // Swap icon
               IconButton(
-                icon: const Icon(Icons.swap_horiz_rounded, color: AppTheme.primary),
+                icon: const Icon(Icons.swap_horiz_rounded,
+                    color: AppTheme.primary),
                 onPressed: () {
                   final tmp = _originCtrl.text;
                   _originCtrl.text = _destCtrl.text;
@@ -206,7 +219,8 @@ class _FlightsViewState extends State<FlightsView> {
                 onTap: _pickDate,
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: AppTheme.surface,
                     borderRadius: BorderRadius.circular(12),
@@ -215,11 +229,13 @@ class _FlightsViewState extends State<FlightsView> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.calendar_today_rounded, size: 18, color: AppTheme.primary),
+                      const Icon(Icons.calendar_today_rounded,
+                          size: 18, color: AppTheme.primary),
                       const SizedBox(width: 8),
                       Text(
                         _departureDate,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 13.5),
                       ),
                     ],
                   ),
@@ -228,7 +244,8 @@ class _FlightsViewState extends State<FlightsView> {
               // Passengers
               DropdownButtonHideUnderline(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppTheme.surface,
                     borderRadius: BorderRadius.circular(12),
@@ -236,7 +253,8 @@ class _FlightsViewState extends State<FlightsView> {
                   ),
                   child: DropdownButton<int>(
                     value: _adults,
-                    icon: const Icon(Icons.arrow_drop_down, color: AppTheme.primary),
+                    icon: const Icon(Icons.arrow_drop_down,
+                        color: AppTheme.primary),
                     items: [1, 2, 3, 4, 5, 6].map((n) {
                       return DropdownMenuItem<int>(
                         value: n,
@@ -260,8 +278,10 @@ class _FlightsViewState extends State<FlightsView> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
@@ -334,7 +354,8 @@ class _FlightsViewState extends State<FlightsView> {
               SizedBox(height: 16),
               Text(
                 'Searching available flights...',
-                style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                    color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -362,7 +383,10 @@ class _FlightsViewState extends State<FlightsView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
               '${_offers.length} Flights Available',
@@ -372,9 +396,8 @@ class _FlightsViewState extends State<FlightsView> {
                 color: AppTheme.textPrimary,
               ),
             ),
-            const Spacer(),
             const Text(
-              'Prices include estimated taxes & fees',
+              'Offer totals · availability may change',
               style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
             ),
           ],
@@ -411,7 +434,8 @@ class _FlightsViewState extends State<FlightsView> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 650;
+          final isCompact = constraints.maxWidth < 850 ||
+              MediaQuery.textScalerOf(context).scale(14) > 18;
           return isCompact ? _buildCompactCard(offer) : _buildWideCard(offer);
         },
       ),
@@ -474,23 +498,37 @@ class _FlightsViewState extends State<FlightsView> {
                 children: [
                   Text(
                     offer.readableDuration,
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 12, color: AppTheme.textSecondary),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryLight)),
+                      Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppTheme.primaryLight)),
                       Container(width: 70, height: 2, color: AppTheme.border),
-                      const Icon(Icons.flight, size: 16, color: AppTheme.primary),
+                      const Icon(Icons.flight,
+                          size: 16, color: AppTheme.primary),
                       Container(width: 70, height: 2, color: AppTheme.border),
-                      Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.primary)),
+                      Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                              shape: BoxShape.circle, color: AppTheme.primary)),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: offer.stops == 0 ? const Color(0xFFE0F2FE) : AppTheme.lavenderSubtle,
+                      color: offer.stops == 0
+                          ? const Color(0xFFE0F2FE)
+                          : AppTheme.lavenderSubtle,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -498,7 +536,9 @@ class _FlightsViewState extends State<FlightsView> {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: offer.stops == 0 ? const Color(0xFF0369A1) : AppTheme.primary,
+                        color: offer.stops == 0
+                            ? const Color(0xFF0369A1)
+                            : AppTheme.primary,
                       ),
                     ),
                   ),
@@ -540,7 +580,7 @@ class _FlightsViewState extends State<FlightsView> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              '\$${offer.price}',
+              '${offer.currency} ${offer.price}',
               style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
@@ -549,67 +589,52 @@ class _FlightsViewState extends State<FlightsView> {
               ),
             ),
             const Text(
-              'per traveler',
+              'total for all travelers',
               style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Selected flight ${offer.carrier} ${offer.departure} ➔ ${offer.arrival}!'),
-                    backgroundColor: AppTheme.primary,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('View Deal', style: TextStyle(fontSize: 12.5)),
-            ),
+            TextButton(
+                onPressed: () => _showDetails(offer),
+                child: const Text('View details')),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildCompactCard(FlightOffer offer) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppTheme.lavenderTint,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                offer.carrier,
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary),
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '\$${offer.price}',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('${offer.departureClock} (${offer.departure})', style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('${offer.readableDuration} • ${offer.stopsText}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-            Text('${offer.arrivalClock} (${offer.arrival})', style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ],
-    );
-  }
+  void _showDetails(FlightOffer offer) => showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+            title: Text('${offer.departure} → ${offer.arrival}'),
+            content: SingleChildScrollView(
+                child: Text(
+                    'Carrier: ${offer.carrier}\nDeparture: ${offer.departureTime}\nArrival: ${offer.arrivalTime}\n${offer.readableDuration} · ${offer.stopsText}\n\n${offer.currency} ${offer.price} total for all travelers\n\nFor comparison only. Booking is not available in LemonTrip.')),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'))
+            ],
+          ));
+  Widget _buildCompactCard(FlightOffer offer) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: 16, runSpacing: 8, children: [
+          Text(offer.carrier,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700, color: AppTheme.primary)),
+          Text('${offer.currency} ${offer.price}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))
+        ]),
+        const Text('Total for all travelers',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+        const SizedBox(height: 16),
+        Text(
+            '${offer.departureClock} ${offer.departure} → ${offer.arrivalClock} ${offer.arrival}',
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text('${offer.readableDuration} · ${offer.stopsText}',
+            style: const TextStyle(color: AppTheme.textSecondary)),
+        TextButton(
+            onPressed: () => _showDetails(offer),
+            child: const Text('View details')),
+      ]);
 }

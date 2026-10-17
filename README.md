@@ -1,6 +1,10 @@
-# VoyageAI / Lemon.ai
+# LemonTrip / Lemon.ai
 
-An AI-assisted travel planner with a FastAPI backend and Flutter frontend. VoyageAI is the app; Lemon.ai is its conversational assistant. Project folder: `Work3 - AI Travel Planner`.
+An AI-assisted travel planner with a FastAPI backend and Flutter frontend. LemonTrip is the app; Lemon.ai is its conversational assistant. Project folder: `Work3 - AI Travel Planner`.
+
+Your personal travel companion.
+
+The 2026-10-16 redesign adds guided planning and responsive layouts. See [tasks](docs/TASKS.md) and [testing](docs/TESTING.md) for the completed scope and remaining limitations.
 
 ## Status
 

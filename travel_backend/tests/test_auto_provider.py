@@ -36,6 +36,11 @@ from models.chat import LemonChatRequest
 from models.itinerary import TripRequest
 
 
+def complete_plan(count=2):
+    return json.dumps({"days": [{"day": i + 1, "date": f"2026-11-{i+1:02}",
+        "activities": [{"time": "09:00", "activity": "Walk"}]} for i in range(count)]})
+
+
 def provider(name, output=None, constructor_error=False):
     class Fake:
         calls = 0
@@ -194,7 +199,7 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
             name = "capture"
             async def generate_json(inner, system, prompt):
                 self.assertIn("Actual landmark", prompt)
-                return '{"days": []}'
+                return complete_plan()
         with patch.object(builder, 'get_attractions', attractions), patch.object(builder, 'get_provider', return_value=Capture()):
             result = await build_itinerary(TripRequest(destination="Kyoto", start_date="2026-11-01", end_date="2026-11-02"))
         self.assertEqual(result.provider_used, "capture")
@@ -220,18 +225,76 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.provider_used, 'mock')
         self.assertEqual(len(started_context), 2)
         self.assertEqual(budgets[:2], [10.0, 10.0])
-        self.assertIn(12.0, budgets)
+        self.assertIn(25.0, budgets)
         self.assertLess(time.monotonic() - started, .5)
 
     async def test_itinerary_auto_uses_total_budget(self):
         from services import itinerary_builder as builder
         from unittest.mock import AsyncMock
         engine = auto.AutoProvider()
-        engine.generate_json = AsyncMock(return_value='{"days": []}')
+        engine.generate_json = AsyncMock(return_value=complete_plan())
         with patch.object(builder, 'get_provider', return_value=engine):
             await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-02', provider='auto'))
-        self.assertEqual(engine.generate_json.call_args.kwargs['total_timeout'], 36.0)
-        self.assertEqual(engine.generate_json.call_args.kwargs['attempt_timeout'], 12.0)
+        self.assertLessEqual(engine.generate_json.call_args.kwargs['total_timeout'], 75.0)
+        self.assertGreater(engine.generate_json.call_args.kwargs['total_timeout'], 74.0)
+        self.assertEqual(engine.generate_json.call_args.kwargs['attempt_timeout'], 25.0)
+
+    async def test_long_real_plan_combines_out_of_order_windows(self):
+        from services import itinerary_builder as builder
+        import re
+        active = 0
+        peak = 0
+        class WindowProvider:
+            name = 'fixture'
+            async def generate_json(self, system, prompt):
+                nonlocal active, peak
+                pairs = re.findall(r'(\d+): (2026-11-\d+)', prompt.split('Generate ONLY')[1])
+                active += 1
+                peak = max(peak, active)
+                await asyncio.sleep(.005 if pairs[0][0] == '1' else .001)
+                active -= 1
+                return json.dumps({'days': [{'day':int(number),'date':day,
+                    'activities':[{'time':'09:00','activity':'Explore'}]} for number, day in pairs]})
+        with patch.object(builder,'get_provider',side_effect=lambda _: WindowProvider()):
+            result = await build_itinerary(TripRequest(destination='Kyoto',start_date='2026-11-01',end_date='2026-11-11',provider='groq'))
+        self.assertEqual([d.day for d in result.days],list(range(1,12)))
+        self.assertEqual(result.provider_used,'fixture')
+        self.assertLessEqual(peak,3)
+
+    async def test_long_trip_has_all_thirty_days(self):
+        result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-30', provider='mock'))
+        self.assertEqual([d.day for d in result.days], list(range(1,31)))
+        self.assertEqual([d.date for d in result.days], [f'2026-11-{i:02}' for i in range(1,31)])
+        self.assertTrue(all(d.activities for d in result.days))
+        self.assertEqual(result.provider_used, 'mock')
+
+    async def test_partial_plan_retries_then_fails(self):
+        from services import itinerary_builder as builder
+        fake = provider('partial', complete_plan(1))()
+        with patch.object(builder, 'get_provider', return_value=fake):
+            with self.assertRaisesRegex(ValueError, 'Incomplete itinerary'):
+                await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='groq'))
+        self.assertEqual(fake.calls, 2)
+
+    async def test_missing_date_and_empty_activities_are_rejected(self):
+        from services import itinerary_builder as builder
+        for days in [
+            [{'day': 1, 'date': None, 'activities': [{'time':'09:00','activity':'Walk'}]}],
+            [{'day': 1, 'date': '2026-11-01', 'activities': []}],
+        ]:
+            with patch.object(builder, 'get_provider', return_value=provider('invalid', json.dumps({'days': days}))()):
+                with self.assertRaises(ValueError):
+                    await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-01', provider='groq'))
+
+    async def test_mock_rejects_noise_then_accepts_unicode_destination(self):
+        from services.chat_parser import _mock_parse
+        from models.chat import ChatTurn
+        for text in ['asdfghjkl', '!!!!!!', 'aaaaaaa', 'write me code']:
+            result = _mock_parse([ChatTurn(role='user',content=text)])
+            self.assertIsNone(result.destination)
+            self.assertFalse(result.ready)
+            result = _mock_parse([ChatTurn(role='user',content=text), ChatTurn(role='user',content='京都')])
+            self.assertEqual(result.destination,'京都')
 
     async def test_factory(self):
         self.assertIsInstance(get_provider('AUTO'), auto.AutoProvider)
@@ -302,14 +365,14 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_plan_validation_and_actual_provider(self):
         trip = TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto')
-        with patch.object(auto, '_FALLBACK_ORDER', [provider('bad', '[]'), provider('schema', '{"days": "wrong"}'), provider('good', '{"days": []}')]):
+        with patch.object(auto, '_FALLBACK_ORDER', [provider('bad', '[]'), provider('schema', '{"days": "wrong"}'), provider('good', complete_plan(3))]):
             result = await build_itinerary(trip)
         self.assertEqual(result.provider_used, 'good')
         self.assertEqual(result.destination, 'Kyoto')
         with patch.object(auto, '_FALLBACK_ORDER', []):
             result = await build_itinerary(trip)
         self.assertEqual(result.provider_used, 'mock')
-        self.assertIn('mock', result.summary)
+        self.assertIn('demo', result.summary)
 
     async def test_mock_validation_failure_is_not_hidden(self):
         with patch.object(auto, '_FALLBACK_ORDER', []):

@@ -1,16 +1,7 @@
-# travel_planner_frontend
+# LemonTrip frontend
 
-A new Flutter project.
+Your personal travel companion, built with Flutter. Lemon.ai helps collect a destination, dates, travelers, budget, and interests, then generates an itinerary after confirmation.
 
-## Getting Started
+From this directory, use `flutter analyze --no-pub`, `flutter test --no-pub`, and `flutter build web --no-pub` with the existing dependencies. The API base address is configured in `lib/config/api_config.dart`; the FastAPI server is separate.
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+See [project tasks](../docs/TASKS.md), [known issues](../docs/KNOWN_ISSUES.md), and [verification](../docs/TESTING.md). Search tabs are view-only, trips remain in memory, and listing photos are not integrated. Location actions open an external map in web builds; other platforms offer a copyable link.

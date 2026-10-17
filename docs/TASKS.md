@@ -85,3 +85,118 @@ Implementation presence is not proof of successful runtime behavior. See `TESTIN
 - [ ] Investigate Flutter smoke-test layout overflows (KI-16).
 
 - [x] Bound itinerary latency and reconcile stale documentation (2026-10-08).
+
+## LemonTrip UI and guided planning — 2026-10-16
+
+User authorized the LemonTrip name, dashboard tagline “Your personal travel companion,” palette refresh, compact assistant, and guided planning. This entry supersedes the earlier proposal-only status for the completed items below. Work stopped at a coherent first batch to respect the user's usage-limit request.
+
+- [x] Rename the web app/dashboard to LemonTrip; retain Lemon.ai as the assistant.
+- [x] Add a bounded 1280px desktop layout, indigo/warm-white/teal/lemon palette, compact Discover cards, responsive navigation menu, and a 56px assistant launcher.
+- [x] Lazy-create search tabs on first visit, preserving their state afterward.
+- [x] Guide dates (1–30 days), travelers, budget, and interests with explicit controls; include Other preferences, Surprise me, editable review, and explicit Generate confirmation. Selected fields reach /lemon/plan directly rather than being reinterpreted by a model.
+- [x] Preserve drafts across panel closure and busy submissions; preserve context after request failures and retry only the failed stage.
+- [x] Simplify itinerary hierarchy, reset stale day selection, hide redundant single-day filters, label demos, and copy the full itinerary.
+- [x] Replace nonfunctional Save/View Deal actions with location links and flight detail dialogs; show returned currency and party-total labels. Move unavailable hotel attributes to one list-level notice.
+- [x] Validate structured plan request dates/ranges, destination length, budget enum, and bounded interests in the backend.
+
+Remaining separate work: shared trip context across search tabs (KI-21), verified listing photos/provider integration, persistent saved trips, full category normalization, date-appropriate weather, and remaining backend/provider issues. No dependencies installed or changed; the pre-existing pubspec.lock modification belongs to the user. No commits or pushes performed. See TESTING.md for verification and limitations.
+
+## Brighter visual refinement - 2026-10-16
+
+- [x] Replace dark hero/chat surfaces with lemon, mint and sky; use peach and pastel day headers while keeping readable dark text and action colors.
+- [x] Widen desktop canvas from 1280 to 1720px and arrange multiple itinerary days in two columns on wide screens, stacking on compact screens or larger text.
+- [x] Frame Lemon's face from original artwork without forced square decoding; use a 64px launcher.
+- [x] Add time badges, numbered stops, location icons and expandable tips to itinerary cards. No fabricated activity metadata or images.
+
+## Desktop visual follow-up - 2026-10-16
+
+- [x] Inspect current app in desktop browser with a populated three-day itinerary and expandable tips.
+- [ ] Fix inconsistent activity widths when optional notes are absent; add a mixed-content regression case.
+- [ ] Refine face crop vertical position and reduce itinerary card height after visual review.
+
+## Authorized next batch - user feedback, 2026-10-16
+
+Implementation authorized by the user; deferred before starting because the five-hour usage window was already 89% consumed and the user requested a clean stop near the limit. No application edits made in this checkpoint.
+
+- [ ] Make activity tips feel like advice from Lemon: sharp miniature portrait, friendly heading and cool tinted surface; preserve actual note content. Also fix inconsistent activity widths and reduce excess card padding.
+- [ ] Replace traveler dropdown with numeric entry; keep validation for whole numbers 1-20, helpful errors, keyboard submission and edit-state preservation.
+- [ ] Replace/reset-proof date selection: keep the selected start date when subsequent dates adjust the end date, provide an explicit Change start / Restart selection action, show a clear range and inclusive day count, and retain existing 1-30 day/future-date validation. Define earlier-than-start feedback and same-day selection explicitly; cancellation must preserve the previously accepted range.
+- [ ] Refine Discover with a cool mint/sky/lavender palette, remove yellow from dashboard surfaces/actions, improve composition and add restrained animation that respects reduced-motion preferences.
+- [ ] Correct the shared portrait crop to include Lemon's complete face; modestly enlarge the launcher and add restrained motion/hover feedback. Use original-resolution artwork with preserved proportions. Verify visually in launcher, chat and tip contexts.
+- [ ] Investigate incomplete long itineraries. Enforce complete requested dates/day numbering and nonempty days before reporting success; implement a bounded generation/retry strategy that can actually cover long trips without silently accepting a partial plan. Preserve demo labeling and avoid presenting canned completion as a real personalized result.
+
+Verification needed: mixed-note card widths, numeric input invalid/valid/edit cases, repeated end-date clicks and deliberate start changes, reduced-motion behavior, desktop browser screenshots, and backend partial/duplicate/missing-date/long-range cases. Review provider output limits, fallback behavior and timeout budgets before choosing batching or repair; do not simply increase all timeouts.
+## Completed authorized refinement batch - 2026-10-16
+
+Supersedes the pending implementation status above; browser visual acceptance remains with the user at their request.
+
+- [x] Lemon portrait and mint surface on expandable tips; consistent full-width activities and tighter padding.
+- [x] Numeric traveler entry with whole-number 1-20 validation and keyboard submission.
+- [x] Anchored start date, repeated end-date adjustments, explicit Change start, Just this day, range summary and validation; cancellation does not submit changes.
+- [x] Cool dashboard palette without yellow surfaces, new planning panel in the hero, and short reduced-motion-aware entrance animation.
+- [x] Wider original-resolution portrait framing, 76px mint launcher, short entrance animation.
+- [x] Three-day generation windows, at most three concurrent windows, complete date/day/activity validation, bounded direct-provider corrective retry, auto fallback and ordered assembly. Any demo section labels the entire response mock.
+- [x] Offline checks: 28 Flutter tests, 27 backend tests, Flutter analysis clean.
+- [ ] User visual review of updated portrait, calendar and dashboard in local browser; live long-trip generation/provider quota behavior is not verified by offline tests.
+
+No dependencies changed, commits or pushes. New preview on port 5188 stopped after the user requested local browser testing. Restart the user's frontend and backend to load these changes.
+
+## Interaction polish and provider wait windows - 2026-10-17
+
+- [x] Physical Enter/numpad Enter sends destination text; Shift+Enter remains available for new lines. Keep busy/error/IME-composition guards and drafts.
+- [x] Desktop chat Enlarge/Shrink control preserves state; compact layouts already fill available space.
+- [x] Tips have a portrait medallion, friendly subtitle and inset speech-style note surface, preserving generated text.
+- [x] Launcher, Discover service cards and destination chips scale slightly on hover/press; reduced motion disables scaling.
+- [x] Auto plan provider attempts increased from 12s to 25s; shared generation deadline from 36s to 75s, frontend plan timeout from 60s to 100s. Chat budgets and five-minute cooldown unchanged.
+- [x] Frontend suite 31 passes; backend suite 27 passes; final physical Enter check passes after composition guard.
+
+Visual and live-provider verification remains with local testing per user preference. No browser launched, dependencies changed, commits or pushes in this batch.
+
+## Paused at user request - 2026-10-17
+
+Latest request: three greeting variations, recoverable unclear/off-topic input handling, hide composer helper/counter, improve pixelated avatar. Implementation so far: local rotating greetings, conservative obvious-noise/off-topic checks, friendly retry without field reset, rejected destination turn removed from extraction history, backend prompt guidance against invented destinations, hidden composer hint/counter, larger chat portraits and medium downsampling filter on the original image. Enter behavior and input length limit remain.
+
+Verification: dart format completed; full frontend suite passed 32 tests including greeting rotation/no-network and step preservation after noise. No final analyzer/backend rerun or visual review for this latest batch. User explicitly requested stopping near usage limit.
+
+Resume: inspect current diff; run analyzer and isolated backend suite; review mock parser's permissive bare-destination heuristic (it can still accept arbitrary short alphabetic strings), extend conservative recovery without rejecting unfamiliar/non-English places, and document/test remaining gaps. Confirm avatar improvement locally with the user; source is 675x856, downsampling and display-size changes are not proof of visual quality. Do not claim universal nonsense detection. Preserve all existing uncommitted work; no commit/push/dependency changes.
+
+## Greeting and recovery batch resumed - 2026-10-17
+
+- [x] Three rotating local greeting responses with current-step reminders; obvious-noise recovery preserves trip state and permits another attempt.
+- [x] Hide composer hint and character count while retaining Enter/Shift+Enter and length enforcement.
+- [x] Increase chat portrait size and use medium downsampling/antialiasing on the original 675x856 asset; local visual acceptance remains pending.
+- [x] Harden mock destination replay against obvious keyboard noise, repeated characters, symbols and selected unrelated request patterns. Confirm correction to a non-English destination works.
+- [x] Backend suite passes 28 tests; frontend suite passed 32 at the checkpoint, with only a brace-formatting fix afterward.
+
+No universal semantic nonsense detector or geographic verification is claimed. Arbitrary plausible alphabetic strings may still be accepted by mock mode; avoiding false rejection of valid unfamiliar names remains intentional. No browser launched, dependency change, commit or push.
+## Lemon personality follow-up - 2026-10-17
+
+- [x] Rewrite local greetings, guided planning prompts, recovery and completion messages with a cheerful travel-buddy voice.
+- [x] Align backend chat and itinerary prompts with varied, practical, personable language; allow occasional light asides and restrained emoji without invented facts.
+- [x] Update the tip subtitle to a conversational invitation. Existing generated notes remain unchanged; regenerate to receive the new tone.
+- [x] Frontend suite: 32 tests passed; Flutter analysis clean; isolated backend suite: 28 tests passed. Live provider tone and local visual acceptance remain unverified.
+
+## Expressive Lemon and Discover polish - 2026-10-17
+
+- [x] Six stable tip introductions with emoji, varied by day/stop; factual note content retained.
+- [x] Launcher expands on hover or keyboard focus, reveals the original full artwork, and cycles four invitations on subsequent entries. Click/Enter opens chat; touch opens it directly.
+- [x] Citrus-and-route vector brand mark, teal wordmark, postcard hero, stronger primary action and numbered service cards with entrance/hover feedback.
+- [x] Add flutter_animate 4.5.2 using flutter pub add after verifying Web and Android support on pub.dev. flutter_shaders is its transitive dependency; no other suggested packages added.
+- [x] Centralize 200/300/400ms motion durations and curve in AppTheme. Reduced motion bypasses entrances and launcher resizing, and disables hover scaling.
+- [x] Flutter analyze clean; 36 frontend tests pass, including launcher hover rotation, keyboard activation, touch, reduced motion and existing responsive layouts. git diff --check clean.
+
+No browser launched per user preference. Local visual acceptance remains pending. Backend behavior and live AI tone were not changed or re-tested in this frontend batch. Usage checked at 62% of the five-hour allowance before completing the batch.
+
+## Launcher tooltip removal - 2026-10-17
+
+Removed the redundant Ask Lemon hover tooltip; retained the screen-reader label, expanded invitation and activation behavior. Preserved user-edited invitation wording and updated existing test selectors/copy expectations accordingly.
+
+## Restrained greeting emoji - 2026-10-17
+
+Added one relevant waving-hand emoji to the first welcome sentence; surrounding sentences and other welcome alternatives remain emoji-free. Preserved the user's three welcome variants and fixed their invalid three-argument _bot call by selecting one string at a time. No new dependency or backend change.
+
+Save-conflict recovery: reapplied the single waving-hand emoji to the opening greeting. Preserved the user's latest greetings list (which now holds the alternative welcomes) and revised budget wording, adding the missing separator between its adjacent strings. No duplicate welcome rotation added.
+
+## Compact hotel results - 2026-10-17
+
+Hotel results now match Attractions: two columns above 750px of available content width, one column on narrower layouts, with 16px gaps and content-sized cards. Existing addresses, map actions, search and unavailable-data disclosure retained.

@@ -39,7 +39,8 @@ class LemonApiService {
     }
 
     if (response.statusCode == 200) {
-      return LemonChatResult.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      return LemonChatResult.fromJson(
+          jsonDecode(response.body) as Map<String, dynamic>);
     }
 
     throw LemonApiException('Lemon had trouble understanding that.');
@@ -55,7 +56,7 @@ class LemonApiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(const Duration(seconds: 100));
     } catch (e) {
       throw LemonApiException(
         "I couldn't reach the travel planner backend. Make sure the server is running and try again.",
@@ -63,7 +64,8 @@ class LemonApiService {
     }
 
     if (response.statusCode == 200) {
-      return ItineraryResponse.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      return ItineraryResponse.fromJson(
+          jsonDecode(response.body) as Map<String, dynamic>);
     }
 
     // Backend returns {"detail": "..."} for both 502 and 422 errors.
