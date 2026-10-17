@@ -21,7 +21,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final _chat = LemonChatController();
   int _tab = 0;
   bool _open = false;
-  bool _expandedChat = false;
+  double _chatWidth = 440;
+  double _chatHeight = 640;
   final Set<int> _visited = {0};
   static const labels = [
     'Discover',
@@ -165,22 +166,38 @@ class _HomeScreenState extends State<HomeScreen> {
                           bottom: compact ? 0 : 16,
                           width: compact
                               ? constraints.maxWidth
-                              : (_expandedChat
-                                  ? (constraints.maxWidth - 40)
-                                      .clamp(420, 860)
-                                      .toDouble()
-                                  : 420),
+                              : _chatWidth
+                                  .clamp(
+                                      360,
+                                      (constraints.maxWidth - 40)
+                                          .clamp(360, 900))
+                                  .toDouble(),
                           height: compact
                               ? constraints.maxHeight
-                              : (constraints.maxHeight - 32)
-                                  .clamp(0, _expandedChat ? 1000 : 720),
+                              : _chatHeight
+                                  .clamp(
+                                      360,
+                                      (constraints.maxHeight - 32)
+                                          .clamp(360, 850))
+                                  .toDouble(),
                           child: LemonChatPanel(
                               controller: _chat,
-                              expanded: _expandedChat,
-                              onToggleSize: compact
+                              onResize: compact
                                   ? null
-                                  : () => setState(
-                                      () => _expandedChat = !_expandedChat),
+                                  : (delta) => setState(() {
+                                        _chatWidth = (_chatWidth - delta.dx)
+                                            .clamp(
+                                                360,
+                                                (constraints.maxWidth - 40)
+                                                    .clamp(360, 900))
+                                            .toDouble();
+                                        _chatHeight = (_chatHeight - delta.dy)
+                                            .clamp(
+                                                360,
+                                                (constraints.maxHeight - 32)
+                                                    .clamp(360, 850))
+                                            .toDouble();
+                                      }),
                               onClose: () => setState(() => _open = false),
                               onViewItinerary: () {
                                 _select(4);

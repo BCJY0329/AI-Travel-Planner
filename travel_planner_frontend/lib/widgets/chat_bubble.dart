@@ -51,7 +51,7 @@ class ChatBubbleWidget extends StatelessWidget {
                     message.text ?? 'Lemon is thinking...',
                     style: const TextStyle(
                       color: AppTheme.textPrimary,
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -182,8 +182,8 @@ class ChatBubbleWidget extends StatelessWidget {
         text,
         style: TextStyle(
           color: isBot ? AppTheme.textPrimary : Colors.white,
-          fontSize: 13.5,
-          height: 1.35,
+          fontSize: 14.5,
+          height: 1.5,
           fontStyle: italic ? FontStyle.italic : FontStyle.normal,
         ),
       ),

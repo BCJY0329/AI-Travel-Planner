@@ -200,3 +200,22 @@ Save-conflict recovery: reapplied the single waving-hand emoji to the opening gr
 ## Compact hotel results - 2026-10-17
 
 Hotel results now match Attractions: two columns above 750px of available content width, one column on narrower layouts, with 16px gaps and content-sized cards. Existing addresses, map actions, search and unavailable-data disclosure retained.
+
+## Flutter Web emoji fallback - 2026-10-17
+
+- [ ] Resolve Flutter Web missing-emoji fallback without changing the app-wide typography.
+
+The bundled font and app-wide registration were reverted after text spacing changed across the UI. Keep the existing platform-default font and readable text sizes; evaluate a narrowly scoped fallback or image-based emoji only if the warning recurs.
+
+
+## Calendar, chat resizing and readability pass - 2026-10-17
+
+- [x] Replace single-date calendar with an accessible month grid, clear arrival/return summaries and a continuous highlighted selected range. Keep the 30-day cap and explicit Change start behavior.
+- [x] Keep API budget enum values low/medium/high; show Budget-friendly, Comfortable and Premium in the chat and trip brief, and phrase the choice prompt with those labels.
+- [x] Give new itinerary notes occasional relevant Lemon/travel emoji in the backend prompt; tip introductions remain varied and the model is told not to add an emoji to every note.
+- [x] Make Surprise me a visible outlined action button.
+- [x] Replace desktop expand/shrink with a top-left drag grip; bound width to 360-900px and height to 360-850px, further limited by the viewport. Compact/mobile chat remains full-screen.
+- [x] Remove the forced Segoe UI override, set more readable platform-default text styles, and increase chat bubble size/line spacing.
+- [x] Restore the launcher’s full-proportion Lemon artwork after the enlarged circular face crop looked pixelated; remove forced decode dimensions and return shared avatars to medium downsampling.
+
+Dart format completed. No tests or analyzer run for this pass; desktop/browser and Android appearance remain unverified locally. No API schema or dependency changes.

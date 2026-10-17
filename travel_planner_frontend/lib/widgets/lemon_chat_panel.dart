@@ -10,15 +10,13 @@ class LemonChatPanel extends StatefulWidget {
   final LemonChatController controller;
   final VoidCallback onClose;
   final VoidCallback? onViewItinerary;
-  final VoidCallback? onToggleSize;
-  final bool expanded;
+  final ValueChanged<Offset>? onResize;
   const LemonChatPanel(
       {super.key,
       required this.controller,
       required this.onClose,
       this.onViewItinerary,
-      this.onToggleSize,
-      this.expanded = false});
+      this.onResize});
   @override
   State<LemonChatPanel> createState() => _LemonChatPanelState();
 }
@@ -126,127 +124,154 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
         shadowColor: Colors.black26,
         borderRadius: BorderRadius.circular(24),
         clipBehavior: Clip.antiAlias,
-        child: Column(children: [
-          Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-              color: AppTheme.mint,
-              child: Row(children: [
-                const LemonAvatarImage(radius: 24),
-                const SizedBox(width: 10),
-                const Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text('Lemon.ai',
-                          style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700)),
-                      Text('Your personal travel companion',
-                          style: TextStyle(
-                              color: AppTheme.textPrimary, fontSize: 12)),
-                    ])),
-                if (widget.onToggleSize != null)
-                  IconButton(
-                      onPressed: widget.onToggleSize,
-                      tooltip: widget.expanded ? 'Shrink chat' : 'Enlarge chat',
-                      icon: Icon(widget.expanded
-                          ? Icons.close_fullscreen
-                          : Icons.open_in_full)),
-                IconButton(
-                    onPressed: widget.onClose,
-                    tooltip: 'Close assistant',
-                    icon: const Icon(Icons.close, color: AppTheme.textPrimary)),
-              ])),
-          Expanded(
-              child: ListView(
-                  controller: _scroll,
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                for (final message in c.messages)
-                  ChatBubbleWidget(
-                      message: message,
-                      onQuickReply: c.handleQuickReply,
-                      onPickDate: (_) => _pickDates()),
-                if (c.isBusy)
-                  Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(children: [
-                        const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                            child: Text(c.phase == ChatPhase.generating
-                                ? 'Building your itinerary. Longer trips can take over a minute.'
-                                : 'Finding your destination…')),
-                      ])),
-                if (c.error != null)
-                  Container(
-                      padding: const EdgeInsets.all(14),
-                      margin: const EdgeInsets.only(top: 12),
-                      decoration: BoxDecoration(
-                          color: const Color(0xFFFFF0E9),
-                          borderRadius: BorderRadius.circular(12)),
+        child: Stack(fit: StackFit.expand, children: [
+          Column(children: [
+            Container(
+                padding: EdgeInsets.fromLTRB(
+                    widget.onResize == null ? 16 : 34, 12, 8, 12),
+                color: AppTheme.mint,
+                child: Row(children: [
+                  const LemonAvatarImage(radius: 24),
+                  const SizedBox(width: 10),
+                  const Expanded(
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(c.error!),
-                            TextButton.icon(
-                                onPressed: c.isBusy ? null : c.retry,
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Retry')),
-                            TextButton(
-                                onPressed: c.isBusy
-                                    ? null
-                                    : () => c.editField(c.canRetryPlan
-                                        ? 'confirm'
-                                        : 'destination'),
-                                child: Text(c.canRetryPlan
-                                    ? 'Edit trip details'
-                                    : 'Change destination')),
-                          ])),
-                if (!c.isBusy && c.error == null) ..._controls(),
-              ])),
-          if (c.nextField == 'destination')
-            Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                        Text('Lemon.ai',
+                            style: TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700)),
+                        Text('Your personal travel companion',
+                            style: TextStyle(
+                                color: AppTheme.textPrimary, fontSize: 12)),
+                      ])),
+                  IconButton(
+                      onPressed: widget.onClose,
+                      tooltip: 'Close assistant',
+                      icon:
+                          const Icon(Icons.close, color: AppTheme.textPrimary)),
+                ])),
+            Expanded(
+                child: ListView(
+                    controller: _scroll,
+                    padding: const EdgeInsets.all(16),
                     children: [
-                      Expanded(
-                          child: CallbackShortcuts(
-                              bindings: {
-                            const SingleActivator(LogicalKeyboardKey.enter):
-                                _send,
-                            const SingleActivator(
-                                LogicalKeyboardKey.numpadEnter): _send,
-                          },
-                              child: TextField(
-                                controller: _text,
-                                textInputAction: TextInputAction.send,
-                                maxLength: 600,
-                                buildCounter: (context,
-                                        {required currentLength,
-                                        required isFocused,
-                                        maxLength}) =>
-                                    null,
-                                minLines: 1,
-                                maxLines: 3,
-                                onChanged: (v) => c.draft = v,
-                                onSubmitted: (_) => _send(),
-                                decoration: const InputDecoration(
-                                    labelText: 'Where would you like to go?',
-                                    hintText:
-                                        'For example, Kyoto or a beach trip in Bali',
-                                    counterText: ''),
-                              ))),
-                      IconButton(
-                          onPressed: c.isBusy || c.error != null ? null : _send,
-                          tooltip: 'Send message',
-                          icon: const Icon(Icons.send_rounded)),
-                    ])),
+                  for (final message in c.messages)
+                    ChatBubbleWidget(
+                        message: message,
+                        onQuickReply: c.handleQuickReply,
+                        onPickDate: (_) => _pickDates()),
+                  if (c.isBusy)
+                    Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(children: [
+                          const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: Text(c.phase == ChatPhase.generating
+                                  ? 'Building your itinerary. Longer trips can take over a minute.'
+                                  : 'Finding your destination…')),
+                        ])),
+                  if (c.error != null)
+                    Container(
+                        padding: const EdgeInsets.all(14),
+                        margin: const EdgeInsets.only(top: 12),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFFFFF0E9),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(c.error!),
+                              TextButton.icon(
+                                  onPressed: c.isBusy ? null : c.retry,
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Retry')),
+                              TextButton(
+                                  onPressed: c.isBusy
+                                      ? null
+                                      : () => c.editField(c.canRetryPlan
+                                          ? 'confirm'
+                                          : 'destination'),
+                                  child: Text(c.canRetryPlan
+                                      ? 'Edit trip details'
+                                      : 'Change destination')),
+                            ])),
+                  if (!c.isBusy && c.error == null) ..._controls(),
+                ])),
+            if (c.nextField == 'destination')
+              Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                            child: CallbackShortcuts(
+                                bindings: {
+                              const SingleActivator(LogicalKeyboardKey.enter):
+                                  _send,
+                              const SingleActivator(
+                                  LogicalKeyboardKey.numpadEnter): _send,
+                            },
+                                child: TextField(
+                                  controller: _text,
+                                  textInputAction: TextInputAction.send,
+                                  maxLength: 600,
+                                  buildCounter: (context,
+                                          {required currentLength,
+                                          required isFocused,
+                                          maxLength}) =>
+                                      null,
+                                  minLines: 1,
+                                  maxLines: 3,
+                                  onChanged: (v) => c.draft = v,
+                                  onSubmitted: (_) => _send(),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Where would you like to go?',
+                                      hintText:
+                                          'For example, Kyoto or a beach trip in Bali',
+                                      counterText: ''),
+                                ))),
+                        IconButton(
+                            onPressed:
+                                c.isBusy || c.error != null ? null : _send,
+                            tooltip: 'Send message',
+                            icon: const Icon(Icons.send_rounded)),
+                      ])),
+          ]),
+          if (widget.onResize != null)
+            Positioned(
+              top: 0,
+              left: 0,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeUpLeft,
+                child: Semantics(
+                  label: 'Drag this corner to resize the chat',
+                  child: GestureDetector(
+                    onPanUpdate: (details) => widget.onResize!(details.delta),
+                    child: Tooltip(
+                      message: 'Drag to resize chat',
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.mint,
+                          borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(20),
+                              bottomRight: Radius.circular(10)),
+                        ),
+                        child: const Icon(Icons.drag_indicator_rounded,
+                            size: 18, color: AppTheme.teal),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ]),
       );
   List<Widget> _controls() {
@@ -340,12 +365,13 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                       _other.clear();
                     },
               child: const Text('Continue with these interests')),
-          TextButton(
+          OutlinedButton.icon(
               onPressed: () {
                 c.setInterests([]);
                 _other.clear();
               },
-              child: const Text('Surprise me'))
+              icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+              label: const Text('Surprise me'))
         ];
       case 'confirm':
         return [
@@ -394,7 +420,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
           ('destination', 'Destination', c.destination ?? ''),
           ('dates', 'Dates', '${c.startDate} → ${c.endDate}'),
           ('travelers', 'Travelers', '${c.travelers}'),
-          ('budget_level', 'Budget', c.budgetLevel ?? ''),
+          ('budget_level', 'Budget', _budgetName(c.budgetLevel)),
           (
             'interests',
             'Interests',
@@ -415,4 +441,11 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   onPressed: () => c.editField(item.$1))),
       ]));
+
+  String _budgetName(String? value) => switch (value) {
+        'low' => 'Budget-friendly',
+        'medium' => 'Comfortable',
+        'high' => 'Premium',
+        _ => value ?? '',
+      };
 }

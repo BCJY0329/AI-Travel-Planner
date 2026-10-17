@@ -63,7 +63,16 @@ class AppTheme {
         outline: border,
         outlineVariant: borderLight,
       ),
-      fontFamily: 'Segoe UI',
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(fontSize: 16, height: 1.5),
+        bodyMedium: TextStyle(fontSize: 15, height: 1.5),
+        bodySmall: TextStyle(fontSize: 13, height: 1.4),
+        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        titleMedium:
+            TextStyle(fontSize: 18, height: 1.3, fontWeight: FontWeight.w700),
+        titleLarge:
+            TextStyle(fontSize: 24, height: 1.2, fontWeight: FontWeight.w800),
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: surface,
         foregroundColor: textPrimary,

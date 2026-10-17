@@ -61,7 +61,7 @@ class LemonChatController extends ChangeNotifier {
     if (_greeted) return;
     _greeted = true;
     _bot(
-        "Hi, I'm Lemon! 👋 Think of me as your travel buddy with a very enthusiastic planning habit. Where are we dreaming of going?");
+        "Hi, I'm Lemon! 🍋 Think of me as your travel buddy with a very enthusiastic planning habit. Where are we dreaming of going?");
   }
 
   String _next() {
@@ -76,26 +76,25 @@ class LemonChatController extends ChangeNotifier {
   void _advance() {
     nextField = _next();
     const prompts = {
-      'destination': 'Which city or region would you like to visit?',
+      'destination': 'Which city or region would you like to visit? 🌍',
       'dates':
-          'Time to put this adventure on the calendar! Pick your arrival and departure dates below.',
+          'Time to put this adventure on the calendar! Pick your arrival and departure dates below. 🗓️',
       'travelers':
-          'Solo adventure or bringing your favorite people? How many travelers should I plan for?',
+          'Solo adventure or bringing your favorite people? How many travelers should I plan for? 🎒',
       'budget_level':
-          'Let us find out your kind of treat for this adventure! '
-          'How high of a budget are we looking at? Budget-friendly journey, a little more for comfort, or a crazyyy splurge?',
+          'What feels right for this trip? Choose Budget-friendly, Comfortable, or Premium. 💛',
       'interests':
-          'Now for the fun part: what makes a trip feel like you? Pick your favorites, add your own, or let me surprise you!',
+          'Now for the fun part: what makes a trip feel like you? Pick your favorites, add your own, or let me surprise you! ✨',
       'confirm':
-          'Your adventure is taking shape! Give this trip brief a quick look, then I can turn it into a day-by-day plan.',
+          'Your adventure is taking shape! Give this trip brief a quick look, then I can turn it into a day-by-day plan. 🎯',
     };
     _bot(prompts[nextField]!);
   }
 
   static const greetings = [
-    "Greetings! I'm Lemon! We can start whenever you're ready!",
-    "Hello! Lemon here! And I'm super excited to help you start planning your travels!",
-    "Hey! My imaginary suitcase is ready. Let's make room for your next adventure!",
+    "Greetings! I'm Lemon! 🍋 We can start whenever you're ready!",
+    "Hello! Lemon here! 🍋 And I'm super excited to help you start planning your travels!",
+    "Hey! My imaginary suitcase is ready. Let's make room for your next adventure! 🧳",
   ];
   String get _stepReminder => switch (nextField) {
         'dates' => 'Your trip is saved. Choose your travel dates below.',
@@ -122,7 +121,7 @@ class LemonChatController extends ChangeNotifier {
 
   void _recoverInput() {
     _bot(
-        "Oops, I lost the trail there! Let's try that again - your trip details are still here. $_stepReminder");
+        "Oops, I lost the trail there! 🧳 Let's try that again - your trip details are still here. $_stepReminder");
   }
 
   Future<void> handleUserInput(String raw) async {
@@ -167,7 +166,8 @@ class LemonChatController extends ChangeNotifier {
         _recoverInput();
       } else {
         destination = place;
-        _bot('Ooh, $destination! Let us make this one your kind of adventure.');
+        _bot(
+            'Ooh, $destination! Let us make this one your kind of adventure. ✨');
         _advance();
       }
     } catch (_) {
@@ -211,7 +211,13 @@ class LemonChatController extends ChangeNotifier {
     if (_busy || !['low', 'medium', 'high'].contains(value)) return;
     budgetLevel = value;
     error = null;
-    _user('Budget: $value');
+    final display = switch (value) {
+      'low' => 'Budget-friendly',
+      'medium' => 'Comfortable',
+      'high' => 'Premium',
+      _ => value,
+    };
+    _user('Budget: $display');
     _advance();
   }
 
@@ -278,7 +284,7 @@ class LemonChatController extends ChangeNotifier {
       nextField = null;
       _bot(result.providerUsed == 'mock'
           ? 'A demo itinerary is available. It is a sample, not your personalized trip. You can retry generation.'
-          : 'Your adventure has a plan! Take a peek at each day - and look out for my little tips along the way. Want a different direction? You can edit your trip brief.');
+          : 'Your adventure has a plan! 🎉 Take a peek at each day - and look out for my little tips along the way. Want a different direction? You can edit your trip brief.');
     } catch (_) {
       if (!_disposed) {
         error =
@@ -324,7 +330,7 @@ class LemonChatController extends ChangeNotifier {
     phase = ChatPhase.chatting;
     nextField = 'destination';
     _bot(
-        'A fresh adventure - my favorite kind of blank page! Where shall we go this time?');
+        'A fresh adventure - my favorite kind of blank page! 🍋 Where shall we go this time?');
   }
 
   @override

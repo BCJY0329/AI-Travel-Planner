@@ -154,3 +154,12 @@ Tip subtitles now vary deterministically by day/stop with restrained emoji, incl
 Regression testing caught a zero-duration AnimatedSize layout assertion under reduced motion; bypassing that widget fixes it. Header navigation now scrolls horizontally when its labels exceed available desktop space. Flutter animation entrances require the smoke test to settle before teardown. 36 frontend tests and analyzer pass; actual desktop/Android visual review remains pending with the user.
 
 Launcher tooltip lesson: removing Tooltip.message alone violates Flutter's tooltip content requirement. Remove the Tooltip wrapper to suppress the popup, while retaining Semantics for accessibility.
+
+
+## Calendar and chat usability follow-up - 2026-10-17
+
+The custom calendar uses a seven-column grid and custom month paging; locale weekday order is respected. Check range continuity, screen-reader date labels and month navigation during local review, especially at narrow widths and large text scale. Chat resizing is available on desktop via its upper-left corner, bounded by viewport and 900x850 maximum; compact/mobile layout remains fullscreen. Enlarging the launcher into a circular face crop made the original 675x856 artwork look pixelated at close range. Keep the original full-proportion illustration in the expanded launcher, avoid forced decode dimensions, and judge visual quality at the actual rendered size. No runtime analysis or test suite was run in this pass.
+
+## Flutter Web emoji fallback - 2026-10-17
+
+Flutter Web warned that it could not find a Noto font for some emoji. An app-wide bundled emoji fallback changed the UI's text spacing and was reverted. Preserve platform-default typography; if the warning returns, use a narrowly scoped fallback or image-based emoji and verify the result before applying a global font setting.

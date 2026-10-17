@@ -82,3 +82,8 @@ Use three rotating local greetings, friendly current-step reminders, and nonbloc
 At the user's request, use flutter_animate for finite entrance effects and built-in implicit widgets for interaction-driven resizing/scaling. Define motion durations (200-400ms) and curve centrally in AppTheme, bypass motion for disableAnimations, and avoid looping attention effects or auto-opening chat. No application-owned AnimationControllers are introduced.
 
 Use a focusable/clickable launcher with rotating invitations and proportional original artwork; hover is optional and touch remains one-tap access. Vary tip introductions without mutating provider advice. Draw the citrus-route logo in Flutter for resolution-independent branding. Only flutter_animate is added from the suggested package list; Web/Android support verified at https://pub.dev/packages/flutter_animate before installation.
+
+
+## 019 - Range calendar, bounded chat resize and presentation labels (2026-10-17)
+
+Use a custom accessible month grid to show both trip endpoints and the days between them; preserve anchored-start correction and the existing 30-day limit. Keep `low`/`medium`/`high` in the API contract and map them to Budget-friendly/Comfortable/Premium only for user-facing chat. Render Surprise me as a visible button. On desktop, resize the chat from its upper-left grip within viewport constraints and fixed 360-900px width / 360-850px height bounds; compact devices keep full-screen chat. Use platform-default font families with a larger, spaced text theme. Preserve the original mascot artwork and enlarge its face crop on hover; request occasional, relevant emojis in generated notes, not every note. No API schema or dependency change.
