@@ -61,7 +61,9 @@ class _TripDateDialogState extends State<TripDateDialog> {
         Expanded(
             child: Text(local.formatMonthYear(visibleMonth),
                 style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700))),
+                    fontFamily: AppTheme.headingFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700))),
         IconButton(
             tooltip: 'Previous month',
             onPressed: visibleMonth.year == widget.today.year &&

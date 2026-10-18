@@ -9,11 +9,16 @@ class TravelApiService {
   final http.Client? _client;
   final http.Client? _hotelClient;
 
+  /// Longer than the backend's 45 s Duffel read timeout (routers/flights.py),
+  /// so a slow sandbox search reports the backend's error instead of ours.
+  static const flightTimeout = Duration(seconds: 50);
+
   Future<List<dynamic>> _list(String path, Map<String, String> query,
-      String key, {http.Client? client}) async {
+      String key, {http.Client? client,
+      Duration timeout = const Duration(seconds: 15)}) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$path').replace(queryParameters: query);
     final response = await ((client ?? _client)?.get(uri) ?? http.get(uri))
-        .timeout(const Duration(seconds: 15));
+        .timeout(timeout);
     if (response.statusCode != 200) {
       throw const FormatException('Travel search failed');
     }
@@ -29,7 +34,7 @@ class TravelApiService {
       'origin': origin.trim().toUpperCase(),
       'destination': destination.trim().toUpperCase(),
       'departure_date': departureDate, 'adults': '$adults',
-    }, 'offers');
+    }, 'offers', timeout: flightTimeout);
     return offers.map((o) => FlightOffer.fromJson(o as Map<String, dynamic>)).toList();
   }
 

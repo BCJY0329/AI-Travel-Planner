@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import 'lemon_avatar_image.dart';
+import 'lemon_motion.dart';
 
 class LemonBubble extends StatefulWidget {
   final VoidCallback onTap;
@@ -36,14 +37,30 @@ class _LemonBubbleState extends State<LemonBubble> {
   @override
   Widget build(BuildContext context) {
     final width = math.min(340.0, MediaQuery.sizeOf(context).width - 40);
+    return Stack(clipBehavior: Clip.none, children: [
+      if (!_expanded)
+        const Positioned(
+            left: 0,
+            top: 0,
+            child: PulseRing(size: 76, color: AppTheme.primary)),
+      _launcher(width),
+    ]);
+  }
+
+  Widget _launcher(double width) {
     return Material(
-      color: AppTheme.mint,
-      elevation: _expanded ? 8 : 3,
-      shadowColor: AppTheme.teal.withValues(alpha: .2),
-      borderRadius: BorderRadius.circular(_expanded ? 28 : 40),
+      // One surface for both states so expanding feels like the same card.
+      color: AppTheme.surface,
+      elevation: _expanded ? 8 : 4,
+      shadowColor: Colors.black.withValues(alpha: .25),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_expanded ? 28 : 40),
+          side: const BorderSide(color: AppTheme.skyMint, width: 1.5)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: widget.onTap,
+        hoverColor: Colors.transparent,
+        focusColor: Colors.transparent,
         onHover: (value) => _update(hover: value),
         onFocusChange: (value) => _update(focused: value),
         child: Semantics(

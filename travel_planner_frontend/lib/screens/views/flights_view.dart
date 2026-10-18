@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
+import '../../config/discover_content.dart';
 import '../../models/travel_models.dart';
 import '../../services/travel_api_service.dart';
+import '../../widgets/page_parts.dart';
 
 class FlightsView extends StatefulWidget {
-  const FlightsView({super.key, this.apiService, this.now});
+  const FlightsView({super.key, this.apiService, this.now, this.onOpenLemon});
 
   final TravelApiService? apiService;
   final DateTime Function()? now;
+  final VoidCallback? onOpenLemon;
 
   @override
   State<FlightsView> createState() => _FlightsViewState();
@@ -37,14 +40,29 @@ class _FlightsViewState extends State<FlightsView> {
   String? _error;
   int _searchId = 0;
   List<FlightOffer> _offers = [];
+  // What the current results were searched for, for the results banner.
+  String _resultFrom = '', _resultTo = '';
+  DateTime? _resultDate;
+  int _resultAdults = 1;
 
   final List<Map<String, String>> _popularRoutes = [
-    {'from': 'KUL', 'to': 'NRT', 'label': 'Kuala Lumpur ➔ Tokyo'},
-    {'from': 'SIN', 'to': 'HND', 'label': 'Singapore ➔ Tokyo'},
-    {'from': 'JFK', 'to': 'LHR', 'label': 'New York ➔ London'},
-    {'from': 'CDG', 'to': 'FCO', 'label': 'Paris ➔ Rome'},
-    {'from': 'SYD', 'to': 'DPS', 'label': 'Sydney ➔ Bali'},
+    {'from': 'KUL', 'to': 'NRT', 'fromCity': 'Kuala Lumpur', 'toCity': 'Tokyo'},
+    {'from': 'SIN', 'to': 'HND', 'fromCity': 'Singapore', 'toCity': 'Tokyo'},
+    {'from': 'JFK', 'to': 'LHR', 'fromCity': 'New York', 'toCity': 'London'},
+    {'from': 'CDG', 'to': 'FCO', 'fromCity': 'Paris', 'toCity': 'Rome'},
+    {'from': 'SYD', 'to': 'DPS', 'fromCity': 'Sydney', 'toCity': 'Bali'},
   ];
+
+  // Airports whose city has a photo in DiscoverContent.
+  static const _airportCities = {
+    'NRT': 'Tokyo',
+    'HND': 'Tokyo',
+    'CDG': 'Paris',
+    'ORY': 'Paris',
+    'FCO': 'Rome',
+    'CIA': 'Rome',
+    'DPS': 'Bali',
+  };
 
   @override
   void initState() {
@@ -68,6 +86,10 @@ class _FlightsViewState extends State<FlightsView> {
       _isLoading = true;
       _error = null;
       _offers = [];
+      _resultFrom = _originCtrl.text.trim().toUpperCase();
+      _resultTo = _destCtrl.text.trim().toUpperCase();
+      _resultDate = _departure;
+      _resultAdults = _adults;
     });
     try {
       final results = await _apiService.searchFlights(
@@ -119,227 +141,237 @@ class _FlightsViewState extends State<FlightsView> {
     }
   }
 
+  DiscoverPhoto get _resultPhoto {
+    final city = _airportCities[_resultTo];
+    return (city == null ? null : DiscoverContent.photoForPlace(city)) ??
+        DiscoverContent.flights;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final showResults = !_isLoading && _error == null && _offers.isNotEmpty;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSearchHeader(context),
-          const SizedBox(height: 20),
-          _buildQuickRouteChips(),
-          const SizedBox(height: 24),
-          _buildResultsSection(context),
-        ],
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1320),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              PageBanner(
+                photo: DiscoverContent.flights,
+                photoAlignment: const Alignment(0, .24),
+                eyebrow: 'Flights',
+                title: 'Find your flight',
+                subtitle:
+                    'Compare routes, schedules and prices in one place, then let Lemon plan the days around them.',
+                tip:
+                    'Use 3-letter airport codes, like KUL for Kuala Lumpur or NRT for Tokyo Narita.',
+                search: SearchCard(child: _buildSearchFields()),
+              ),
+              const SizedBox(height: 20),
+              _buildQuickRouteChips(),
+              const SizedBox(height: 22),
+              const HowToSteps(steps: [
+                ('Enter airport codes', 'From and to, like KUL and NRT.'),
+                ('Pick a date and travelers', 'Up to 6 adults on one search.'),
+                (
+                  'Compare the offers',
+                  'Prices are totals for your whole party.'
+                ),
+              ]),
+              const SizedBox(height: 40),
+              _buildResultsSection(context),
+              if (widget.onOpenLemon != null) ...[
+                const SizedBox(height: 40),
+                LemonPromptBand(
+                    title: 'Found a flight you like?',
+                    text:
+                        "Tell Lemon your dates and she'll plan what to do once you land.",
+                    action: 'Plan with Lemon',
+                    onPressed: widget.onOpenLemon!),
+              ],
+              const SizedBox(height: 28),
+              PhotoCredits(photos: [
+                DiscoverContent.flights,
+                if (showResults) _resultPhoto
+              ]),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildSearchHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              Icon(Icons.flight_takeoff_rounded,
-                  color: AppTheme.primary, size: 22),
-              SizedBox(width: 8),
-              Text(
-                'Search Flight Offers',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 16,
-            runSpacing: 14,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              // Origin
-              SizedBox(
-                width: 140,
-                child: TextField(
-                  controller: _originCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'From (IATA)',
-                    hintText: 'e.g. KUL',
-                    prefixIcon: Icon(Icons.flight_takeoff, size: 18),
-                  ),
-                ),
-              ),
-              // Swap icon
-              IconButton(
-                icon: const Icon(Icons.swap_horiz_rounded,
+  Widget _buildSearchFields() {
+    final from = SearchField(
+        label: 'From (IATA)',
+        child: TextField(
+            controller: _originCtrl,
+            textCapitalization: TextCapitalization.characters,
+            style: searchValueStyle,
+            decoration: const InputDecoration.collapsed(hintText: 'e.g. KUL'),
+            onSubmitted: (_) => _search()));
+    final to = SearchField(
+        label: 'To (IATA)',
+        child: TextField(
+            controller: _destCtrl,
+            textCapitalization: TextCapitalization.characters,
+            style: searchValueStyle,
+            decoration: const InputDecoration.collapsed(hintText: 'e.g. NRT'),
+            onSubmitted: (_) => _search()));
+    final swap = IconButton(
+        tooltip: 'Swap airports',
+        style: IconButton.styleFrom(backgroundColor: AppTheme.sky),
+        icon: const Icon(Icons.swap_horiz_rounded, color: AppTheme.primary),
+        onPressed: () {
+          final tmp = _originCtrl.text;
+          _originCtrl.text = _destCtrl.text;
+          _destCtrl.text = tmp;
+          _search();
+        });
+    final date = SearchField(
+        label: 'Departure',
+        onTap: _pickDate,
+        child: Row(children: [
+          const Icon(Icons.calendar_today_rounded,
+              size: 18, color: AppTheme.primary),
+          const SizedBox(width: 8),
+          Flexible(
+              child: Text(_departureDate,
+                  style: searchValueStyle.copyWith(
+                      fontSize: 18, fontWeight: FontWeight.w500))),
+        ]));
+    final travelers = SearchField(
+        label: 'Travelers',
+        child: DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+                value: _adults,
+                isDense: true,
+                isExpanded: true,
+                style: searchValueStyle.copyWith(
+                    fontSize: 18, fontWeight: FontWeight.w500),
+                icon: const Icon(Icons.expand_more_rounded,
                     color: AppTheme.primary),
-                onPressed: () {
-                  final tmp = _originCtrl.text;
-                  _originCtrl.text = _destCtrl.text;
-                  _destCtrl.text = tmp;
-                  _search();
-                },
-              ),
-              // Destination
-              SizedBox(
-                width: 140,
-                child: TextField(
-                  controller: _destCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'To (IATA)',
-                    hintText: 'e.g. NRT',
-                    prefixIcon: Icon(Icons.flight_land, size: 18),
-                  ),
-                ),
-              ),
-              // Date
-              InkWell(
-                onTap: _pickDate,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.calendar_today_rounded,
-                          size: 18, color: AppTheme.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        _departureDate,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 13.5),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Passengers
-              DropdownButtonHideUnderline(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.border),
-                  ),
-                  child: DropdownButton<int>(
-                    value: _adults,
-                    icon: const Icon(Icons.arrow_drop_down,
-                        color: AppTheme.primary),
-                    items: [1, 2, 3, 4, 5, 6].map((n) {
-                      return DropdownMenuItem<int>(
-                        value: n,
-                        child: Text('$n Adult${n > 1 ? "s" : ""}'),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() => _adults = val);
-                        _search();
-                      }
-                    },
-                  ),
-                ),
-              ),
-              // Search Button
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _search,
-                icon: const Icon(Icons.search_rounded, size: 18),
-                label: const Text('Find Flights'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+                items: [1, 2, 3, 4, 5, 6]
+                    .map((n) => DropdownMenuItem<int>(
+                        value: n, child: Text('$n adult${n > 1 ? "s" : ""}')))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _adults = val);
+                    _search();
+                  }
+                })));
+    final button = ElevatedButton.icon(
+        onPressed: _isLoading ? null : _search,
+        icon: const Icon(Icons.search_rounded, size: 20),
+        label: const Text('Find Flights'),
+        style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
+            textStyle:
+                const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)));
+    return LayoutBuilder(builder: (context, box) {
+      if (box.maxWidth >= 900) {
+        return Row(children: [
+          Expanded(flex: 3, child: from),
+          Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6), child: swap),
+          Expanded(flex: 3, child: to),
+          const SizedBox(width: 12),
+          Expanded(flex: 4, child: date),
+          const SizedBox(width: 12),
+          Expanded(flex: 3, child: travelers),
+          const SizedBox(width: 12),
+          button,
+        ]);
+      }
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(child: from),
+          Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4), child: swap),
+          Expanded(child: to),
+        ]),
+        const SizedBox(height: 12),
+        date,
+        const SizedBox(height: 12),
+        travelers,
+        const SizedBox(height: 16),
+        button,
+      ]);
+    });
   }
 
   Widget _buildQuickRouteChips() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          const Text(
-            'Quick Routes: ',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary,
-            ),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Text(
+          'Quick routes:',
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textSecondary,
           ),
-          const SizedBox(width: 8),
-          ..._popularRoutes.map((r) {
-            final isSelected = _originCtrl.text.toUpperCase() == r['from'] &&
-                _destCtrl.text.toUpperCase() == r['to'];
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(r['label']!),
-                selected: isSelected,
-                selectedColor: AppTheme.lavenderTint,
-                backgroundColor: AppTheme.surface,
-                side: BorderSide(
-                  color: isSelected ? AppTheme.primary : AppTheme.border,
+        ),
+        ..._popularRoutes.map((r) {
+          final isSelected = _originCtrl.text.toUpperCase() == r['from'] &&
+              _destCtrl.text.toUpperCase() == r['to'];
+          // The arrow is an icon: '➔' is missing from the bundled fonts, and
+          // the web fallback font shifted and clipped some labels.
+          return ChoiceChip(
+            label: Semantics(
+              label: '${r['fromCity']} to ${r['toCity']}',
+              excludeSemantics: true,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(r['fromCity']!),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 5),
+                  child: Icon(Icons.arrow_forward_rounded,
+                      size: 14, color: AppTheme.textSecondary),
                 ),
-                labelStyle: TextStyle(
-                  color: isSelected ? AppTheme.primary : AppTheme.textPrimary,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 12,
-                ),
-                onSelected: (_) {
-                  _originCtrl.text = r['from']!;
-                  _destCtrl.text = r['to']!;
-                  _search();
-                },
-              ),
-            );
-          }),
-        ],
-      ),
+                Text(r['toCity']!),
+              ]),
+            ),
+            selected: isSelected,
+            showCheckmark: false,
+            labelStyle: TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 13,
+            ),
+            onSelected: (_) {
+              _originCtrl.text = r['from']!;
+              _destCtrl.text = r['to']!;
+              _search();
+            },
+          );
+        }),
+      ],
     );
   }
 
+  Widget _statusCard(List<Widget> children) => Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Column(children: children),
+      );
+
   Widget _buildResultsSection(BuildContext context) {
     if (_error != null) {
-      return Column(children: [
-        Text(_error!),
+      return _statusCard([
+        const Icon(Icons.cloud_off_rounded, color: AppTheme.primary, size: 32),
+        const SizedBox(height: 10),
+        Text(_error!, textAlign: TextAlign.center),
+        const SizedBox(height: 8),
         TextButton(onPressed: _search, child: const Text('Retry')),
       ]);
     }
@@ -347,15 +379,24 @@ class _FlightsViewState extends State<FlightsView> {
     if (_isLoading) {
       return const Center(
         child: Padding(
-          padding: EdgeInsets.all(40),
+          padding: EdgeInsets.all(32),
           child: Column(
             children: [
+              LemonCircle(size: 72, background: AppTheme.background),
+              SizedBox(height: 18),
               CircularProgressIndicator(color: AppTheme.primary),
               SizedBox(height: 16),
               Text(
                 'Searching available flights...',
                 style: TextStyle(
-                    color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Searches can take up to 45 seconds.',
+                style: TextStyle(color: AppTheme.textSecondary),
               ),
             ],
           ),
@@ -364,240 +405,187 @@ class _FlightsViewState extends State<FlightsView> {
     }
 
     if (_offers.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.border),
+      return _statusCard(const [
+        Icon(Icons.flight_outlined, color: AppTheme.primary, size: 32),
+        SizedBox(height: 10),
+        Text(
+          'No flight offers found for this route. Try changing airports or dates.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppTheme.textSecondary),
         ),
-        child: const Center(
-          child: Text(
-            'No flight offers found for this route. Try changing airports or dates.',
-            style: TextStyle(color: AppTheme.textSecondary),
-          ),
-        ),
-      );
+      ]);
     }
 
+    final travelers = '$_resultAdults traveler${_resultAdults == 1 ? '' : 's'}';
+    final date = _resultDate == null
+        ? ''
+        : ' · ${MaterialLocalizations.of(context).formatMediumDate(_resultDate!)}';
+    final cheapest = _cheapestIndex();
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              '${_offers.length} Flights Available',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const Text(
-              'Offer totals · availability may change',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-            ),
-          ],
+        ResultsBanner(
+          photo: _resultPhoto,
+          photoAlignment: const Alignment(0, -.1),
+          title: '$_resultFrom → $_resultTo',
+          subtitle:
+              '${_offers.length} offer${_offers.length == 1 ? '' : 's'}$date · $travelers',
         ),
-        const SizedBox(height: 14),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _offers.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 14),
-          itemBuilder: (context, index) {
-            final offer = _offers[index];
-            return _buildFlightCard(context, offer);
-          },
-        ),
+        const SizedBox(height: 16),
+        const InfoChips(notes: [
+          'Prices are totals for all travelers',
+          'Offers from Duffel (test mode)',
+          'Searches can take up to 45 seconds',
+        ]),
+        const SizedBox(height: 18),
+        ResponsiveGrid(maxColumns: 1, children: [
+          for (var i = 0; i < _offers.length; i++)
+            _buildFlightCard(_offers[i], cheapest == i, travelers),
+        ]),
       ],
     );
   }
 
-  Widget _buildFlightCard(BuildContext context, FlightOffer offer) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 850 ||
-              MediaQuery.textScalerOf(context).scale(14) > 18;
-          return isCompact ? _buildCompactCard(offer) : _buildWideCard(offer);
-        },
+  /// The single cheapest offer, when there is more than one to compare.
+  int? _cheapestIndex() {
+    if (_offers.length < 2) return null;
+    int? best;
+    double? low;
+    for (var i = 0; i < _offers.length; i++) {
+      final price = double.tryParse(_offers[i].price.replaceAll(',', ''));
+      if (price == null || _offers[i].currency != _offers.first.currency) {
+        return null;
+      }
+      if (low == null || price < low) {
+        low = price;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  Widget _buildFlightCard(FlightOffer offer, bool cheapest, String travelers) {
+    return HoverCard(
+      builder: (active) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 850 ||
+                MediaQuery.textScalerOf(context).scale(14) > 18;
+            return isCompact
+                ? _buildCompactCard(offer, cheapest, travelers, active)
+                : _buildWideCard(offer, cheapest, travelers, active);
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildWideCard(FlightOffer offer) {
+  Widget _carrier(FlightOffer offer, double size) => Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+            color: AppTheme.skyMint, shape: BoxShape.circle),
+        child: Text(offer.carrier,
+            style: const TextStyle(
+                color: AppTheme.textPrimary, fontWeight: FontWeight.w700)),
+      );
+
+  Widget _stopsPill(FlightOffer offer) {
+    final direct = offer.stops == 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+          color: direct ? AppTheme.sky : AppTheme.lemon,
+          borderRadius: BorderRadius.circular(999)),
+      child: Text(direct ? 'Direct' : offer.stopsText,
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: direct ? AppTheme.primary : const Color(0xFF6B4E00))),
+    );
+  }
+
+  Widget _cheapestTag() => Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+            color: AppTheme.lemon, borderRadius: BorderRadius.circular(999)),
+        child: const Text('Lowest price',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF6B4E00))),
+      );
+
+  Widget _details(FlightOffer offer) => OutlinedButton(
+      onPressed: () => _showDetails(offer),
+      style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700)),
+      child: const Text('View details'));
+
+  Widget _clock(String time, String airport, CrossAxisAlignment align) =>
+      Column(crossAxisAlignment: align, children: [
+        Text(time,
+            style: tripHeading.copyWith(
+                fontSize: 22, color: AppTheme.textPrimary)),
+        Text(airport,
+            style: const TextStyle(
+                fontSize: 13,
+                letterSpacing: .8,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textSecondary)),
+      ]);
+
+  Widget _buildWideCard(
+      FlightOffer offer, bool cheapest, String travelers, bool active) {
     return Row(
       children: [
-        // Carrier Badge
-        Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            color: AppTheme.lavenderTint,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            offer.carrier,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
-              color: AppTheme.primary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 24),
-
-        // Route details
+        _carrier(offer, 52),
+        const SizedBox(width: 28),
         Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              // Departure
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    offer.departureClock,
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    offer.departure,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-
-              // Duration & stops diagram
-              Column(
-                children: [
-                  Text(
-                    offer.readableDuration,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppTheme.primaryLight)),
-                      Container(width: 70, height: 2, color: AppTheme.border),
-                      const Icon(Icons.flight,
-                          size: 16, color: AppTheme.primary),
-                      Container(width: 70, height: 2, color: AppTheme.border),
-                      Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                              shape: BoxShape.circle, color: AppTheme.primary)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: offer.stops == 0
-                          ? const Color(0xFFE0F2FE)
-                          : AppTheme.lavenderSubtle,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      offer.stopsText,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: offer.stops == 0
-                            ? const Color(0xFF0369A1)
-                            : AppTheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // Arrival
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    offer.arrivalClock,
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    offer.arrival,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          flex: 3,
+          child: Row(children: [
+            _clock(offer.departureClock, offer.departure,
+                CrossAxisAlignment.start),
+            const SizedBox(width: 18),
+            Expanded(
+                child: Column(children: [
+              Text(offer.readableDuration,
+                  style: const TextStyle(
+                      fontSize: 13, color: AppTheme.textSecondary)),
+              const SizedBox(height: 6),
+              _FlightPath(flying: active),
+              const SizedBox(height: 8),
+              _stopsPill(offer),
+            ])),
+            const SizedBox(width: 18),
+            _clock(offer.arrivalClock, offer.arrival, CrossAxisAlignment.end),
+          ]),
         ),
-
         const SizedBox(width: 28),
-        Container(width: 1, height: 50, color: AppTheme.border),
-        const SizedBox(width: 28),
-
-        // Price and Action
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            if (cheapest) _cheapestTag(),
             Text(
               '${offer.currency} ${offer.price}',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
+              style: tripHeading.copyWith(
+                fontSize: 19,
                 color: AppTheme.textPrimary,
-                letterSpacing: -0.5,
               ),
             ),
-            const Text(
-              'total for all travelers',
-              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+            Text(
+              'total for $travelers',
+              style: const TextStyle(
+                  fontSize: 12.5, color: AppTheme.textSecondary),
             ),
-            const SizedBox(height: 8),
-            TextButton(
-                onPressed: () => _showDetails(offer),
-                child: const Text('View details')),
           ],
         ),
+        const SizedBox(width: 16),
+        _details(offer),
       ],
     );
   }
@@ -615,26 +603,82 @@ class _FlightsViewState extends State<FlightsView> {
                   child: const Text('Close'))
             ],
           ));
-  Widget _buildCompactCard(FlightOffer offer) =>
+
+  Widget _buildCompactCard(
+          FlightOffer offer, bool cheapest, String travelers, bool active) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Wrap(spacing: 16, runSpacing: 8, children: [
-          Text(offer.carrier,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, color: AppTheme.primary)),
-          Text('${offer.currency} ${offer.price}',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))
+        Row(children: [
+          _carrier(offer, 44),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Text('${offer.departureClock} → ${offer.arrivalClock}',
+                  style: tripHeading.copyWith(
+                      fontSize: 19, color: AppTheme.textPrimary))),
         ]),
-        const Text('Total for all travelers',
-            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         Text(
-            '${offer.departureClock} ${offer.departure} → ${offer.arrivalClock} ${offer.arrival}',
-            style: const TextStyle(fontWeight: FontWeight.w700)),
+            '${offer.departure} → ${offer.arrival} · ${offer.readableDuration}',
+            style: const TextStyle(
+                fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
         const SizedBox(height: 8),
-        Text('${offer.readableDuration} · ${offer.stopsText}',
-            style: const TextStyle(color: AppTheme.textSecondary)),
-        TextButton(
-            onPressed: () => _showDetails(offer),
-            child: const Text('View details')),
+        _FlightPath(flying: active),
+        const SizedBox(height: 10),
+        _stopsPill(offer),
+        const SizedBox(height: 14),
+        if (cheapest) _cheapestTag(),
+        Text('${offer.currency} ${offer.price}',
+            style: tripHeading.copyWith(
+                fontSize: 18, color: AppTheme.textPrimary)),
+        Text('Total for $travelers',
+            style:
+                const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary)),
+        const SizedBox(height: 12),
+        _details(offer),
       ]);
+}
+
+/// A dashed route line; the plane glides to the far end while [flying].
+class _FlightPath extends StatelessWidget {
+  final bool flying;
+  const _FlightPath({required this.flying});
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      height: 18,
+      child: LayoutBuilder(
+          builder: (context, box) => Stack(children: [
+                Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 8,
+                    child: CustomPaint(
+                        size: const Size(double.infinity, 2),
+                        painter: _DashPainter())),
+                AnimatedPositioned(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 900),
+                    curve: Curves.easeInOutCubic,
+                    left: flying ? box.maxWidth - 18 : 0,
+                    top: 0,
+                    child: const RotatedBox(
+                        quarterTurns: 1,
+                        child: Icon(Icons.flight,
+                            size: 18, color: AppTheme.primary))),
+              ])));
+}
+
+class _DashPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppTheme.skyMint
+      ..strokeWidth = 2;
+    for (double x = 0; x < size.width; x += 14) {
+      canvas.drawLine(Offset(x, 1),
+          Offset((x + 8).clamp(0, size.width).toDouble(), 1), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashPainter oldDelegate) => false;
 }

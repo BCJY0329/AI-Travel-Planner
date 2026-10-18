@@ -23,19 +23,20 @@ Never read, print, or commit `.env` files or API keys. Do not include secrets in
 - `travel_planner_frontend/lib/config/`: theme and API base address.
 - `travel_planner_frontend/lib/chat/`: conversation state and itinerary notification.
 - `travel_planner_frontend/lib/services/`, `travel_planner_frontend/lib/models/`, `travel_planner_frontend/lib/screens/`, `travel_planner_frontend/lib/widgets/`: HTTP, models, views, and components.
-- `travel_planner_frontend/test/widget_test.dart`: existing app smoke test.
+- `travel_planner_frontend/test/`: widget tests with fake services; `widget_test.dart` is the app smoke test.
+- `travel_backend/tests/`: offline backend suites; `travel_backend/tools/`: opt-in live provider diagnostics.
 
 ## Commands and local prerequisites
 
 Use PowerShell and quote paths containing spaces. From the project root, `git status --short` and `git diff --check` work. Use `rg` for source searches and restrict searches to source directories; exclude secrets and virtual environments.
 
-Python is not found on PATH. `travel_backend/venv/Scripts/python.exe --version` fails because its base Python installation is missing. Backend commands in `README.md` and `docs/TESTING.md` are recipes for after repair, not verified working commands today.
+Python is not found on PATH. `travel_backend/venv/Scripts/python.exe --version` fails because its base Python installation is missing. Backend setup commands in `README.md` are recipes for after repair. The offline backend suite (`travel_backend/tests/`) has been run with a separate interpreter; `docs/TESTING.md` records the exact command.
 
-Flutter and Dart launchers are available. In `travel_planner_frontend/`, intended checks are `flutter analyze` and `flutter test`; they were not run during documentation installation. Setup/build commands may download dependencies or write SDK caches; honor session permissions.
+Flutter and Dart launchers are available. In `travel_planner_frontend/`, run `flutter analyze --no-pub` and `flutter test --no-pub`; latest results are in `docs/TESTING.md`. In the agent sandbox Flutter may fail SDK ownership checks; do not change Git trust settings to work around it. Setup/build commands may download dependencies or write SDK caches; honor session permissions.
 
 ## Implementation conventions
 
-Treat routers, models, and the provider factory as evidence of current behavior; comments and older READMEs may lag behind. Keep Dart JSON mappings aligned with Python response models. Do not describe `auto` as working until registration and behavior are fixed and tested. Distinguish demo data from verified external results.
+Treat routers, models, and the provider factory as evidence of current behavior; comments and older READMEs may lag behind. Keep Dart JSON mappings aligned with Python response models. `auto` is registered and covered by offline tests; do not describe live provider behavior as verified without a live check. Distinguish demo data from verified external results.
 
 Run focused checks for meaningful behavior changes and report passed, failed, and unrun checks separately. Do not import configuration merely to inspect documentation: it can load credentials. See `docs/TESTING.md` for isolated testing guidance.
 

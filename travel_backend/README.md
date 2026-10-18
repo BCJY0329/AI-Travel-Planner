@@ -1,6 +1,6 @@
 # Travel Planner Backend (v0.3 — data layer + Lemon.ai)
 
-> **Documentation review, 2026-10-08:** Current contracts and verification limits
+> **Documentation review, 2026-10-17:** Current contracts and verification limits
 > are in [API](../docs/API.md), [Testing](../docs/TESTING.md), and
 > [Known issues](../docs/KNOWN_ISSUES.md). Historical verification notes below
 > have not been rerun. A secret-free `.env.example` is included; this machine's
@@ -48,8 +48,8 @@ Open http://127.0.0.1:8000/docs to try every endpoint interactively.
 | `GET /places/attractions?city=Paris` | Points of interest near a city |
 | `GET /hotels/search?city=Paris` | Hotel listings near a city (name/location only, no pricing) |
 | `GET /flights/search?origin=KUL&destination=NRT&departure_date=2026-12-01` | Flight offers from Duffel sandbox data |
-| `POST /lemon/plan` | Single-call AI itinerary generation (see below) |
-| `POST /lemon/chat` | Full-history conversation intake; returns extracted trip fields, reply, ready, and next_field |
+| `POST /lemon/plan` | AI itinerary generation in validated three-day windows (see below) |
+| `POST /lemon/chat` | Full-history conversation intake; returns extracted trip fields, reply, ready, and next_field. The LemonTrip UI uses it for destination interpretation only. |
 
 The Flutter client sends `auto`, now registered with guarded construction,
 response validation, cooldowns, and task-appropriate local fallback (KI-01/KI-02).
@@ -65,7 +65,7 @@ response validation, cooldowns, and task-appropriate local fallback (KI-01/KI-02
 
 ## Lemon.ai — the AI planning layer
 
-`POST /lemon/plan` generates a full itinerary in a single AI call. Request body:
+`POST /lemon/plan` generates a full itinerary. The date range (1–30 days, validated) is split into windows of up to three days, at most three generated concurrently under a shared 75-second deadline; every window must return exactly its requested dates with activities before the parts are assembled. Any demo window marks the whole response `mock`. Request body:
 
 ```json
 {
@@ -84,7 +84,14 @@ Factory-supported `provider` values are `"auto"`, `"groq"`, `"gemini"`, `"openro
 `"claude"` and `"gpt"` are no longer registered in the current working tree.
 Use the corresponding `GROQ_API_KEY`, `GEMINI_API_KEY`, or `OPENROUTER_API_KEY`
 for a real provider. Mock chat is local; mock itinerary generation still
-attempts external weather/attraction context before returning canned data.
+attempts external weather/attraction context before returning placeholder days.
+
+Offline regression tests live in `tests/` and stub providers and context so no
+credentials or network are used: `python -m unittest discover -s tests -v`
+from this directory once a working interpreter is available (see
+[Testing](../docs/TESTING.md) for how they have been run on this machine).
+`tools/diagnose_providers.py` makes live, quota-consuming calls; run it only
+deliberately.
 
 Weather/attraction lookups feed into the prompt as context automatically; if either
 fails (bad city name, API down), the itinerary is still generated using general

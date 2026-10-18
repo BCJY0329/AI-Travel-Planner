@@ -31,7 +31,12 @@ class ChatBubbleWidget extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: AppTheme.lavenderTint,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                topRight: Radius.circular(16),
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
               border: Border.all(color: AppTheme.border),
             ),
             child: Row(
@@ -79,16 +84,17 @@ class ChatBubbleWidget extends StatelessWidget {
                     return ActionChip(
                       onPressed: () => onQuickReply(opt),
                       backgroundColor:
-                          isPlanIt ? AppTheme.primary : AppTheme.surface,
+                          isPlanIt ? AppTheme.accentLemon : AppTheme.surface,
                       side: BorderSide(
                         color:
-                            isPlanIt ? AppTheme.primary : AppTheme.primaryLight,
+                            isPlanIt ? AppTheme.accentLemon : AppTheme.skyMint,
                         width: 1.2,
                       ),
                       label: Text(
                         opt,
                         style: TextStyle(
-                          color: isPlanIt ? Colors.white : AppTheme.primary,
+                          color:
+                              isPlanIt ? AppTheme.lemonInk : AppTheme.primary,
                           fontWeight: FontWeight.w600,
                           fontSize: 12.5,
                         ),
@@ -118,8 +124,8 @@ class ChatBubbleWidget extends StatelessWidget {
                   icon: const Icon(Icons.calendar_today_rounded, size: 15),
                   label: const Text('Pick a Date'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppTheme.accentLemon,
+                    foregroundColor: AppTheme.lemonInk,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     shape: RoundedRectangleBorder(
@@ -143,7 +149,10 @@ class ChatBubbleWidget extends StatelessWidget {
       child: Row(
         mainAxisAlignment:
             isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.end,
+        // Lemon's avatar sits at the top so her bubble's sharp corner is
+        // beside her head.
+        crossAxisAlignment:
+            isBot ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
           if (isBot) ...[
             const LemonAvatarImage(radius: 18),
@@ -159,31 +168,30 @@ class ChatBubbleWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isBot ? AppTheme.surface : AppTheme.primary,
+        color: isBot ? AppTheme.surface : AppTheme.skyMint,
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(16),
-          topRight: const Radius.circular(16),
-          bottomLeft: Radius.circular(isBot ? 4 : 16),
-          bottomRight: Radius.circular(isBot ? 16 : 4),
+          topLeft: Radius.circular(isBot ? 4 : 18),
+          topRight: const Radius.circular(18),
+          bottomLeft: const Radius.circular(18),
+          bottomRight: Radius.circular(isBot ? 18 : 4),
         ),
-        border: Border.all(
-          color: isBot ? AppTheme.border : AppTheme.primaryDark,
-          width: 1,
-        ),
+        border: isBot ? Border.all(color: AppTheme.lavenderTint) : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: isBot ? 0.05 : 0.07),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Text(
         text,
         style: TextStyle(
-          color: isBot ? AppTheme.textPrimary : Colors.white,
+          color: AppTheme.chatText,
           fontSize: 14.5,
           height: 1.5,
+          letterSpacing: 0.1,
+          fontWeight: isBot ? FontWeight.w400 : FontWeight.w500,
           fontStyle: italic ? FontStyle.italic : FontStyle.normal,
         ),
       ),
@@ -234,6 +242,7 @@ class ChatBubbleWidget extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
+                        fontFamily: AppTheme.headingFont,
                         fontSize: 15,
                       ),
                     ),

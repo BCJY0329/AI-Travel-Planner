@@ -2,7 +2,9 @@
 
 ## Verification basis
 
-Source-inspected on 2026-10-08 against the current working tree. The initial review made no application fixes; subsequent auto repairs are recorded below. Findings below are source-derived unless explicitly marked as a command observation; runtime reproduction remains pending.
+Source-inspected on 2026-10-08 against the current working tree. The initial review made no application fixes; subsequent repairs are recorded below, and the dated sections are chronological (later entries supersede earlier ones).
+
+**Open as of 2026-10-17:** KI-07 (Python environment), KI-09 (partial: chat roles/payload sizes and travel-search validation), KI-10 (travel route transport errors), KI-11 (backend exception detail in plan errors), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), KI-21 (search tabs ignore trip context), Flutter Web emoji fallback, and pending local visual review. All other numbered issues are resolved; see the status notes below. Findings below are source-derived unless explicitly marked as a command observation; runtime reproduction remains pending.
 
 ## UI/UX review and lessons — 2026-10-09
 
@@ -49,21 +51,22 @@ Frontend paths below are relative to `travel_planner_frontend/lib/`.
 | KI-06 | Resolved 2026-10-08: secret-free `travel_backend/.env.example` added with all declared settings. | Static key/default parity verified; fresh environment setup remains unverified (KI-07). |
 | KI-07 | Python absent from PATH; existing backend venv version command reports its base interpreter missing. | Runtime verification/setup blocked on this machine. Repair environment before backend execution. Command observation. |
 | KI-08 | Resolved 2026-10-08: builder passes radius_km=5 explicitly. | Offline regression checks the numeric argument and context reaching the prompt. |
-| KI-09 | Date/budget/role fields in `travel_backend/models/` are strings, not validated dates/enums. | Invalid ranges and semantic values may pass request validation. Add focused validation tests and constraints. |
+| KI-09 | Partially resolved 2026-10-16: `/lemon/plan` validates ISO dates, ordered 1–30-day ranges, budget enum, and bounded destination/interests. Chat roles and payload sizes remain unconstrained strings. | Add chat and travel-search validation with focused tests. |
 | KI-10 | Weather, places, hotels, and flights do not uniformly catch transport failures after geocoding. | Timeouts or malformed provider payloads can produce raw server failures. Standardize error handling. |
-| KI-11 | Lemon controller resets fields and transcript on errors; plan generation can expose backend exception detail through the API. | Recovery loses planning context; audit error presentation and preserve recoverable state. |
+| KI-11 | Frontend part resolved 2026-10-16: failures keep trip fields/history and retry only the failed stage. Plan/chat 502 responses still include backend exception detail. | Audit error detail exposure before deployment. |
 | KI-12 | `travel_backend/main.py` permits all CORS origins with credentials; no route authentication. | Development configuration requires review before deployment. |
 | KI-13 | Resolved 2026-10-08: model/router provider lists and factory error-status comment updated. | Source descriptions now include auto and match the registered providers. |
 
 ## Limitations
 
 - No persistent trip/chat storage was found in the inspected app flow.
-- Mock itinerary output is one canned day; requested duration/dates do not drive it.
+- Mock/demo itinerary output is one placeholder activity per requested date (since 2026-10-16); it is labelled demo, not personalized.
 - Mock itinerary calls still attempt external context; mock chat uses local parsing.
 - Auto now validates candidates and falls back to local chat parsing or demo itinerary JSON. Chat still has no provider provenance field; plans report provider_used. Cooldowns are process-local and shared across chat/plan.
-- Mock confirmation uses substring matching across user messages; ambiguous confirmations and corrections need dedicated tests.
+- Mock confirmation uses substring matching across user messages; the guided UI now requires explicit confirmation itself, but the mock parser path remains loosely tested.
 - Short-range forecasts do not provide weather for arbitrary trip dates.
-- Backend coverage now includes 20 offline regressions; focused frontend tests cover flights, hotels, and travel failure/retry behavior. Full app smoke-test layout issues remain KI-16.
+- Long trips use more provider calls (one per three-day window) and independently generated windows can repeat suggestions.
+- Latest recorded coverage: 28 offline backend tests and 36 frontend tests; see TESTING.md for which recent edits have not been rerun. The smoke-test overflows (KI-16) are resolved.
 
 ## Already present in source
 
@@ -163,3 +166,21 @@ The custom calendar uses a seven-column grid and custom month paging; locale wee
 ## Flutter Web emoji fallback - 2026-10-17
 
 Flutter Web warned that it could not find a Noto font for some emoji. An app-wide bundled emoji fallback changed the UI's text spacing and was reverted. Preserve platform-default typography; if the warning returns, use a narrowly scoped fallback or image-based emoji and verify the result before applying a global font setting.
+
+## Stale frontend tests - 2026-10-17 (command observation)
+
+`flutter test --no-pub` fails four tests. Two of them in `test/lemon_redesign_test.dart` also fail against the committed `lemon_chat_panel.dart`/`chat_bubble.dart`. "Desktop chat expands without losing its draft" taps an "Enlarge chat" tooltip that no longer exists since the drag-grip resize replaced expand/shrink. "Calendar end edits preserve start…" finds no matching calendar element at line 216. The two `test/lemon_personality_ui_test.dart` launcher hover/focus failures were not investigated. Update the tests to the current UI rather than restoring the removed controls.
+
+## App-wide font change - 2026-10-18
+
+The frontend now defaults to bundled Nunito/Fredoka (DECISIONS 021), which is the kind of global font change the emoji-fallback note warns about. The difference from the reverted attempt is that these are Latin text fonts, not an emoji font, so emoji should still come from platform fallback. This is unverified: check emoji rendering and text spacing in Flutter Web and Android during local review. If emoji break, scope the fallback rather than reverting typography.
+
+Update 2026-10-18: the app-wide font change above was reverted (DECISIONS 023). The emoji-fallback check no longer applies to custom fonts.
+
+## Discover photo licensing - 2026-10-18
+
+Discover photos are from Wikimedia Commons under CC BY, CC BY-SA or CC0 (see `lib/config/discover_content.dart`). The attribution line at the foot of Discover must stay while these photos are used; replacing a photo means updating or clearing its credit. Lesson: endless idle animations make `pumpAndSettle` time out; `AmbientMotion.loopForever` keeps them endless in the app and `test/flutter_test_config.dart` limits them to two cycles in tests.
+
+## Flight search timeout - 2026-10-18
+
+User-reported traceback: `/flights/search` raised `httpcore.ReadTimeout` because Duffel's `return_offers=true` call exceeded the 15 s httpx timeout and only `HTTPStatusError` was caught. Fixed: 45 s read / 10 s connect timeout, 504 on timeout, 502 on transport or malformed responses, incomplete offers skipped; the frontend waits 50 s for flights. KI-10 is now resolved for flights only; weather, places and hotels are unchanged. Also observed: `test_chat_exhaustion_matches_explicit_mock` in `tests/test_auto_provider.py` fails (`budget_level` != `confirm`) with or without the flight changes; not investigated.

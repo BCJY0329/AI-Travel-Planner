@@ -60,8 +60,9 @@ class LemonChatController extends ChangeNotifier {
   void startIfNeeded() {
     if (_greeted) return;
     _greeted = true;
-    _bot(
-        "Hi, I'm Lemon! 🍋 Think of me as your travel buddy with a very enthusiastic planning habit. Where are we dreaming of going?");
+    _bot("Hi, I'm Lemon! 🍋 Your helpful travel planning assistant! "
+        "Together, we will put together the greatest adventure plan! "
+        "Now tell me: Where are we thinking of going today? The sky's the limit! ✈️");
   }
 
   String _next() {
@@ -82,11 +83,11 @@ class LemonChatController extends ChangeNotifier {
       'travelers':
           'Solo adventure or bringing your favorite people? How many travelers should I plan for? 🎒',
       'budget_level':
-          'What feels right for this trip? Choose Budget-friendly, Comfortable, or Premium. 💛',
+          'How much are we looking to spend for this adventure? Budget-friendly? A little more for comfort? or a crazyyy splurge? 💛',
       'interests':
           'Now for the fun part: what makes a trip feel like you? Pick your favorites, add your own, or let me surprise you! ✨',
       'confirm':
-          'Your adventure is taking shape! Give this trip brief a quick look, then I can turn it into a day-by-day plan. 🎯',
+          'Your adventure plan is coming together well! Give this trip brief a quick look, then I can turn it into a day-by-day plan! 🎯',
     };
     _bot(prompts[nextField]!);
   }

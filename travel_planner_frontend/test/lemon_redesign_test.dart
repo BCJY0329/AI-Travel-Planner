@@ -177,6 +177,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
             body: ItineraryView(itinerary: value, onOpenLemon: () {}))));
+    await tester.pumpAndSettle();
     final short = find
         .ancestor(of: find.text('Short'), matching: find.byType(Container))
         .first;
@@ -389,6 +390,8 @@ void main() {
       } else {
         expect(second.dy, greaterThan(first.dy));
       }
+      await tester.ensureVisible(find.text("A little tip from Lemon").first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text("A little tip from Lemon").first);
       await tester.pumpAndSettle();
       expect(find.text('Bring comfortable shoes'), findsOneWidget);

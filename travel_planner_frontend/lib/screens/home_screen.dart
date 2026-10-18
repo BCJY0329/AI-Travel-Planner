@@ -5,6 +5,7 @@ import '../widgets/lemon_bubble.dart';
 import '../widgets/lemon_brand.dart';
 import '../widgets/hover_lift.dart';
 import '../widgets/lemon_chat_panel.dart';
+import '../widgets/page_parts.dart';
 import 'views/attractions_view.dart';
 import 'views/discover_view.dart';
 import 'views/flights_view.dart';
@@ -88,12 +89,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             padding: const EdgeInsets.only(right: 4),
                             child: TextButton.icon(
                                 style: TextButton.styleFrom(
-                                    backgroundColor: _tab == i
-                                        ? AppTheme.lavenderTint
-                                        : null,
+                                    backgroundColor:
+                                        _tab == i ? AppTheme.skyMint : null,
                                     foregroundColor: _tab == i
-                                        ? AppTheme.primary
-                                        : AppTheme.textSecondary),
+                                        ? AppTheme.textPrimary
+                                        : AppTheme.navBarText,
+                                    textStyle: TextStyle(
+                                        fontWeight: _tab == i
+                                            ? FontWeight.w700
+                                            : FontWeight.w500)),
                                 onPressed: () => _select(i),
                                 icon: Icon(icons[i], size: 18),
                                 label: Text(labels[i]))),
@@ -119,10 +123,20 @@ class _HomeScreenState extends State<HomeScreen> {
           if (!compact)
             Padding(
                 padding: const EdgeInsets.only(right: 24),
-                child: OutlinedButton.icon(
-                    onPressed: _openChat,
-                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                    label: const Text('Ask Lemon'))),
+                // Placeholder until accounts exist; it must not imply a login.
+                child: Tooltip(
+                    message: 'Accounts are coming soon',
+                    child: HoverLift(
+                        child: OutlinedButton.icon(
+                            onPressed: () => ScaffoldMessenger.of(context)
+                                .showSnackBar(const SnackBar(
+                                    content: Text('Sign in is coming soon.'))),
+                            style: OutlinedButton.styleFrom(
+                                backgroundColor: AppTheme.surface,
+                                side: const BorderSide(color: AppTheme.border)),
+                            icon: const Icon(Icons.person_outline_rounded,
+                                size: 18),
+                            label: const Text('Sign in'))))),
         ],
       ),
       body: SafeArea(
@@ -133,27 +147,32 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 1720),
                             child: IndexedStack(index: _tab, children: [
-                              DiscoverView(
-                                  onOpenLemon: _openChat,
-                                  onSelectTab: _select,
-                                  activeItinerary: _chat.latestItinerary,
-                                  onDestination: (place) {
-                                    _openChat();
-                                    _chat.startOver();
-                                    _chat.handleUserInput(place);
-                                  }),
+                              TripTypography(
+                                  child: DiscoverView(
+                                      onOpenLemon: _openChat,
+                                      onSelectTab: _select,
+                                      activeItinerary: _chat.latestItinerary,
+                                      onDestination: (place) {
+                                        _openChat();
+                                        _chat.startOver();
+                                        _chat.handleUserInput(place);
+                                      })),
                               _visited.contains(1)
-                                  ? const FlightsView()
+                                  ? TripTypography(
+                                      child:
+                                          FlightsView(onOpenLemon: _openChat))
                                   : const SizedBox.shrink(),
                               _visited.contains(2)
-                                  ? const HotelsView()
+                                  ? const TripTypography(child: HotelsView())
                                   : const SizedBox.shrink(),
                               _visited.contains(3)
-                                  ? const AttractionsView()
+                                  ? const TripTypography(
+                                      child: AttractionsView())
                                   : const SizedBox.shrink(),
-                              ItineraryView(
-                                  itinerary: _chat.latestItinerary,
-                                  onOpenLemon: _openChat),
+                              TripTypography(
+                                  child: ItineraryView(
+                                      itinerary: _chat.latestItinerary,
+                                      onOpenLemon: _openChat)),
                             ]))),
                     if (!_open)
                       Positioned(

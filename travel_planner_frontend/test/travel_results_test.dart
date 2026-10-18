@@ -45,6 +45,7 @@ void main() {
           ? FlightsView(apiService: api) : AttractionsView(apiService: api))));
       await tester.pumpAndSettle();
       expect(find.text('Unable to load $name. Please try again.'), findsOneWidget);
+      await tester.ensureVisible(find.text('Retry'));
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
       expect(calls, 2);

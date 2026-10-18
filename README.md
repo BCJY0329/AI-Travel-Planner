@@ -4,13 +4,11 @@ An AI-assisted travel planner with a FastAPI backend and Flutter frontend. Lemon
 
 Your personal travel companion.
 
-The 2026-10-16 redesign adds guided planning and responsive layouts. See [tasks](docs/TASKS.md) and [testing](docs/TESTING.md) for the completed scope and remaining limitations.
-
 ## Status
 
-Documentation checked against the local working tree on **2026-10-08**, including existing uncommitted changes. This is a development prototype. The frontend includes Discover, Flights, Hotels, Attractions, Itinerary, and Lemon chat views.
+Documentation reconciled with source on **2026-10-17**. This is a development prototype. The frontend includes Discover, Flights, Hotels, Attractions, Itinerary, and Lemon chat views, with guided trip planning (destination via chat, then structured dates, travelers, budget and interests, explicit confirmation) and responsive phone/desktop layouts.
 
-**Auto provider repaired:** the factory accepts `auto`, with guarded fallback and response validation. Offline regression tests cover fallback and deadlines; see the testing record for separate historical live diagnostics. See [known issues](docs/KNOWN_ISSUES.md).
+The factory accepts `auto`, which tries Groq → Gemini → OpenRouter with response validation, deadlines and local fallback. Long trips are generated in validated three-day windows. Offline suites cover backend fallback/validation and frontend behavior; live providers and final visual acceptance are not verified by them. See [testing](docs/TESTING.md), [tasks](docs/TASKS.md) and [known issues](docs/KNOWN_ISSUES.md).
 
 ## Project structure
 
@@ -18,7 +16,7 @@ Documentation checked against the local working tree on **2026-10-08**, includin
 Work3 - AI Travel Planner/
   README.md
   AGENTS.md
-  CODEX_HANDOVER.md
+  CLAUDE.md
   docs/
     PRD.md
     ARCHITECTURE.md
@@ -34,6 +32,8 @@ Work3 - AI Travel Planner/
     routers/
     models/
     services/
+    tests/
+    tools/
   travel_planner_frontend/
     pubspec.yaml
     lib/
@@ -73,7 +73,9 @@ Configure credentials before starting uvicorn. Credential variables:
 | Gemini | `GEMINI_API_KEY` |
 | OpenRouter | `OPENROUTER_API_KEY` |
 
-Explicit `mock` chat makes no external calls. Mock itinerary generation still attempts weather and attraction lookups before returning a canned itinerary; it is not an offline test by itself.
+Explicit `mock` chat makes no external calls. Mock itinerary generation still attempts weather and attraction lookups before returning placeholder days; it is not an offline test by itself.
+
+Offline backend tests (`travel_backend/tests/`) avoid credentials and network access; until the environment is repaired they have been run with a separate interpreter, as recorded in [testing](docs/TESTING.md).
 
 In a second PowerShell terminal, from the project root:
 
@@ -83,21 +85,23 @@ flutter pub get
 flutter run -d chrome
 ```
 
-Flutter and Dart launchers were located; build and test execution remain unverified. API addresses in `lib/config/api_config.dart` are loopback for web/desktop and `10.0.2.2` for Android emulator. Physical-device networking needs separate configuration.
+Frontend checks: `flutter analyze --no-pub` and `flutter test --no-pub` from `travel_planner_frontend/` (latest results in [testing](docs/TESTING.md)). API addresses in `lib/config/api_config.dart` are loopback for web/desktop and `10.0.2.2` for Android emulator. Physical-device networking needs separate configuration.
 
 ## Data and provider behavior
 
 - Data routes use OpenWeatherMap, Geoapify, and Duffel. No bookings or payments are implemented.
 - Hotel API results contain name/location, not prices, ratings, or amenities. The frontend displays supplied listings, preserves empty results, and shows errors with Retry. It does not invent hotel details or substitute fictional travel listings.
-- Factory-supported providers: `groq`, `gemini`, `openrouter`, `mock`; request models default to `mock`.
-- The separate, unregistered `AutoProvider` implements Groq → Gemini → OpenRouter → mock with a five-minute in-memory cooldown. Constructor error handling also needs repair.
-- External provider availability, pricing, quotas, and lifecycle claims were not verified in this documentation pass.
+- Factory-supported providers: `auto`, `groq`, `gemini`, `openrouter`, `mock`; request models default to `mock` and the frontend sends `auto`.
+- `auto` tries Groq → Gemini → OpenRouter with guarded construction and validation, a five-minute in-memory cooldown for failed providers, and local fallback (heuristic chat parser or a demo itinerary that is labelled as such).
+- Itineraries are generated in three-day windows (at most three concurrent, shared 75-second deadline) and must cover every requested date before success is reported.
+- External provider availability, pricing, quotas, and lifecycle claims are not verified.
 
 ## Documentation
 
 | Document | Purpose |
 |---|---|
-| [AGENTS.md](AGENTS.md) | Guidance for future coding sessions |
+| [AGENTS.md](AGENTS.md) | Rules for coding-agent sessions |
+| [CLAUDE.md](CLAUDE.md) | Commands and architecture overview for Claude Code |
 | [PRD](docs/PRD.md) | Product scope and proposed acceptance criteria |
 | [Architecture](docs/ARCHITECTURE.md) | Components and data flow |
 | [API](docs/API.md) | Routes, request fields, and response shapes |
@@ -106,4 +110,4 @@ Flutter and Dart launchers were located; build and test execution remain unverif
 | [Testing](docs/TESTING.md) | Verification record and future checks |
 | [Known issues](docs/KNOWN_ISSUES.md) | Source-backed defects and limitations |
 
-`implementation_plan.md` and component READMEs retain historical context. Prefer this documentation set for the checked current state. The original root README is preserved locally as ignored `README.old.md.bak`. Documentation installation changed no application code and made no commit.
+`implementation_plan.md` and `travel_planner_frontend/EXTRACT_ME_README.md` retain historical context. Prefer this documentation set for the current state; within `docs/`, later dated entries supersede earlier ones.

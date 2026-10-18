@@ -1,5 +1,18 @@
 # Testing and verification
 
+## Current status — 2026-10-17
+
+Latest recorded results (details in the dated entries below; entries are chronological and later ones supersede earlier ones):
+
+- Frontend: latest run 2026-10-18 (trip-page typography): analyzer clean, 41 passed, 4 failed (four known stale tests). Earlier: 36 passed (Expressive UI checks, 2026-10-17). The four failures predate this change; three expect a removed launcher invitation or "Enlarge chat" tooltip; the calendar failure (`Bad state: No element`) was not investigated.
+- Backend: latest run 2026-10-18: 32 run, 31 passed, 1 failed (known `test_chat_exhaustion_matches_explicit_mock`). Live prompt tone not verified.
+- Not verified: live provider generation and tone, live travel APIs, interactive browser/Android visual acceptance, production web build of current source.
+
+How to run:
+
+- Frontend, from `travel_planner_frontend/`: `flutter analyze --no-pub`, `flutter test --no-pub`, a single file with `flutter test --no-pub test/<file>.dart`, or a single test with `--plain-name "<name>"`. In the agent sandbox Flutter can fail SDK ownership checks; the same command has passed outside the sandbox without changing Git trust settings.
+- Backend: the project venv is broken (KI-07). Use the bundled-runtime command under "Auto repair verification" below; with a working interpreter, run `python -m unittest discover -s tests -v` from `travel_backend/`.
+
 ## Flight date repair — 2026-10-08
 
 Passed: `flutter test --no-pub test/flights_view_test.dart` (four widget tests). Injected clock and recording API service verify the first request and picker bounds across ordinary, year-end, and leap-year dates, stale-date searches after time advances, and selection after a backward clock change. No external requests or dependency installation.
@@ -52,7 +65,7 @@ The initial inventory found no backend test suite; subsequent repairs added trav
 1. Validate health and request/response shapes using a test client.
 2. Exercise explicit mock chat: greeting, destination, dates, travelers, budget, interests/no preference, confirmation, and corrections.
 3. Stub weather and attractions before testing mock itinerary generation; a mock provider alone does not prevent external context lookups.
-4. Test frontend-selected `auto` through the factory and both Lemon routes. Before repair, the expected current failure is 502; after repair, verify intended successful behavior.
+4. Test frontend-selected `auto` through the factory and both Lemon routes (done offline on 2026-10-08; unknown provider names return 502).
 5. Test constructor failures, provider-call failures, cooldown, all-real-provider failure, malformed JSON, and chat-compatible fallback separately.
 6. Test direct attraction context collection with a numeric radius, request validation, and transport-error handling.
 
@@ -67,7 +80,7 @@ flutter test
 flutter run -d chrome
 ```
 
-These commands were not run for this Markdown-only task. Existing `test/widget_test.dart` only asserts that VoyageAI appears. The home screen constructs travel views that initiate data loading; tests should inject fake services rather than assume widget tests establish live backend correctness.
+Original 2026-10-08 note: these commands were not run for that Markdown-only task. Since then the suite has grown to multiple widget-test files (see Current status). `test/widget_test.dart` is now a smoke test asserting that LemonTrip appears. Travel views initiate data loading; tests inject fake services rather than assume widget tests establish live backend correctness.
 
 Proposed manual scenarios: navigation, chat date prompts, completed itinerary, retry after failures, dynamic flight date bounds, and visible distinction between demo and external data. Record devices and exact checks when performed.
 
@@ -172,3 +185,43 @@ Final flutter analyze --no-pub: no issues found after brace correction.
 ## Expressive UI checks - 2026-10-17
 
 `flutter analyze --no-pub`: no issues. `flutter test --no-pub`: 36 tests passed. New coverage exercises launcher invitation rotation, no accidental opening on hover, keyboard activation, reduced-motion bypass, direct touch activation and desktop layout. Existing layout tests cover 360/800/1440 widths. `git diff --check`: passed. No browser or live-provider session was run; user will review locally. Backend unchanged in this batch.
+
+## Sky Mint redesign - 2026-10-18
+
+Baseline before edits: `flutter test --no-pub` 32 passed, 4 failed (the four known stale tests). After edits: `flutter analyze --no-pub` no issues; `flutter test --no-pub` 32 passed, 4 failed (same four). One new 360px overflow in the hero checklist was found by the suite and fixed before the final run. `git diff --check`: line-ending warnings only. Bundled photos load in widget tests. Not run: browser/Android visual review, `flutter build web`, live providers. Contrast ratios are computed, not measured in-app.
+
+## Flight timeout fix - 2026-10-18
+
+Backend (bundled interpreter + venv site-packages, offline): new `tests/test_flights.py` 4 passed (timeout → 504, connect error → 502, Duffel 422 passed through, incomplete offer skipped and read timeout > 15 s). Existing suites: 28 run, 27 passed, 1 failed (`test_chat_exhaustion_matches_explicit_mock`), and it fails the same way without the new file. Frontend: `flutter analyze --no-pub` no issues; `flights_view_test.dart` + `travel_results_test.dart` 8 passed. Not run: a live Duffel search.
+
+## Launcher, hero spacing and endless idle motion - 2026-10-18
+
+Collapsed launcher now shares the expanded card's white surface and mint border; hero greeting bubble inset 32 px from the top with a 32 px gap from the headline; Lemon's float, pulse and hero zoom loop endlessly in the app (tests limit them via `test/flutter_test_config.dart`). `flutter analyze --no-pub` no issues; `flutter test --no-pub` 32 passed, 4 failed (same four known stale tests). Not reviewed visually.
+
+## Roboto headings on search/itinerary views - 2026-10-18
+
+`flutter analyze --no-pub` no issues; `flutter test --no-pub` 32 passed, 4 failed (same four known stale tests). Not reviewed visually.
+
+## Redesigned search and itinerary pages - 2026-10-18
+
+`flutter analyze --no-pub` no issues. `flutter test --no-pub` 41 passed, 4 failed (the same four known stale tests). New `test/page_redesign_test.dart` (9 tests): Flights banner, tip, route banner, single "Lowest price" tag and "Plan with Lemon" at 360/800/1440 px; Hotels and Attractions results and the category filter at those widths; four itinerary days get four different header colours and the tip label is at least 15 px; `LemonCircle` uses the given background; photos only match the right places. Existing tests changed only for the taller pages: `hotels_view_test.dart` scrolls to Retry, the 360 px itinerary test scrolls to the tip, and the tip-width test waits for entrance animations. A 360 px overflow in Lemon's tip bubble was found by the suite and fixed. Not run: visual review in a browser, live providers.
+
+## Trip-page typography - 2026-10-18
+
+`flutter analyze --no-pub` no issues; `flutter test --no-pub` 41 passed, 4 failed (the same four known stale tests: two launcher-invitation tests in `lemon_personality_ui_test.dart`, "Desktop chat expands without losing its draft" and the calendar end-edit test in `lemon_redesign_test.dart`). Two tests broke because larger Caveat tips made the pages taller, and were fixed to scroll to their tap target first: the flights retry test in `travel_results_test.dart` and the category chip tap in `page_redesign_test.dart` at 360 px. Widget tests render with the test font, so the real Unbounded/Outfit/Caveat glyph widths are not exercised. Not run: visual review in a browser.
+
+## Nav bar, bubble tails and quick routes - 2026-10-18
+
+`flutter analyze --no-pub` no issues; `flutter test --no-pub` 41 passed, 4 failed (same four known stale tests). The quick-route clipping was diagnosed from the user's screenshot and the label glyph, not reproduced in a browser; visual review not run.
+
+## Fredoka tips and livelier itinerary voice - 2026-10-18
+
+Frontend: `flutter analyze --no-pub` no issues; `flutter test --no-pub` 41 passed, 4 failed (same four known stale tests). Backend: isolated offline unittest suite (external interpreter, see "How to run") 32 run, 31 passed, 1 failed — `test_chat_exhaustion_matches_explicit_mock` (`budget_level` != `confirm`), already recorded in KNOWN_ISSUES as failing before these changes. The prompt change is not covered by offline tests; live generation tone not run.
+
+## Bubble tails toward Lemon's head - 2026-10-18
+
+`flutter analyze --no-pub` no issues; `flutter test --no-pub` 41 passed, 4 failed (same four known stale tests). Visual placement against the avatar artwork not checked in a browser.
+
+## Discover typography trial and mint nav bar - 2026-10-19
+
+`flutter analyze --no-pub` no issues; `flutter test --no-pub` 41 passed, 4 failed (same four known stale tests), run after the Discover font change; the nav colour change is a constant swap and was not rerun separately. Visual review not run.

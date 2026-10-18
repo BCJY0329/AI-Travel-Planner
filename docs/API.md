@@ -2,7 +2,7 @@
 
 ## Scope
 
-Checked against `travel_backend/routers/` and `travel_backend/models/` on 2026-10-08. Default development base URL: `http://127.0.0.1:8000`. Interactive schema: `/docs`; OpenAPI: `/openapi.json`. Runtime calls were not performed in this documentation pass.
+Checked against `travel_backend/routers/`, `travel_backend/models/` and `travel_backend/services/` on 2026-10-17. Default development base URL: `http://127.0.0.1:8000`. Interactive schema: `/docs`; OpenAPI: `/openapi.json`. Runtime calls were not performed in this documentation pass.
 
 Routes currently have no authentication. JSON field names use snake_case. Request validation errors normally return HTTP 422 with `detail`; application HTTP errors use a `detail` field. External-service failures are not handled uniformly.
 
@@ -58,7 +58,7 @@ Response fields:
 - Each day: required `day: integer`, required `activities: array`, optional `date: string | null` (default null).
 - Each activity: required `time: string`, `activity: string`; optional `location: string | null`, `notes: string | null` (default null).
 
-The builder sets destination from the request and provider_used from the provider instance, then validates the response. Mock returns one canned day with null date regardless of the requested trip length. Weather/attraction context is attempted even for mock; this endpoint is not inherently offline.
+The builder sets destination from the request and validates each generation window (see Timing and generation behavior below). `provider_used` names the provider when one real provider produced every window, `auto` when several real providers contributed, and `mock` if any window is demo output; demo responses carry a disclosure summary. Mock generation returns one placeholder activity per requested date. Validation failures in the request return 422. Weather/attraction context is attempted even for mock; this endpoint is not inherently offline.
 
 ## POST /lemon/chat
 
@@ -97,22 +97,16 @@ Lemon generation, JSON parsing, and response validation failures map to 502. Geo
 
 The Flutter travel service preserves empty results and displays failures with Retry. It does not substitute fictional listings. These are client behaviors; backend travel response fields are unchanged.
 
-## Auto chat deadlines — 2026-10-08
+## Timing and generation behavior
 
-POST /lemon/chat with provider=auto now allows 9 seconds per real-provider attempt and 30 seconds total across real-provider attempts. Each attempt receives the smaller of its allowance and the remaining budget. Timeout triggers the existing five-minute cooldown and next-provider/local-chat fallback. The frontend remains at 45 seconds. Direct chat-provider requests have no new deadline. Plan timing is described below. Response fields are unchanged.
+Current values as of 2026-10-17; earlier 36/12/60-second plan values are superseded (see DECISIONS.md 015–016).
 
-## Itinerary deadlines — 2026-10-08
+- **Chat with `auto`:** 9 seconds per real-provider attempt and 30 seconds total across attempts; each attempt receives the smaller of its allowance and the remaining budget. Timeout triggers the five-minute cooldown and next-provider/local-chat fallback. Direct chat providers have no extra deadline. Frontend chat timeout: 45 seconds.
+- **Plan context:** weather and attraction lookups run concurrently with ten-second wait bounds, using an explicit 5 km attraction radius.
+- **Plan generation:** the inclusive date range is divided into windows of up to three days, at most three concurrent. All windows share a 75-second generation deadline; auto attempts are capped at 25 seconds or the remaining budget, and direct providers share the same deadline. Each real response must include exactly its requested dates and absolute day numbers in order, with nonempty activities; invalid partial responses are retried or fallback-validated, never returned as a successful complete plan. Frontend plan timeout: 100 seconds.
 
-Plan context lookups run concurrently with ten-second wait bounds, using an explicit 5 km attraction radius. Auto generation gets 12 seconds per provider and a 36-second total real-provider budget, then validated mock fallback. Explicit plan providers get a 36-second generation wait bound and return the existing 502 on timeout. These roughly 46 seconds of asynchronous waits leave margin under the frontend's 60-second timeout. Event-loop blocking, local processing, and network delivery are not hard wall-clock guarantees. Late SDK cancellation may continue in the background. Response schemas are unchanged.
+These are asynchronous wait bounds. Event-loop blocking, local processing, and network delivery are not hard wall-clock guarantees, and late SDK cancellation may continue in the background. Restart both frontend and backend after changing coordinated timeout values.
 
+## Client usage
 
-## Guided intake update — 2026-10-16
-
-The LemonTrip UI uses /lemon/chat for destination interpretation, then collects structured fields locally and calls /lemon/plan only after explicit confirmation. Plan validation above now rejects malformed dates, reversed/overlong ranges, invalid budgets and oversized/empty preference items with 422. Historical dates remain accepted by the server; UI dates start at today. Endpoint names and response fields are unchanged.
-## Plan completeness update - 2026-10-16
-
-/lemon/plan retains its request/response fields. The builder divides the inclusive range into windows of up to three days (at most three concurrent windows). Each real response must include exactly its requested dates and absolute day numbers in order, with nonempty activities. Invalid partial responses are retried/fallback-validated, never returned as a successful complete real plan. Demo windows also cover their dates; any demo window sets provider_used to mock for the whole response and a disclosure summary. Mixed successful real providers use provider_used auto. Generation shares a 36-second budget after context lookup; timeouts/provider failures remain possible. Restart the backend to activate this change.
-
-## Plan latency update - 2026-10-17
-
-No endpoint schema changes. /lemon/plan now uses a shared 75-second generation deadline with auto-provider attempts capped at 25 seconds or remaining budget. Context still has its ten-second bound. Frontend plan HTTP timeout is 100 seconds; chat timeout stays 45 seconds. Direct providers share the generation deadline. Restart both frontend and backend for coordinated timeout values.
+The LemonTrip UI uses /lemon/chat only for destination interpretation, collects the remaining fields through structured controls, and calls /lemon/plan after explicit confirmation. The server accepts historical date ranges; the UI date picker starts at today.

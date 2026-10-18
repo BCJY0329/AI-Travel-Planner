@@ -12,19 +12,27 @@ class LemonBrand extends StatelessWidget {
             height: 42,
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-                gradient:
-                    const LinearGradient(colors: [AppTheme.mint, AppTheme.sky]),
-                borderRadius: BorderRadius.circular(15),
-                border:
-                    Border.all(color: AppTheme.teal.withValues(alpha: .18))),
+                color: AppTheme.accentLemon,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                      color: AppTheme.accentLemon.withValues(alpha: .45),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4))
+                ]),
             child: const CustomPaint(painter: _CitrusCompass())),
         const SizedBox(width: 10),
-        const Text('LemonTrip',
+        const Text.rich(
+            TextSpan(text: 'Lemon', children: [
+              TextSpan(
+                  text: 'Trip', style: TextStyle(color: AppTheme.skyMintBright))
+            ]),
             style: TextStyle(
-                color: AppTheme.teal,
+                fontFamily: AppTheme.headingFont,
+                color: AppTheme.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
-                letterSpacing: -.8)),
+                letterSpacing: -.6)),
       ]);
 }
 
@@ -34,7 +42,7 @@ class _CitrusCompass extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.scale(size.width / 32, size.height / 32);
     final line = Paint()
-      ..color = AppTheme.teal
+      ..color = AppTheme.lemonInk
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
@@ -50,7 +58,7 @@ class _CitrusCompass extends CustomPainter {
           ..moveTo(19, 6)
           ..quadraticBezierTo(19, 0, 28, 1)
           ..quadraticBezierTo(27, 7, 19, 6),
-        Paint()..color = AppTheme.teal);
+        Paint()..color = AppTheme.lemonInk);
     canvas.drawPath(
         Path()
           ..moveTo(10, 23)

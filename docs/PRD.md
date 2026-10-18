@@ -2,7 +2,7 @@
 
 ## Context
 
-VoyageAI is a travel-planning prototype with Lemon.ai as its conversational assistant. Reconstructed from the working tree on 2026-10-08, this document describes observed scope and proposed acceptance criteria, not a previously approved roadmap.
+LemonTrip (formerly VoyageAI) is a travel-planning prototype with Lemon.ai as its conversational assistant. Reconstructed from the working tree on 2026-10-08 and updated to current source on 2026-10-17, this document describes observed scope and proposed acceptance criteria, not a previously approved roadmap.
 
 ## User and goal
 
@@ -11,20 +11,18 @@ Help a traveler explore a destination and assemble a day-by-day itinerary from d
 ## Current scope
 
 - Flutter includes Discover, Flights, Hotels, Attractions, and Itinerary views.
-- Lemon gathers trip details, exposes date prompts and confirmation, and requests an itinerary when ready.
-- FastAPI exposes travel lookups, chat extraction, and itinerary generation.
-- Real-provider generation and local mocks coexist; the frontend's `auto` selection is currently incompatible with the backend factory.
+- Lemon interprets the destination through chat, then collects dates, travelers, budget, and interests through guided controls, shows an editable review, and generates an itinerary only after explicit confirmation.
+- FastAPI exposes travel lookups, chat extraction, and windowed itinerary generation.
+- Real-provider generation and local mocks coexist; the frontend's `auto` selection falls back across providers and labels demo output.
 - Trip/chat state is held in memory; no persistence or user-account implementation was found in the inspected application flow.
 
 ## Intended journey
 
-1. Open Lemon and provide destination and dates.
-2. Supply travelers, budget, and interests, or express no specific interests.
-3. Confirm the trip details.
+1. Open Lemon and name a destination.
+2. Pick a date range (1–30 days), travelers, budget, and interests (or Surprise me).
+3. Review and confirm the trip details.
 4. Generate and view an itinerary; optionally start another trip.
-5. Explore flight, hotel, and attraction views independently.
-
-This is the intended journey; the provider mismatch currently blocks normal frontend chat.
+5. Explore flight, hotel, and attraction views independently (search tabs do not yet follow the planned trip; KI-21).
 
 ## Proposed acceptance criteria
 
@@ -35,7 +33,7 @@ This is the intended journey; the provider mismatch currently blocks normal fron
 - Failures offer recovery without silently discarding user input.
 - Tests cover chat progression, provider fallback, and itinerary rendering.
 
-These are recommendations, not authorization to change code. See `TASKS.md` for gaps.
+As of 2026-10-17, the implementation addresses these areas and offline tests cover much of them (see `TESTING.md` for exactly what ran); live-provider behavior and final visual acceptance remain unverified. These are recommendations, not authorization to change code. See `TASKS.md` for gaps.
 
 ## Non-goals
 

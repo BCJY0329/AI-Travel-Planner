@@ -45,6 +45,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: HotelsView(apiService: service))));
     await tester.pumpAndSettle();
     expect(find.text('Unable to load hotels. Please try again.'), findsOneWidget);
+    await tester.ensureVisible(find.text('Retry'));
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(find.text('No hotels found for this city. Try expanding the radius or searching another city.'), findsOneWidget);

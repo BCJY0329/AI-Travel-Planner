@@ -17,6 +17,27 @@ _HEADERS = {
     "Content-Type": "application/json",
 }
 
+# With return_offers=true Duffel answers only after polling every airline, which
+# in test mode regularly exceeds 15 s. Fail fast on connect, wait longer on read.
+# The frontend waits slightly longer than this (TravelApiService).
+_TIMEOUT = httpx.Timeout(45.0, connect=10.0)
+
+
+def _simplify(offer: dict) -> dict:
+    slice0 = offer["slices"][0]
+    segments = slice0["segments"]
+    return {
+        "price": offer["total_amount"],
+        "currency": offer["total_currency"],
+        "duration": slice0.get("duration"),
+        "stops": len(segments) - 1,
+        "departure": segments[0]["origin"]["iata_code"],
+        "departure_time": segments[0]["departing_at"],
+        "arrival": segments[-1]["destination"]["iata_code"],
+        "arrival_time": segments[-1]["arriving_at"],
+        "carrier": segments[0]["operating_carrier"]["iata_code"],
+    }
+
 
 @router.get("/search")
 async def search_flights(
@@ -45,7 +66,7 @@ async def search_flights(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             # Step 1: create the offer request. return_offers=true gets us
             # results in the same call, avoiding a slower second round trip.
             create_resp = await client.post(
@@ -57,22 +78,18 @@ async def search_flights(
             data = create_resp.json()["data"]
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail="Flight search failed")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Flight search timed out. Please try again.")
+    except (httpx.RequestError, ValueError, KeyError, TypeError):
+        # Network failure or a response body without the expected "data" object.
+        raise HTTPException(status_code=502, detail="Flight search is unavailable right now.")
 
     simplified = []
-    for offer in data.get("offers", [])[:10]:
-        slice0 = offer["slices"][0]
-        segments = slice0["segments"]
-        simplified.append(
-            {
-                "price": offer["total_amount"],
-                "currency": offer["total_currency"],
-                "duration": slice0.get("duration"),
-                "stops": len(segments) - 1,
-                "departure": segments[0]["origin"]["iata_code"],
-                "departure_time": segments[0]["departing_at"],
-                "arrival": segments[-1]["destination"]["iata_code"],
-                "arrival_time": segments[-1]["arriving_at"],
-                "carrier": segments[0]["operating_carrier"]["iata_code"],
-            }
-        )
+    for offer in data.get("offers", []):
+        try:
+            simplified.append(_simplify(offer))
+        except (KeyError, IndexError, TypeError):
+            continue  # Skip an incomplete offer rather than failing the search.
+        if len(simplified) == 10:
+            break
     return {"offers": simplified}
