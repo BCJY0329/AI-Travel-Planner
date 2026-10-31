@@ -170,7 +170,8 @@ async def _ai_parse(request: LemonChatRequest) -> LemonChatResponse:
 # "medium budget" or "high budget" would match the generic word "budget" (a
 # synonym for "low") before ever reaching "medium"/"high", silently
 # mis-classifying the traveler's actual stated level.
-_BUDGET_LEVEL_WORDS = {"Low": "Low", "Medium": "Medium", "High": "High"}
+# Keys are lowercase because _find_budget_level matches against lowered text.
+_BUDGET_LEVEL_WORDS = {"low": "Low", "medium": "Medium", "high": "High"}
 _BUDGET_SYNONYM_WORDS = {"cheap": "Low", "budget": "Low", "moderate": "Medium", "luxury": "High", "splurge": "High"}
 
 

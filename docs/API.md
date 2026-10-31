@@ -2,7 +2,7 @@
 
 ## Scope
 
-Checked against `travel_backend/routers/`, `travel_backend/models/` and `travel_backend/services/` on 2026-10-17. Default development base URL: `http://127.0.0.1:8000`. Interactive schema: `/docs`; OpenAPI: `/openapi.json`. Runtime calls were not performed in this documentation pass.
+Checked against `travel_backend/routers/`, `travel_backend/models/` and `travel_backend/services/` on 2026-10-17; photos and caching added 2026-10-20. Default development base URL: `http://127.0.0.1:8000`. Interactive schema: `/docs`; OpenAPI: `/openapi.json`. Runtime calls were not performed in this documentation pass.
 
 Routes currently have no authentication. JSON field names use snake_case. Request validation errors normally return HTTP 422 with `detail`; application HTTP errors use a `detail` field. External-service failures are not handled uniformly.
 
@@ -11,19 +11,33 @@ Routes currently have no authentication. JSON field names use snake_case. Reques
 | Method and path | Query parameters | Response |
 |---|---|---|
 | `GET /health` | None | `{"status":"ok"}` |
-| `GET /weather/forecast` | Required `city: string` | `city`, `forecast[]` |
-| `GET /places/attractions` | Required `city`; `radius_km: integer = 5`, range 1–20 | `city`, `attractions[]` |
-| `GET /hotels/search` | Required `city`; `radius_km: integer = 5`, range 1–20 | `city`, `hotels[]` |
-| `GET /flights/search` | Required `origin`, `destination`, `departure_date` strings; `adults: integer = 1`, range 1–9 | `offers[]`, at most ten |
+| `GET /weather/forecast` | Required `city: string`, 1–120 characters | `city`, `forecast[]` |
+| `GET /places/attractions` | Required `city`, 1–120 characters; `radius_km: integer = 5`, range 1–20 | `city`, `attractions[]` |
+| `GET /hotels/search` | Required `city`, 1–120 characters; `radius_km: integer = 5`, range 1–20 | `city`, `hotels[]` |
+| `GET /flights/search` | Required `origin`, `destination` (three-letter IATA codes, surrounding spaces allowed), `departure_date` (a real `YYYY-MM-DD` date); `adults: integer = 1`, range 1–9 | `offers[]`, at most ten |
+| `GET /airports/search` | Required `place: string`, 1–120 characters | `place`, `airports[]`, at most three (added 2026-10-24) |
+| `GET /photos/place` | Required `place: string`, 1–120 characters | `place`, `country_code`, `country`, `source` (`"Pixabay"`), `photos[]`, at most three |
+| `GET /photos/featured` | None | `source` (`"Pixabay"`), `photos[]`, at most ten (editors' choice travel photos, falling back to any travel photo) |
+| `GET /photos/image/{photo_id}` | Path `photo_id: integer` from `photos[]` | Image bytes (`image/*`), `Cache-Control: public, max-age=86400` |
 
 Item fields:
 
 - `forecast[]`: `datetime` (upstream date-time string), `temp_c` (number), `condition`, `description` (strings). Fetches the current five-day/three-hour forecast; no trip-date query exists.
 - `attractions[]`: `name` (string), `category` (string or null), `lat`, `lon` (numbers). Requests up to 20 results and excludes features without a name.
 - `hotels[]`: `name` (string), `address` (string or null), `lat`, `lon` (numbers). Requests up to 20 results and excludes unnamed hotels. No price, rating, or amenity fields.
-- `offers[]`: `price` (upstream amount string), `currency` (string), `duration` (upstream duration or null), `stops` (integer), `departure`, `departure_time`, `arrival`, `arrival_time`, `carrier` (strings).
+- `offers[]`: `price` (upstream amount string), `currency` (string), `duration` (upstream duration or null), `stops` (integer), `departure`, `departure_time`, `arrival`, `arrival_time`, `carrier` (strings), `arrival_city` (the arrival airport's `city_name`, string or null; added 2026-10-20 for banner photos).
 
-Flight codes are uppercased. Date format and IATA code shape are not validated by these route declarations. Flights submit an economy, one-way offer request to Duffel with `return_offers=true`. Test versus live data depends on configured credentials/service behavior; no booking endpoint exists.
+- `airports[]` (`models/airports.py`): `iata_code`, `name` (strings), `city_name` (string or null). Duffel place suggestions are searched by name and only airports whose city is the place, or whose name contains it as a whole word, are kept. Otherwise the place is geocoded (OpenWeatherMap) and Duffel airports within 100 km are returned, nearest first. Unknown places give an empty list. Errors: 503 without `DUFFEL_API_KEY`, 504 on timeout, upstream status for Duffel HTTP errors, 502 for other failures. Cached 24 h per normalized place.
+
+- `photos[]` (`models/photos.py`): `id` (integer), `image_url` (backend-relative path such as `/photos/image/123`; clients prefix the API base URL), `page_url`, `photographer`, `photographer_url`, `tags` (strings). Photos show the place's **country** (from the geocoded `country` code); when the code isn't in `services/countries.py`, the place name is searched instead. Pixabay must be credited wherever one is shown.
+
+Photo errors: 503 when `PIXABAY_API_KEY` is not configured, 404 when the place can't be geocoded or an image id is unknown (image ids are learned from searches and forgotten on restart), 429 when Pixabay rate-limits, 502 for other Pixabay or download failures. Error details never include the request URL, which carries the key.
+
+**Geocoding (2026-10-24, DECISIONS 039).** Every place-based route geocodes with Geoapify, falling back to OpenWeatherMap only when Geoapify fails. For a region (island, state, prefecture) without a same-named city in that country, `/hotels/search` and `/places/attractions` search the region's whole boundary and ignore `radius_km`; the response `city` is then the region's name (e.g. "Bali"). Unknown places return 404 as before.
+
+**Caching (2026-10-20, DECISIONS 035).** Successful results are cached in memory per process; errors are never cached, and identical concurrent requests share one upstream call. A backend restart (including `uvicorn --reload`) empties every cache. Geocoding (shared by weather, places, hotels, photos): 24 h per normalized city name. Forecast: 30 min. Attractions and hotels: 24 h per city and radius. Flights: 5 min per origin, destination, date and adults. Pixabay searches: 24 h per country, and 24 h for the featured set (their terms require 24 h caching). Images: 24 h, at most 80 kept. `/lemon/chat` and `/lemon/plan` responses are not cached; plan context lookups use the cached weather and attraction routes.
+
+Flight codes are trimmed and uppercased. Since 2026-10-24 malformed codes and dates are rejected with 422 before Duffel is called. Flights submit an economy, one-way offer request to Duffel with `return_offers=true`. Test versus live data depends on configured credentials/service behavior; no booking endpoint exists.
 
 ## POST /lemon/plan
 
@@ -93,7 +107,9 @@ Intended next_field values: destination, start_date, end_date, travelers, budget
 
 Factory options, matched case-insensitively: `auto`, `groq`, `gemini`, `openrouter`, `mock`. Auto tries Groq → Gemini → OpenRouter, validating JSON and the response model within each attempt. Construction, call, or validation failure triggers a five-minute process-local cooldown. Exhaustion uses the local mock chat parser or demo itinerary (`provider_used: mock`). Chat response fields are unchanged. Unknown names, including `claude` and `gpt`, map to **502**. Both auto routes passed isolated offline HTTP tests on 2026-10-08; historical live diagnostics are recorded separately in TESTING.md.
 
-Lemon generation, JSON parsing, and response validation failures map to 502. Geocoding can return 404 for no city match, upstream status codes for HTTP failures, or 502 for transport failures. Missing Duffel credentials return 500. Data routes forward upstream HTTP status errors but do not uniformly catch transport errors or malformed upstream payloads, which may become 500 responses.
+Lemon generation, JSON parsing, and response validation failures map to 502. Since 2026-10-24 the 502 `detail` is a fixed message ("Lemon couldn't build this itinerary right now. Please try again." / "Lemon had trouble understanding that. Please try again."); the exception is logged server-side only. Chat requests are validated: `role` must be `user` or `assistant`, `content` at most 2000 characters, at most 100 messages, `provider` at most 20 characters (422 otherwise).
+
+Data routes (weather, places, hotels, flights, airports; 2026-10-24): upstream HTTP status errors are forwarded, timeouts return 504, transport failures and non-JSON bodies return 502 with a generic detail (never the request URL, which carries keys), and malformed items are skipped instead of failing the response. Geocoding returns 404 when no city matches. Missing Duffel credentials return 500 on flights and 503 on airports.
 
 The Flutter travel service preserves empty results and displays failures with Retry. It does not substitute fictional listings. These are client behaviors; backend travel response fields are unchanged.
 

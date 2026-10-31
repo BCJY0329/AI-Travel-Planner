@@ -9,6 +9,9 @@ class FlightOffer {
   final String arrivalTime;
   final String carrier;
 
+  /// The arrival airport's city (e.g. Tokyo for NRT), if Duffel gave one.
+  final String? arrivalCity;
+
   FlightOffer({
     required this.price,
     required this.currency,
@@ -19,6 +22,7 @@ class FlightOffer {
     required this.arrival,
     required this.arrivalTime,
     required this.carrier,
+    this.arrivalCity,
   });
 
   factory FlightOffer.fromJson(Map<String, dynamic> json) {
@@ -32,6 +36,7 @@ class FlightOffer {
       arrival: json['arrival']?.toString() ?? 'ARR',
       arrivalTime: json['arrival_time']?.toString() ?? '',
       carrier: json['carrier']?.toString() ?? 'AIR',
+      arrivalCity: json['arrival_city']?.toString(),
     );
   }
 
@@ -120,4 +125,61 @@ class AttractionItem {
       lon: (json['lon'] as num?)?.toDouble(),
     );
   }
+}
+
+/// A Pixabay photo of a destination's country, served by the backend
+/// (`GET /photos/place`). Pixabay must be credited wherever one is shown.
+class PlacePhoto {
+  final String imageUrl;
+  final String pageUrl;
+  final String photographer;
+  final String photographerUrl;
+  final String tags;
+
+  PlacePhoto({
+    required this.imageUrl,
+    required this.pageUrl,
+    required this.photographer,
+    required this.photographerUrl,
+    this.tags = '',
+  });
+
+  /// [baseUrl] completes the backend-relative `image_url`.
+  factory PlacePhoto.fromJson(Map<String, dynamic> json, String baseUrl) =>
+      PlacePhoto(
+        imageUrl: '$baseUrl${json['image_url']}',
+        pageUrl: json['page_url']?.toString() ?? 'https://pixabay.com/',
+        photographer: json['photographer']?.toString() ?? 'Pixabay',
+        photographerUrl: json['photographer_url']?.toString() ?? '',
+        tags: json['tags']?.toString() ?? '',
+      );
+}
+
+/// An airport serving a place (`GET /airports/search`), nearest first.
+class Airport {
+  final String iataCode;
+  final String name;
+  final String? cityName;
+
+  Airport({required this.iataCode, required this.name, this.cityName});
+
+  factory Airport.fromJson(Map<String, dynamic> json) => Airport(
+        iataCode: json['iata_code'].toString(),
+        name: json['name']?.toString() ?? json['iata_code'].toString(),
+        cityName: json['city_name']?.toString(),
+      );
+}
+
+/// The planned trip that Flights, Hotels and Attractions start from (KI-21).
+/// A new plan is a new object, so views follow it once and then keep the
+/// user's own edits until the next plan.
+class TripContext {
+  final String destination;
+  final DateTime startDate;
+  final int travelers;
+
+  const TripContext(
+      {required this.destination,
+      required this.startDate,
+      required this.travelers});
 }

@@ -4,6 +4,27 @@
 
 Reconstructed on 2026-10-08 from current source. The initial task authorized documentation only. Subsequent repairs were separately authorized; unchecked work remains a proposed backlog. KI identifiers refer to `KNOWN_ISSUES.md`. Sections are chronological; items completed by later batches were ticked on 2026-10-17 with a pointer to the batch that did them.
 
+## Open work snapshot — 2026-10-24
+
+- [x] Fixed the backend chat parser's budget matching (the known failing test); backend suite 51 of 51.
+- [x] KI-10/KI-11/KI-09: uniform data-route errors, generic Lemon 502 details, chat and search input bounds (DECISIONS 038).
+- [x] KI-21: Flights, Hotels and Attractions follow the planned trip; new `GET /airports/search` (DECISIONS 037). Frontend 56 of 56.
+- [x] Pixabay photos: confirmed working by the user in the running frontend.
+- [x] KI-25: Geoapify geocoding with region boundaries (DECISIONS 039); backend 56 of 56.
+- [ ] Deferred by the user (2026-10-24), do later: KI-25 option 2, let users say which country they mean ("Did you mean…?" when a name matches several places). Starting notes in HANDOVER.md.
+- [ ] Browser check of the trip-following tabs and airport chips.
+- [ ] Accessibility audit; KI-07 Python environment (user chose to leave it for now); KI-12 CORS/auth before deployment; KI-14/15 live providers.
+- [x] Repaired the four stale frontend tests (launcher copy, drag-resize grip, custom calendar dialog); suite 52 passed, 0 failed. Fixed the "1 days" chip in the trip date dialog.
+
+## Open work snapshot — 2026-10-20
+
+- [x] In-memory caching for OpenWeatherMap (geocode, forecast), Geoapify (attractions, hotels), Duffel (5 min) and Pixabay (DECISIONS 035).
+- [x] Pixabay country photos on the itinerary banner, served through the backend with credit (`GET /photos/place`, `/photos/image/{id}`).
+- [ ] User: create a Pixabay key and add `PIXABAY_API_KEY=` to `travel_backend/.env`, then restart the backend. Without it the banner stays plain (503 from `/photos/place`).
+- [ ] Live check of Pixabay results for a few countries (quality of `travel` category hits) and of the banner in the browser.
+- [x] Country photos on the Flights/Hotels/Attractions results banners, and a Pixabay slideshow in the Discover hero (DECISIONS 036).
+- [ ] Browser check of the hero slideshow timing (9 s, 1.4 s fade) and of photo crops behind the hero text.
+
 ## Open work snapshot — 2026-10-19
 
 - Next session: start from [HANDOVER.md](HANDOVER.md). Country photos for every country are requested but blocked on the user's choice of photo source and scope.

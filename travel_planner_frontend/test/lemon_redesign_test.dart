@@ -115,7 +115,7 @@ void main() {
     await tester.pump();
     expect(api.chats, 1);
   });
-  testWidgets('Desktop chat expands without losing its draft', (tester) async {
+  testWidgets('Desktop chat resizes without losing its draft', (tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -126,12 +126,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'My draft');
     final before = tester.getSize(find.byType(LemonChatPanel)).width;
-    await tester.tap(find.byTooltip('Enlarge chat'));
+    // The grip sits at the top-left corner; dragging up-left enlarges.
+    final grip = find.byTooltip('Drag to resize chat');
+    await tester.drag(grip, const Offset(-200, -100));
     await tester.pumpAndSettle();
     expect(
         tester.getSize(find.byType(LemonChatPanel)).width, greaterThan(before));
     expect(find.text('My draft'), findsOneWidget);
-    await tester.tap(find.byTooltip('Shrink chat'));
+    await tester.drag(grip, const Offset(200, 100));
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byType(LemonChatPanel)).width, before);
     expect(tester.takeException(), isNull);
@@ -211,30 +213,37 @@ void main() {
   testWidgets(
       'Calendar end edits preserve start and explicit start change resets end',
       (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(body: TripDateDialog(today: DateTime(2026, 11, 1)))));
-    void select(int day) => tester
-        .widget<CalendarDatePicker>(find.byType(CalendarDatePicker))
-        .onDateChanged(DateTime(2026, 11, day));
-    select(2);
-    await tester.pump();
-    select(5);
-    await tester.pump();
-    select(7);
-    await tester.pump();
-    expect(find.textContaining('6 days, including'), findsOneWidget);
-    select(1);
-    await tester.pump();
+    // Day numbers repeat for neighbouring months, so tap by full-date label.
+    Future<void> select(int day) async {
+      final label = const DefaultMaterialLocalizations()
+          .formatFullDate(DateTime(2026, 11, day));
+      await tester.tap(find.descendant(
+          of: find.byWidgetPredicate(
+              (w) => w is Semantics && w.properties.label == label),
+          matching: find.byType(InkWell)));
+      await tester.pump();
+    }
+
+    await select(2);
+    await select(5);
+    await select(7);
+    expect(find.text('6 days'), findsOneWidget);
+    await select(1);
     expect(find.textContaining('Choose an end on or after'), findsOneWidget);
-    expect(find.textContaining('6 days, including'), findsOneWidget);
+    expect(find.text('6 days'), findsOneWidget);
     await tester.tap(find.text('Change start'));
     await tester.pump();
-    select(4);
+    await select(4);
+    expect(find.text('Choose date'), findsOneWidget);
+    await tester.tap(find.text('Just one day'));
     await tester.pump();
-    expect(find.text('End: Choose date'), findsOneWidget);
-    await tester.tap(find.text('Just this day'));
-    await tester.pump();
-    expect(find.textContaining('1 days, including'), findsOneWidget);
+    expect(find.text('1 day'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -252,6 +261,10 @@ void main() {
     expect(api.request!.travelers, 2);
     expect(api.request!.budgetLevel, 'medium');
     expect(c.phase, ChatPhase.done);
+    // The search tabs follow this trip.
+    expect(c.latestTrip!.destination, 'Kyoto');
+    expect(c.latestTrip!.travelers, 2);
+    expect(c.latestTrip!.startDate, DateTime.parse(api.request!.startDate));
   });
   test('Chat retry preserves the failed user turn without duplication',
       () async {

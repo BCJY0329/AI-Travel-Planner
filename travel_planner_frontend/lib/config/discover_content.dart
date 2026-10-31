@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 /// Photos shown on the Discover page.
 ///
 /// To use your own picture, put the file in `assets/images/photos/` (the whole
@@ -5,10 +7,23 @@
 /// update or clear its [DiscoverPhoto.credit].
 class DiscoverPhoto {
   final String asset;
+
+  /// A network photo (from the backend's Pixabay proxy) used instead of [asset].
+  final String? url;
   final String description;
   final String credit;
+
+  /// Where [credit] comes from, for the credits line.
+  final String source;
   const DiscoverPhoto(
-      {required this.asset, required this.description, this.credit = ''});
+      {required this.asset,
+      required this.description,
+      this.credit = '',
+      this.url,
+      this.source = 'Wikimedia Commons'});
+
+  ImageProvider get image =>
+      url == null ? AssetImage(asset) : NetworkImage(url!) as ImageProvider;
 }
 
 class DiscoverDestination {

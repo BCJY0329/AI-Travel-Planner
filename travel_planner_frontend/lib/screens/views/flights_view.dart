@@ -2,15 +2,29 @@ import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
 import '../../config/discover_content.dart';
 import '../../models/travel_models.dart';
+import '../../services/place_photos.dart';
 import '../../services/travel_api_service.dart';
 import '../../widgets/page_parts.dart';
 
 class FlightsView extends StatefulWidget {
-  const FlightsView({super.key, this.apiService, this.now, this.onOpenLemon});
+  const FlightsView(
+      {super.key,
+      this.apiService,
+      this.now,
+      this.onOpenLemon,
+      this.photos,
+      this.trip});
 
   final TravelApiService? apiService;
+
+  /// Country photos for destinations without a bundled photo.
+  final PlacePhotoSource? photos;
   final DateTime Function()? now;
   final VoidCallback? onOpenLemon;
+
+  /// The planned trip: its date, party size and nearest airport replace the
+  /// current search once. The origin stays the user's own.
+  final TripContext? trip;
 
   @override
   State<FlightsView> createState() => _FlightsViewState();
@@ -18,6 +32,7 @@ class FlightsView extends StatefulWidget {
 
 class _FlightsViewState extends State<FlightsView> {
   late final TravelApiService _apiService;
+  final _banner = BannerPhoto();
 
   final TextEditingController _originCtrl = TextEditingController(text: 'KUL');
   final TextEditingController _destCtrl = TextEditingController(text: 'NRT');
@@ -35,6 +50,19 @@ class _FlightsViewState extends State<FlightsView> {
   }
 
   int _adults = 1;
+  static const _maxAdults = 6;
+
+  // Airports near the planned trip's destination, offered as chips, and a
+  // note when none were found. The note clears on the next search.
+  List<Airport> _tripAirports = [];
+  String? _tripNote;
+
+  String? get _partyNote {
+    final travelers = widget.trip?.travelers ?? 0;
+    return travelers > _maxAdults && _adults == _maxAdults
+        ? 'Searching for $_maxAdults of your $travelers travelers.'
+        : null;
+  }
 
   bool _isLoading = false;
   String? _error;
@@ -53,7 +81,8 @@ class _FlightsViewState extends State<FlightsView> {
     {'from': 'SYD', 'to': 'DPS', 'fromCity': 'Sydney', 'toCity': 'Bali'},
   ];
 
-  // Airports whose city has a photo in DiscoverContent.
+  // Airports whose city has a photo in DiscoverContent. Other destinations
+  // use the offers' arrival city for a Pixabay country photo.
   static const _airportCities = {
     'NRT': 'Tokyo',
     'HND': 'Tokyo',
@@ -69,6 +98,52 @@ class _FlightsViewState extends State<FlightsView> {
     super.initState();
     _apiService = widget.apiService ?? TravelApiService();
     _departure = DateUtils.addDaysToDate(_today, 14);
+    if (widget.trip != null) {
+      _followTrip(widget.trip!);
+    } else {
+      _search();
+    }
+  }
+
+  @override
+  void didUpdateWidget(FlightsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.trip != null && widget.trip != oldWidget.trip) {
+      _followTrip(widget.trip!);
+    }
+  }
+
+  Future<void> _followTrip(TripContext trip) async {
+    final searchId = ++_searchId;
+    setState(() {
+      _departure = DateUtils.dateOnly(trip.startDate);
+      _adults = trip.travelers.clamp(1, _maxAdults);
+      _isLoading = true;
+      _error = null;
+      _offers = [];
+      _tripAirports = [];
+      _tripNote = null;
+    });
+    List<Airport> found;
+    try {
+      found = await _apiService.searchAirports(trip.destination);
+    } catch (_) {
+      found = [];
+    }
+    if (!mounted || widget.trip != trip) return;
+    setState(() => _tripAirports = found);
+    // The user searched meanwhile: keep their search, still offer the chips.
+    if (searchId != _searchId) return;
+    if (found.isEmpty) {
+      _destCtrl.clear();
+      setState(() {
+        _isLoading = false;
+        _tripNote =
+            'Enter the airport code for ${trip.destination} to search flights.';
+      });
+      return;
+    }
+    _destCtrl.text = found.first.iataCode;
     _search();
   }
 
@@ -86,6 +161,7 @@ class _FlightsViewState extends State<FlightsView> {
       _isLoading = true;
       _error = null;
       _offers = [];
+      _tripNote = null;
       _resultFrom = _originCtrl.text.trim().toUpperCase();
       _resultTo = _destCtrl.text.trim().toUpperCase();
       _resultDate = _departure;
@@ -142,9 +218,14 @@ class _FlightsViewState extends State<FlightsView> {
   }
 
   DiscoverPhoto get _resultPhoto {
-    final city = _airportCities[_resultTo];
-    return (city == null ? null : DiscoverContent.photoForPlace(city)) ??
-        DiscoverContent.flights;
+    final city = _airportCities[_resultTo] ??
+        (_offers.isEmpty ? null : _offers.first.arrivalCity);
+    final photo = city == null
+        ? null
+        : _banner.resolve(widget.photos, city, () {
+            if (mounted) setState(() {});
+          });
+    return photo ?? DiscoverContent.flights;
   }
 
   @override
@@ -171,6 +252,12 @@ class _FlightsViewState extends State<FlightsView> {
                 search: SearchCard(child: _buildSearchFields()),
               ),
               const SizedBox(height: 20),
+              if (_tripAirports.isNotEmpty ||
+                  _tripNote != null ||
+                  _partyNote != null) ...[
+                _buildTripAirports(),
+                const SizedBox(height: 12),
+              ],
               _buildQuickRouteChips(),
               const SizedBox(height: 22),
               const HowToSteps(steps: [
@@ -254,7 +341,7 @@ class _FlightsViewState extends State<FlightsView> {
                     fontSize: 18, fontWeight: FontWeight.w500),
                 icon: const Icon(Icons.expand_more_rounded,
                     color: AppTheme.primary),
-                items: [1, 2, 3, 4, 5, 6]
+                items: [for (var n = 1; n <= _maxAdults; n++) n]
                     .map((n) => DropdownMenuItem<int>(
                         value: n, child: Text('$n adult${n > 1 ? "s" : ""}')))
                     .toList(),
@@ -302,6 +389,42 @@ class _FlightsViewState extends State<FlightsView> {
         button,
       ]);
     });
+  }
+
+  Widget _buildTripAirports() {
+    const labelStyle = TextStyle(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w700,
+        color: AppTheme.textSecondary);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (_tripAirports.isNotEmpty)
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('Airports for ${widget.trip?.destination ?? 'your trip'}:',
+                style: labelStyle),
+            for (final airport in _tripAirports)
+              ChoiceChip(
+                label: Text('${airport.iataCode} · ${airport.name}'),
+                selected:
+                    _destCtrl.text.trim().toUpperCase() == airport.iataCode,
+                showCheckmark: false,
+                onSelected: (_) {
+                  _destCtrl.text = airport.iataCode;
+                  _search();
+                },
+              ),
+          ],
+        ),
+      for (final note in [_tripNote, _partyNote].whereType<String>())
+        Padding(
+          padding: EdgeInsets.only(top: _tripAirports.isEmpty ? 0 : 8),
+          child:
+              Text(note, style: const TextStyle(color: AppTheme.textSecondary)),
+        ),
+    ]);
   }
 
   Widget _buildQuickRouteChips() {

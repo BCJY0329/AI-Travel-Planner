@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/chat_models.dart';
 import '../models/itinerary_models.dart';
+import '../models/travel_models.dart';
 import '../services/lemon_api_service.dart';
 import 'chat_message.dart';
 
@@ -40,6 +41,9 @@ class LemonChatController extends ChangeNotifier {
   List<String> interests = [];
   String? nextField = 'destination';
   ItineraryResponse? latestItinerary;
+
+  /// The trip behind [latestItinerary], for the search tabs to follow.
+  TripContext? latestTrip;
   final itineraryNotifier = ValueNotifier<ItineraryResponse?>(null);
 
   void _changed() {
@@ -280,6 +284,10 @@ class LemonChatController extends ChangeNotifier {
           provider: provider));
       if (_disposed) return;
       latestItinerary = result;
+      latestTrip = TripContext(
+          destination: destination!,
+          startDate: DateTime.parse(startDate!),
+          travelers: travelers!);
       itineraryNotifier.value = result;
       phase = ChatPhase.done;
       nextField = null;

@@ -4,7 +4,18 @@
 
 Source-inspected on 2026-10-08 against the current working tree. The initial review made no application fixes; subsequent repairs are recorded below, and the dated sections are chronological (later entries supersede earlier ones).
 
-**Open as of 2026-10-17:** KI-07 (Python environment), KI-09 (partial: chat roles/payload sizes and travel-search validation), KI-10 (travel route transport errors), KI-11 (backend exception detail in plan errors), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), KI-21 (search tabs ignore trip context), Flutter Web emoji fallback, and pending local visual review. All other numbered issues are resolved; see the status notes below. Findings below are source-derived unless explicitly marked as a command observation; runtime reproduction remains pending.
+**Open as of 2026-10-24:** KI-07 (Python environment), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), Flutter Web emoji fallback, and pending local visual review. KI-09, KI-10, KI-11, KI-21 and KI-25 were resolved on 2026-10-24 (DECISIONS 037–039), as was the `test_chat_exhaustion_matches_explicit_mock` failure.
+
+**Superseded — open as of 2026-10-17:** KI-07 (Python environment), KI-09 (partial: chat roles/payload sizes and travel-search validation), KI-10 (travel route transport errors), KI-11 (backend exception detail in plan errors), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), KI-21 (search tabs ignore trip context), Flutter Web emoji fallback, and pending local visual review. All other numbered issues are resolved; see the status notes below. Findings below are source-derived unless explicitly marked as a command observation; runtime reproduction remains pending.
+
+## API caching and photos — 2026-10-20
+
+Source-derived limits of DECISIONS 035, not runtime-observed:
+
+- Caches live in one process. Several uvicorn workers would each keep their own copy, and every restart (including `--reload` on save) starts empty.
+- `/photos/image/{id}` only knows ids from searches made since the last restart; an old image URL returns 404 and the banner falls back to plain until the itinerary view reloads photos.
+- Pixabay `travel` results for a country are unreviewed and may not always look "calm and lively"; no live check yet.
+- Lesson: check an API's current signup status before recommending it (Pexels paused new keys around 2026-09-30).
 
 ## UI/UX review and lessons — 2026-10-09
 
@@ -184,3 +195,13 @@ Discover photos are from Wikimedia Commons under CC BY, CC BY-SA or CC0 (see `li
 ## Flight search timeout - 2026-10-18
 
 User-reported traceback: `/flights/search` raised `httpcore.ReadTimeout` because Duffel's `return_offers=true` call exceeded the 15 s httpx timeout and only `HTTPStatusError` was caught. Fixed: 45 s read / 10 s connect timeout, 504 on timeout, 502 on transport or malformed responses, incomplete offers skipped; the frontend waits 50 s for flights. KI-10 is now resolved for flights only; weather, places and hotels are unchanged. Also observed: `test_chat_exhaustion_matches_explicit_mock` in `tests/test_auto_provider.py` fails (`budget_level` != `confirm`) with or without the flight changes; not investigated.
+
+## Fixes and a new geocoding issue - 2026-10-24
+
+- `test_chat_exhaustion_matches_explicit_mock` was a real bug, not a stale test: `_find_budget_level` in `services/chat_parser.py` lowercased the text but searched for "Low"/"Medium"/"High", so plain level words never matched and the mock chat parser re-asked for the budget. Keys are now lowercase; the chat response still returns "Low"/"Medium"/"High" as before.
+- KI-09, KI-10, KI-11: resolved (DECISIONS 038). KI-21: resolved (DECISIONS 037).
+- The four stale frontend tests were repaired (see TESTING.md).
+- Pixabay photos: the user reported the banner photos showing as expected in the running frontend (user observation, not an agent check).
+- **KI-25 (live observation, open):** "Bali" geocodes to Bali in Bhutan, not Indonesia. `GET /hotels/search?city=Bali` returned Punakha resorts in Bhutan and `GET /airports/search?place=Bali` returned PBH/BUT. The shared OpenWeatherMap geocoder prefers the first exact name match, and OpenWeatherMap seems to lack the island as a place. Every geocoded route (weather, places, hotels, photos, airports and itinerary context) is affected, and Bali is one of the suggested cities on Hotels and Flights. A likely fix is a geocoder that ranks by importance (e.g. Geoapify geocoding with the existing key), which needs a decision and a live check.
+
+Update 2026-10-24: KI-25 resolved by Geoapify geocoding (DECISIONS 039). Live: Bali → Indonesia (20 hotels around the island, DPS/BWX airports, Bali weather), Osaka → the city (hotels in Namba/Chuo, not Sakai), and Kyoto, Tokyo, Paris, Rome, London, Barcelona, Sydney, New York, Phuket and Tuscany resolve to the expected country. Remaining limits: a place the user means in a smaller country ("Bali, Bhutan" works when typed that way) still needs the user to say so. A "which country?" choice (option 2) was deferred by the user on 2026-10-24; see HANDOVER.md and TASKS.md. Lesson: the first request after `uvicorn --reload` can fail while the server restarts; retry before treating it as a bug.

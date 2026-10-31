@@ -3,12 +3,19 @@ import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
 import '../../config/discover_content.dart';
 import '../../models/travel_models.dart';
+import '../../services/place_photos.dart';
 import '../../services/travel_api_service.dart';
 import '../../widgets/page_parts.dart';
 
 class AttractionsView extends StatefulWidget {
-  const AttractionsView({super.key, this.apiService});
+  const AttractionsView({super.key, this.apiService, this.photos, this.trip});
   final TravelApiService? apiService;
+
+  /// Country photos for cities without a bundled photo; null keeps them plain.
+  final PlacePhotoSource? photos;
+
+  /// The planned trip; its destination replaces the current search once.
+  final TripContext? trip;
 
   @override
   State<AttractionsView> createState() => _AttractionsViewState();
@@ -17,6 +24,7 @@ class AttractionsView extends StatefulWidget {
 class _AttractionsViewState extends State<AttractionsView> {
   late final TravelApiService _apiService =
       widget.apiService ?? TravelApiService();
+  final _banner = BannerPhoto();
   final TextEditingController _cityCtrl = TextEditingController(text: 'Paris');
   String _selectedCategory = 'All';
 
@@ -50,7 +58,17 @@ class _AttractionsViewState extends State<AttractionsView> {
   @override
   void initState() {
     super.initState();
+    if (widget.trip != null) _cityCtrl.text = widget.trip!.destination;
     _search();
+  }
+
+  @override
+  void didUpdateWidget(AttractionsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.trip != null && widget.trip != oldWidget.trip) {
+      _cityCtrl.text = widget.trip!.destination;
+      _search();
+    }
   }
 
   @override
@@ -92,7 +110,11 @@ class _AttractionsViewState extends State<AttractionsView> {
 
   @override
   Widget build(BuildContext context) {
-    final cityPhoto = DiscoverContent.photoForPlace(_resultCity);
+    final cityPhoto = _attractions.isEmpty
+        ? DiscoverContent.photoForPlace(_resultCity)
+        : _banner.resolve(widget.photos, _resultCity, () {
+            if (mounted) setState(() {});
+          });
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
       child: Align(

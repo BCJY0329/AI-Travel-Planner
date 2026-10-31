@@ -6,11 +6,18 @@ away with the Amadeus self-service portal shutdown on July 17, 2026.
 Duffel is a two-step flow: create an "offer request" (POST), then read back the
 offers it generated (GET). No booking step is implemented here.
 """
+from datetime import date
+
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from config import settings
+from services.ttl_cache import TTLCache
 
 router = APIRouter(prefix="/flights", tags=["flights"])
+
+# Prices move, so offers are only reused briefly (Duffel offers stay valid
+# longer than this). Enough to absorb repeat clicks on the same search.
+_offers_cache = TTLCache(ttl_seconds=5 * 60)
 
 _HEADERS = {
     "Duffel-Version": "v2",
@@ -21,6 +28,11 @@ _HEADERS = {
 # in test mode regularly exceeds 15 s. Fail fast on connect, wait longer on read.
 # The frontend waits slightly longer than this (TravelApiService).
 _TIMEOUT = httpx.Timeout(45.0, connect=10.0)
+
+# Rejected with 422 before any Duffel call.
+_IATA = r"^\s*[A-Za-z]{3}\s*$"
+_ISO_DATE = r"^\d{4}-\d{2}-\d{2}$"
+
 
 
 def _simplify(offer: dict) -> dict:
@@ -35,18 +47,30 @@ def _simplify(offer: dict) -> dict:
         "departure_time": segments[0]["departing_at"],
         "arrival": segments[-1]["destination"]["iata_code"],
         "arrival_time": segments[-1]["arriving_at"],
+        # The arrival airport's city, e.g. "Tokyo" for NRT; used for banner photos.
+        "arrival_city": segments[-1]["destination"].get("city_name"),
         "carrier": segments[0]["operating_carrier"]["iata_code"],
     }
 
 
 @router.get("/search")
 async def search_flights(
-    origin: str = Query(..., description="Origin IATA code, e.g. 'KUL'"),
-    destination: str = Query(..., description="Destination IATA code, e.g. 'NRT'"),
-    departure_date: str = Query(..., description="YYYY-MM-DD"),
+    origin: str = Query(..., pattern=_IATA, description="Origin IATA code, e.g. 'KUL'"),
+    destination: str = Query(..., pattern=_IATA, description="Destination IATA code, e.g. 'NRT'"),
+    departure_date: str = Query(..., pattern=_ISO_DATE, description="YYYY-MM-DD"),
     adults: int = Query(1, ge=1, le=9),
 ):
     """Returns a simplified list of flight offers — for viewing only, not booking."""
+    try:
+        date.fromisoformat(departure_date)  # The pattern alone accepts 2026-02-31.
+    except ValueError:
+        raise HTTPException(status_code=422, detail="departure_date must be a real YYYY-MM-DD date")
+    key = (origin.strip().upper(), destination.strip().upper(), departure_date, adults)
+    return await _offers_cache.get_or_fetch(
+        key, lambda: _fetch_offers(key[0], key[1], departure_date, adults))
+
+
+async def _fetch_offers(origin: str, destination: str, departure_date: str, adults: int) -> dict:
     if not settings.DUFFEL_API_KEY:
         raise HTTPException(status_code=500, detail="DUFFEL_API_KEY is not configured")
 

@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     OPENWEATHER_API_KEY: str = ""
     OPENWEATHER_BASE_URL: str = "https://api.openweathermap.org"
 
+    # Pixabay — destination banner photos, free key (100 req/minute). Its terms
+    # require caching results for 24 h, crediting Pixabay, and serving images
+    # from our own server rather than hotlinking (see routers/photos.py).
+    # Sign up: https://pixabay.com/api/docs/
+    PIXABAY_API_KEY: str = ""
+    PIXABAY_BASE_URL: str = "https://pixabay.com"
+
     # --- Lemon.ai: three interchangeable, free-tier-friendly LLM providers ---
     # Fill in whichever ones you have keys for. Providers you don't configure will
     # simply fail with a clear error if selected — the "mock" provider always works

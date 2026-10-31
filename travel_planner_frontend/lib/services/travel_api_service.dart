@@ -51,4 +51,29 @@ class TravelApiService {
     }, 'attractions');
     return attractions.map((a) => AttractionItem.fromJson(a as Map<String, dynamic>)).toList();
   }
+
+  /// Airports serving [place], nearest first; empty when none are known.
+  Future<List<Airport>> searchAirports(String place) async {
+    final airports =
+        await _list('/airports/search', {'place': place.trim()}, 'airports');
+    return airports
+        .map((a) => Airport.fromJson(a as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Up to 3 photos of the country [place] is in; the backend caches them.
+  Future<List<PlacePhoto>> placePhotos(String place) async {
+    final photos = await _list('/photos/place', {'place': place.trim()}, 'photos');
+    return photos
+        .map((p) => PlacePhoto.fromJson(p as Map<String, dynamic>, ApiConfig.baseUrl))
+        .toList();
+  }
+
+  /// Pixabay editors' choice travel photos for the Discover hero.
+  Future<List<PlacePhoto>> featuredPhotos() async {
+    final photos = await _list('/photos/featured', {}, 'photos');
+    return photos
+        .map((p) => PlacePhoto.fromJson(p as Map<String, dynamic>, ApiConfig.baseUrl))
+        .toList();
+  }
 }

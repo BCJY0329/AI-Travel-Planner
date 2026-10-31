@@ -5,7 +5,7 @@ Then open http://127.0.0.1:8000/docs for interactive API docs.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import weather, places, flights, hotels, lemon
+from routers import weather, places, flights, hotels, lemon, photos, airports
 
 app = FastAPI(
     title="Travel Planner API",
@@ -28,6 +28,8 @@ app.include_router(places.router)
 app.include_router(flights.router)
 app.include_router(hotels.router)
 app.include_router(lemon.router)
+app.include_router(photos.router)
+app.include_router(airports.router)
 
 
 @app.get("/health")

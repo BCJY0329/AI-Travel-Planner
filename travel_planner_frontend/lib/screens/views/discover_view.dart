@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../config/app_theme.dart';
@@ -7,6 +8,7 @@ import '../../widgets/hover_lift.dart';
 import '../../widgets/lemon_motion.dart';
 import '../../widgets/page_parts.dart';
 import '../../models/itinerary_models.dart';
+import '../../services/place_photos.dart';
 
 const _lemonArt = 'assets/images/lemon_avatar.png';
 
@@ -15,12 +17,16 @@ class DiscoverView extends StatelessWidget {
   final ValueChanged<int> onSelectTab;
   final ValueChanged<String>? onDestination;
   final ItineraryResponse? activeItinerary;
+
+  /// Pixabay photos that join the hero slideshow; null keeps the one photo.
+  final PlacePhotoSource? photos;
   const DiscoverView(
       {super.key,
       required this.onOpenLemon,
       required this.onSelectTab,
       this.onDestination,
-      this.activeItinerary});
+      this.activeItinerary,
+      this.photos});
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
@@ -29,7 +35,10 @@ class DiscoverView extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 1320),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _Hero(onOpenLemon: onOpenLemon, onExplore: () => onSelectTab(3)),
+              _Hero(
+                  onOpenLemon: onOpenLemon,
+                  onExplore: () => onSelectTab(3),
+                  photos: photos),
               if (activeItinerary != null) ...[
                 const SizedBox(height: 24),
                 Card(
@@ -97,13 +106,51 @@ class DiscoverView extends StatelessWidget {
   return (columns, (width - (columns - 1) * gap) / columns);
 }
 
-class _Hero extends StatelessWidget {
+class _Hero extends StatefulWidget {
   final VoidCallback onOpenLemon;
   final VoidCallback onExplore;
-  const _Hero({required this.onOpenLemon, required this.onExplore});
+  final PlacePhotoSource? photos;
+  const _Hero(
+      {required this.onOpenLemon, required this.onExplore, this.photos});
+  @override
+  State<_Hero> createState() => _HeroState();
+}
+
+/// The hero starts on the bundled photo, then cross-fades through Pixabay
+/// travel photos every few seconds (not when animations are disabled).
+class _HeroState extends State<_Hero> {
+  static const _slideEvery = Duration(seconds: 9);
+  List<DiscoverPhoto> _slides = const [DiscoverContent.hero];
+  int _slide = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.photos?.featured().then((featured) {
+      if (!mounted || featured.isEmpty) return;
+      setState(() => _slides = [DiscoverContent.hero, ...featured]);
+      _timer = Timer.periodic(_slideEvery, (_) => _next());
+    });
+  }
+
+  void _next() {
+    if (!mounted || MediaQuery.disableAnimationsOf(context)) return;
+    setState(() => _slide = (_slide + 1) % _slides.length);
+    // Warm up the following photo so it is ready for its turn.
+    precacheImage(_slides[(_slide + 1) % _slides.length].image, context,
+        onError: (_, __) {});
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
+        final photo = _slides[_slide];
         final wide = box.maxWidth > 900;
         final title = TextStyle(
             fontFamily: AppTheme.tripHeadingFont,
@@ -157,7 +204,7 @@ class _Hero extends StatelessWidget {
                     child: Wrap(spacing: 12, runSpacing: 12, children: [
                       HoverLift(
                           child: ElevatedButton.icon(
-                              onPressed: onOpenLemon,
+                              onPressed: widget.onOpenLemon,
                               style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 26, vertical: 18),
@@ -168,7 +215,7 @@ class _Hero extends StatelessWidget {
                               label: const Text('Plan a trip with Lemon'))),
                       HoverLift(
                           child: OutlinedButton.icon(
-                              onPressed: onExplore,
+                              onPressed: widget.onExplore,
                               iconAlignment: IconAlignment.end,
                               style: OutlinedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
@@ -206,10 +253,18 @@ class _Hero extends StatelessWidget {
           child: Stack(children: [
             Positioned.fill(
                 child: SlowZoom(
-                    child: Image.asset(DiscoverContent.hero.asset,
-                        fit: BoxFit.cover,
-                        alignment: const Alignment(.4, 0),
-                        semanticLabel: DiscoverContent.hero.description))),
+                    child: AnimatedSwitcher(
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 1400),
+                        child: BannerImage(photo,
+                            key: ValueKey(photo.url ?? photo.asset),
+                            alignment: photo.url == null
+                                ? const Alignment(.4, 0)
+                                : Alignment.center,
+                            fallback: Image.asset(DiscoverContent.hero.asset,
+                                fit: BoxFit.cover,
+                                alignment: const Alignment(.4, 0)))))),
             Positioned.fill(
                 child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -245,6 +300,13 @@ class _Hero extends StatelessWidget {
                 copy,
                 const _LemonShowcase(halo: 190, withBubble: false),
               ]),
+            if (photo.source == 'Pixabay')
+              Positioned(
+                  right: 18,
+                  bottom: 12,
+                  child: Text('Photo by ${photo.credit} on Pixabay',
+                      style: const TextStyle(
+                          color: AppTheme.textSecondary, fontSize: 12))),
           ]),
         );
       });

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../config/app_theme.dart';
 import '../../config/discover_content.dart';
 import '../../models/itinerary_models.dart';
+import '../../services/place_photos.dart';
 import '../../widgets/gentle_reveal.dart';
 import '../../widgets/hover_lift.dart';
 import '../../widgets/lemon_motion.dart';
@@ -26,14 +27,23 @@ const _dayTones = [
 class ItineraryView extends StatefulWidget {
   final ItineraryResponse? itinerary;
   final VoidCallback onOpenLemon;
+
+  /// Country photos for destinations without a bundled photo.
+  /// Null (as in most tests) keeps the plain banner.
+  final PlacePhotoSource? photos;
   const ItineraryView(
-      {super.key, required this.itinerary, required this.onOpenLemon});
+      {super.key,
+      required this.itinerary,
+      required this.onOpenLemon,
+      this.photos});
   @override
   State<ItineraryView> createState() => _ItineraryViewState();
 }
 
 class _ItineraryViewState extends State<ItineraryView> {
   int _day = 0;
+  final _banner = BannerPhoto();
+
   @override
   void didUpdateWidget(covariant ItineraryView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -118,7 +128,9 @@ class _ItineraryViewState extends State<ItineraryView> {
                   ]))));
     }
     final demo = trip.providerUsed == 'mock';
-    final photo = DiscoverContent.photoForPlace(trip.destination);
+    final photo = _banner.resolve(widget.photos, trip.destination.trim(), () {
+      if (mounted) setState(() {});
+    });
     return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
         child: Align(
@@ -323,20 +335,11 @@ class _TripBanner extends StatelessWidget {
                 constraints: BoxConstraints(minHeight: wide ? 340 : 300),
                 child: Stack(alignment: Alignment.bottomLeft, children: [
                   Positioned.fill(
-                      child: photo == null
-                          ? const DecoratedBox(
-                              decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                  AppTheme.primaryLight,
-                                  AppTheme.primaryDark
-                                ])))
-                          : SlowZoom(
-                              child: Image.asset(photo!.asset,
-                                  fit: BoxFit.cover,
-                                  semanticLabel: photo!.description))),
+                      child: Stack(fit: StackFit.expand, children: [
+                    const _PlainBanner(),
+                    if (photo != null)
+                      SlowZoom(child: BannerImage(photo!)),
+                  ])),
                   const Positioned.fill(
                       child: DecoratedBox(
                           decoration: BoxDecoration(
@@ -483,6 +486,18 @@ class _TripBanner extends StatelessWidget {
                               ]))),
                 ])));
       });
+}
+
+/// The mint banner used when a destination has no photo.
+class _PlainBanner extends StatelessWidget {
+  const _PlainBanner();
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+      decoration: BoxDecoration(
+          gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppTheme.primaryLight, AppTheme.primaryDark])));
 }
 
 /// Lemon's summary of the whole trip.

@@ -1,17 +1,19 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
 class ChatTurn(BaseModel):
-    role: str = Field(..., description="'user' or 'assistant'")
-    content: str
+    role: Literal['user', 'assistant'] = Field(..., description="'user' or 'assistant'")
+    # The app's composer allows 600 characters; assistant turns are Lemon's own replies.
+    content: str = Field(..., max_length=2000)
 
 
 class LemonChatRequest(BaseModel):
     """Full conversation so far (oldest first) — the backend is stateless,
-    so the whole history is sent on every turn."""
-    messages: List[ChatTurn]
-    provider: str = Field("mock", description="'auto', 'groq', 'gemini', 'openrouter', or 'mock'")
+    so the whole history is sent on every turn. Bounded so one request cannot
+    push an oversized prompt to the providers."""
+    messages: List[ChatTurn] = Field(..., max_length=100)
+    provider: str = Field("mock", max_length=20, description="'auto', 'groq', 'gemini', 'openrouter', or 'mock'")
 
 
 class LemonChatResponse(BaseModel):

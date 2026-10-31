@@ -207,7 +207,9 @@ class _TripDateDialogState extends State<TripDateDialog> {
                         Chip(
                             avatar: const Icon(Icons.nights_stay_outlined,
                                 size: 16),
-                            label: Text('${days(start!, end!)} days'),
+                            label: Text(days(start!, end!) == 1
+                                ? '1 day'
+                                : '${days(start!, end!)} days'),
                             backgroundColor: Colors.white),
                     ]),
                   ),

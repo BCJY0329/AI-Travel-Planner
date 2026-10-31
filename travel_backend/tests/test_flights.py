@@ -1,6 +1,7 @@
 """Offline flight-search regressions: Duffel is replaced by httpx.MockTransport.
 Run from travel_backend: python -m unittest discover -s tests -v
 """
+import json
 import sys
 import types
 import unittest
@@ -23,7 +24,7 @@ OFFER = {
     "slices": [{"duration": "PT7H", "segments": [{
         "origin": {"iata_code": "KUL"},
         "departing_at": "2026-11-20T09:00:00",
-        "destination": {"iata_code": "NRT"},
+        "destination": {"iata_code": "NRT", "city_name": "Tokyo"},
         "arriving_at": "2026-11-20T17:00:00",
         "operating_carrier": {"iata_code": "ZZ"},
     }]}],
@@ -31,6 +32,19 @@ OFFER = {
 
 
 class FlightSearchTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        flights._offers_cache.clear()  # Every test repeats the same search.
+
+    async def test_repeat_search_is_served_from_cache(self):
+        calls = []
+        def handler(request):
+            calls.append(request)
+            return httpx.Response(201, json={"data": {"offers": [OFFER]}})
+        first, _ = await self.search(handler)
+        second, _ = await self.search(handler)
+        self.assertEqual(first, second)
+        self.assertEqual(len(calls), 1)
+
     async def search(self, handler):
         real_client = httpx.AsyncClient
         seen = {}
@@ -68,7 +82,31 @@ class FlightSearchTests(unittest.IsolatedAsyncioTestCase):
         result, seen = await self.search(lambda request: httpx.Response(201, json=body))
         self.assertEqual(len(result["offers"]), 1)
         self.assertEqual(result["offers"][0]["carrier"], "ZZ")
+        self.assertEqual(result["offers"][0]["arrival_city"], "Tokyo")
         self.assertGreater(seen["timeout"].read, 15)
+
+    def test_bad_codes_and_dates_are_rejected_before_duffel(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        app = FastAPI()
+        app.include_router(flights.router)
+        calls = []
+        real_client = httpx.AsyncClient
+        def client(**kwargs):
+            def handler(request):
+                calls.append(request)
+                return httpx.Response(201, json={"data": {"offers": []}})
+            return real_client(transport=httpx.MockTransport(handler), **kwargs)
+        with patch.object(flights.httpx, 'AsyncClient', client), TestClient(app) as http:
+            for query in ('origin=Kuala%20Lumpur&destination=NRT&departure_date=2026-11-20',
+                          'origin=KUL&destination=NRT&departure_date=20-11-2026',
+                          'origin=KUL&destination=NRT&departure_date=2026-02-31'):
+                self.assertEqual(http.get('/flights/search?' + query).status_code, 422, query)
+            self.assertEqual(calls, [])
+            ok = http.get('/flights/search?origin=%20kul%20&destination=nrt&departure_date=2026-11-20')
+        self.assertEqual(ok.status_code, 200)
+        sent = json.loads(calls[0].content)
+        self.assertEqual(sent['data']['slices'][0]['origin'], 'KUL')
 
 
 if __name__ == '__main__':

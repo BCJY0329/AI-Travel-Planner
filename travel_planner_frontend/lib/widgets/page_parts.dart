@@ -197,10 +197,8 @@ class PageBanner extends StatelessWidget {
                   child: Stack(fit: StackFit.expand, children: [
                     const ColoredBox(color: AppTheme.sky),
                     SlowZoom(
-                        child: Image.asset(photo.asset,
-                            fit: BoxFit.cover,
-                            alignment: photoAlignment,
-                            semanticLabel: photo.description)),
+                        child: BannerImage(photo,
+                            alignment: photoAlignment)),
                     DecoratedBox(
                         decoration: BoxDecoration(
                             gradient: LinearGradient(colors: [
@@ -477,10 +475,14 @@ class ResultsBanner extends StatelessWidget {
               height: 150,
               child: Stack(fit: StackFit.expand, children: [
                 if (photo != null) ...[
-                  Image.asset(photo!.asset,
-                      fit: BoxFit.cover,
+                  BannerImage(photo!,
                       alignment: photoAlignment,
-                      semanticLabel: photo!.description),
+                      fallback: const DecoratedBox(
+                          decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [
+                        AppTheme.primaryDark,
+                        AppTheme.primaryLight
+                      ])))),
                   const DecoratedBox(
                       decoration: BoxDecoration(
                           gradient: LinearGradient(colors: [
@@ -670,15 +672,51 @@ class PhotoCredits extends StatelessWidget {
   const PhotoCredits({super.key, required this.photos});
   @override
   Widget build(BuildContext context) {
-    final credits = <String>{
-      for (final photo in photos)
-        if (photo != null && photo.credit.isNotEmpty) photo.credit
-    };
-    if (credits.isEmpty) return const SizedBox.shrink();
-    return Text('Photos (Wikimedia Commons): ${credits.join(' · ')}',
+    final bySource = <String, Set<String>>{};
+    for (final photo in photos) {
+      if (photo != null && photo.credit.isNotEmpty) {
+        bySource.putIfAbsent(photo.source, () => {}).add(photo.credit);
+      }
+    }
+    if (bySource.isEmpty) return const SizedBox.shrink();
+    return Text(
+        [
+          for (final MapEntry(key: source, value: credits) in bySource.entries)
+            'Photos ($source): ${credits.join(' · ')}'
+        ].join('  ·  '),
         style: const TextStyle(
             color: AppTheme.textSecondary, fontSize: 12.5, height: 1.6));
   }
+}
+
+/// A cover-fit banner photo, bundled or from the network. A network photo
+/// that fails to load shows [fallback] (the plain background by default).
+class BannerImage extends StatelessWidget {
+  final DiscoverPhoto photo;
+  final Alignment alignment;
+  final Widget fallback;
+  const BannerImage(this.photo,
+      {super.key,
+      this.alignment = Alignment.center,
+      this.fallback = const SizedBox.shrink()});
+  @override
+  Widget build(BuildContext context) => Image(
+      image: photo.image,
+      fit: BoxFit.cover,
+      alignment: alignment,
+      width: double.infinity,
+      height: double.infinity,
+      semanticLabel: photo.description,
+      // Network photos fade in rather than popping over the plain banner.
+      frameBuilder: (context, child, frame, sync) => sync
+          ? child
+          : AnimatedOpacity(
+              opacity: frame == null ? 0 : 1,
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 500),
+              child: child),
+      errorBuilder: (_, __, ___) => fallback);
 }
 
 /// Lays out [children] in up to [maxColumns] equal columns.

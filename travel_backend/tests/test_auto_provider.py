@@ -392,7 +392,17 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
             plan = client.post('/lemon/plan', json={'provider': 'auto', 'destination': 'Kyoto', 'start_date': '2026-11-01', 'end_date': '2026-11-03'})
             self.assertEqual(plan.status_code, 200)
             self.assertEqual(plan.json()['provider_used'], 'mock')
-            self.assertEqual(client.post('/lemon/chat', json={'provider': 'unknown', 'messages': []}).status_code, 502)
+            failed = client.post('/lemon/chat', json={'provider': 'unknown', 'messages': []})
+            self.assertEqual(failed.status_code, 502)
+            self.assertNotIn('unknown', failed.json()['detail'])  # no exception text leaks
+            with patch('routers.lemon.build_itinerary', side_effect=RuntimeError('secret prompt text')):
+                broken = client.post('/lemon/plan', json={'provider': 'auto', 'destination': 'Kyoto', 'start_date': '2026-11-01', 'end_date': '2026-11-03'})
+            self.assertEqual(broken.status_code, 502)
+            self.assertNotIn('secret', broken.json()['detail'])
+            for messages in ([{'role': 'system', 'content': 'hi'}],
+                             [{'role': 'user', 'content': 'x' * 2001}],
+                             [{'role': 'user', 'content': 'hi'}] * 101):
+                self.assertEqual(client.post('/lemon/chat', json={'provider': 'mock', 'messages': messages}).status_code, 422)
 
 
 if __name__ == '__main__':

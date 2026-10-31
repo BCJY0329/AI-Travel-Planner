@@ -5,6 +5,8 @@ import '../widgets/lemon_bubble.dart';
 import '../widgets/lemon_brand.dart';
 import '../widgets/hover_lift.dart';
 import '../widgets/lemon_chat_panel.dart';
+import '../services/place_photos.dart';
+import '../services/travel_api_service.dart';
 import '../widgets/page_parts.dart';
 import 'views/attractions_view.dart';
 import 'views/discover_view.dart';
@@ -20,6 +22,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _chat = LemonChatController();
+  final _photos = PlacePhotoSource(TravelApiService());
   int _tab = 0;
   bool _open = false;
   double _chatWidth = 440;
@@ -152,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       onOpenLemon: _openChat,
                                       onSelectTab: _select,
                                       activeItinerary: _chat.latestItinerary,
+                                      photos: _photos,
                                       onDestination: (place) {
                                         _openChat();
                                         _chat.startOver();
@@ -159,20 +163,28 @@ class _HomeScreenState extends State<HomeScreen> {
                                       })),
                               _visited.contains(1)
                                   ? TripTypography(
-                                      child:
-                                          FlightsView(onOpenLemon: _openChat))
+                                      child: FlightsView(
+                                          onOpenLemon: _openChat,
+                                          photos: _photos,
+                                          trip: _chat.latestTrip))
                                   : const SizedBox.shrink(),
                               _visited.contains(2)
-                                  ? const TripTypography(child: HotelsView())
+                                  ? TripTypography(
+                                      child: HotelsView(
+                                          photos: _photos,
+                                          trip: _chat.latestTrip))
                                   : const SizedBox.shrink(),
                               _visited.contains(3)
-                                  ? const TripTypography(
-                                      child: AttractionsView())
+                                  ? TripTypography(
+                                      child: AttractionsView(
+                                          photos: _photos,
+                                          trip: _chat.latestTrip))
                                   : const SizedBox.shrink(),
                               TripTypography(
                                   child: ItineraryView(
                                       itinerary: _chat.latestItinerary,
-                                      onOpenLemon: _openChat)),
+                                      onOpenLemon: _openChat,
+                                      photos: _photos)),
                             ]))),
                     if (!_open)
                       Positioned(
