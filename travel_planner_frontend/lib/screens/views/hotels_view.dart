@@ -303,7 +303,9 @@ class _HotelsViewState extends State<HotelsView> {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                      color: AppTheme.skyMint,
+                      color: AppTheme
+                          .softTones[(number - 1) % AppTheme.softTones.length]
+                          .$2,
                       borderRadius: BorderRadius.circular(14)),
                   child: const Icon(Icons.bed_outlined,
                       color: AppTheme.textPrimary)),

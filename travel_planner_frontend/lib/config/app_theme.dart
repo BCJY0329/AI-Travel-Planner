@@ -5,45 +5,87 @@ class AppTheme {
   static const motionStandard = Duration(milliseconds: 300);
   static const motionEntrance = Duration(milliseconds: 400);
   static const motionCurve = Curves.easeOutCubic;
-  // Sky Mint on cream: lemon yellow is reserved for Lemon.ai and the main
-  // action; the pastel carries supporting controls; deeper mint is for small
-  // text links only.
-  static const Color mint = Color(0xFFE4F6F1);
+  // Calm Sky Blue, lemon and warm sand on cream, balanced 60/30/10:
+  // - 60% warm neutrals (cream page, [sorbet], [sand]) carry Lemon's halo,
+  //   her tips, step numbers, tags and badges;
+  // - 30% sky blue marks everything you can press ([cta], [ctaSoft]), the
+  //   selected tab and chips ([skyBlue]), links and icons ([primary]);
+  // - 10% lemon yellow belongs to Lemon herself: her avatar ring, the
+  //   lemon on the wordmark's "i", a ring round her halo and her tip bulb.
+  static const Color paleBlue = Color(0xFFE6F0FB); // Calendar range, day tint
   static const Color peach = Color(0xFFFFEADF);
-  static const Color sky = Color(0xFFEEF9F7);
-  static const Color lemon = Color(0xFFFFF3BD);
-  static const Color teal = Color(0xFF2E7A73);
-  static const Color skyMint = Color(0xFFC9EEE7); // Secondary buttons, tabs
-  static const Color skyMintBright = Color(0xFF36C2B0); // "Trip" in the logo
-  static const Color primary = Color(0xFF2E7A73); // Links, focus, icons
-  static const Color primaryDark = Color(0xFF245F5A);
-  static const Color primaryLight = Color(0xFF3B8C84);
-  // Historical names: these now hold the Sky Mint container tints.
-  static const Color lavenderTint = Color(0xFFDDF3EF);
-  static const Color lavenderSubtle = Color(0xFFEEF9F7);
+  static const Color sky = Color(0xFFEEF5FC); // Soft blue tint for boxes
+  static const Color skyBlue = Color(0xFFCFE1F6); // Selected tab and chips
+  static const Color skyBlueBright = Color(0xFF3D8BD9);
+  static const Color primary = Color(0xFF2F5F98); // Links, icons (6.5:1)
+  static const Color primaryDark = Color(0xFF234A78);
+  static const Color primaryLight = Color(0xFF3E73B0);
+  // Historical names: these hold the pale sky blue container tints.
+  static const Color lavenderTint = Color(0xFFDDEAF8);
+  static const Color lavenderSubtle = Color(0xFFEEF5FC);
   static const Color background = Color(0xFFFFFBF2); // Warm cream page
   static const Color surface = Color(0xFFFFFFFF);
   static const Color border = Color(0xFFE9E4D8);
   static const Color borderLight = Color(0xFFF2EEE4);
-  // Pale Sky Mint, set apart from the cream page but lighter than the
-  // selected-tab pill (skyMint) so tabs and logo stay clear.
-  static const Color navBar = Color(0xFFE8F7F3);
-  static const Color navBarBorder = Color(0xFFCBE8E1);
-  static const Color navBarText = Color(0xFF56696A); // ~5.2:1 on pale mint
+  // Input outlines need 3:1 against white and the pale tints (3.6:1 on
+  // white, 3.3:1 on sky); [border] stays for decorative card edges.
+  static const Color fieldBorder = Color(0xFF7189A6);
+  // Keyboard focus ring: 5.8:1 on the sky blue button, 9:1 on white.
+  static const Color focusRing = Color(0xFF234A78);
+  // Pale sky blue, set apart from the cream page but lighter than the
+  // selected-tab pill (skyBlue) so tabs and the wordmark stay clear.
+  static const Color navBar = Color(0xFFEAF2FB);
+  static const Color navBarBorder = Color(0xFFCCDDF1);
+  static const Color navBarText = Color(0xFF55667A); // 5.2:1 on navBar
 
-  // Text colors: lighter slate-mint ink that stays above 4.5:1 on cream.
-  static const Color textPrimary = Color(0xFF3F5A58);
-  static const Color textSecondary = Color(0xFF637775);
-  static const Color textMuted = Color(0xFF637775);
+  // Pressable things: one sky blue main action, pale blue partners.
+  static const Color cta = Color(0xFFB5D3F2);
+  static const Color ctaInk = Color(0xFF23395B); // 7.5:1 on cta
+  static const Color ctaSoft = Color(0xFFE3EFFB);
+
+  // Warm neutrals for Lemon's voice and quiet details.
+  static const Color sorbet = Color(0xFFFBF6E3);
+  static const Color sand = Color(0xFFF1E6D3);
+  static const Color sandBorder = Color(0xFFEADBC2);
+  static const Color sandInk = Color(0xFF4E3B22); // 8.6:1 on sand
+  static const Color sorbetInk = Color(0xFF5E4A1A); // 7.9:1 on sorbet
+  static const Color lilac = Color(0xFFECE8FB); // Fourth itinerary day
+  static const Color lilacAccent = Color(0xFFCFC6F2);
+  static const Color peachAccent = Color(0xFFFFC9AE);
+
+  /// Soft (tint, accent) pairs from the palette (sky, peach, sand, lilac)
+  /// that the search pages rotate through so cards and steps don't all share
+  /// one blue. textPrimary reads above 4.5:1 on every one of them.
+  static const List<(Color, Color)> softTones = [
+    (ctaSoft, cta),
+    (peach, peachAccent),
+    (sorbet, sand),
+    (lilac, lilacAccent),
+  ];
+
+  /// A stable tone for [key], so the same carrier or category keeps its
+  /// colour across searches.
+  static (Color, Color) toneFor(String key) =>
+      softTones[key.codeUnits.fold<int>(0, (a, c) => a + c) % softTones.length];
+
+  // Text colors: slate-blue ink that stays above 4.5:1 on cream, white,
+  // the blue tints and sand (secondary: 4.6:1 on skyBlue, 6.1:1 on white).
+  static const Color textPrimary = Color(0xFF3E4F66);
+  static const Color textSecondary = Color(0xFF52637A);
+  static const Color textMuted = Color(0xFF52637A);
   // Chat copy uses a crisper neutral slate.
   static const Color chatText = Color(0xFF3A4A5A);
 
-  // Accent colors
-  static const Color accentLemon = Color(0xFFF9D648); // Lemon.ai + primary CTA
+  // Lemon's own yellow, kept to small accents.
+  static const Color accentLemon = Color(0xFFF9D648);
   static const Color accentLemonDark = Color(0xFFE9B824);
   static const Color lemonInk = Color(0xFF2A2410); // Text on lemon
+  // Deeper lemon and sand for the wordmark's colour wave: 3.5:1 on navBar,
+  // enough for large bold text.
+  static const Color lemonDeep = Color(0xFFA07A00);
+  static const Color sandDeep = Color(0xFF9A7A4C);
   static const Color success = Color(0xFF10B981);
-  static const Color error = Color(0xFFEF4444);
+  static const Color error = Color(0xFFC62828); // 5.6:1 on white
 
   // Typography: Discover uses Poppins for headings; body text keeps the
   // platform default (Roboto on Web/Android).
@@ -53,6 +95,18 @@ class AppTheme {
   static const String tripHeadingFont = 'Unbounded';
   static const String tripBodyFont = 'Outfit';
   static const String noteFont = 'Fredoka';
+
+  /// Whether focus should be drawn: never after touch input, matching
+  /// Material's own focus highlight.
+  static bool get showFocus =>
+      FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+
+  static const focusSide = BorderSide(color: focusRing, width: 2.5);
+
+  /// A button outline that becomes the focus ring while focused.
+  static WidgetStateProperty<BorderSide?> focusOutline([BorderSide? rest]) =>
+      WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.focused) && showFocus ? focusSide : rest);
 
   static ThemeData get lightTheme => _build(heading: headingFont);
 
@@ -105,7 +159,7 @@ class AppTheme {
         onPrimary: Colors.white,
         primaryContainer: lavenderTint,
         onPrimaryContainer: textPrimary,
-        secondary: teal,
+        secondary: primary,
         onSecondary: Colors.white,
         secondaryContainer: lavenderSubtle,
         onSecondaryContainer: textPrimary,
@@ -113,7 +167,7 @@ class AppTheme {
         onSurface: textPrimary,
         surfaceContainerLowest: surface,
         surfaceContainerLow: background,
-        surfaceContainer: Color(0xFFF2F8F5),
+        surfaceContainer: Color(0xFFF3F7FC),
         error: error,
         onError: Colors.white,
         outline: border,
@@ -147,37 +201,44 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: accentLemon,
-          foregroundColor: lemonInk,
+          backgroundColor: cta,
+          foregroundColor: ctaInk,
           elevation: 0,
-          shadowColor: accentLemon.withValues(alpha: .5),
+          shadowColor: const Color(0xFF6EA0DC).withValues(alpha: .5),
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
           shape: const StadiumBorder(),
           textStyle: TextStyle(
               fontFamily: body, fontWeight: FontWeight.w700, fontSize: 14),
         ).copyWith(
+            side: focusOutline(),
             elevation: WidgetStateProperty.resolveWith(
                 (states) => states.contains(WidgetState.hovered) ? 4 : 0)),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          backgroundColor: skyMint,
-          foregroundColor: textPrimary,
-          side: BorderSide.none,
+          backgroundColor: ctaSoft,
+          foregroundColor: ctaInk,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           shape: const StadiumBorder(),
           textStyle: TextStyle(
               fontFamily: body, fontWeight: FontWeight.w600, fontSize: 13),
-        ),
+        ).copyWith(
+            side: focusOutline(const BorderSide(color: cta, width: 1.5))),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: primary),
+        style: TextButton.styleFrom(foregroundColor: primary)
+            .copyWith(side: focusOutline()),
       ),
+      iconButtonTheme:
+          IconButtonThemeData(style: ButtonStyle(side: focusOutline())),
       chipTheme: ChipThemeData(
         backgroundColor: surface,
-        selectedColor: skyMint,
+        selectedColor: skyBlue,
         checkmarkColor: textPrimary,
-        side: const BorderSide(color: border),
+        side: WidgetStateBorderSide.resolveWith((states) =>
+            states.contains(WidgetState.focused) && showFocus
+                ? focusSide
+                : const BorderSide(color: border)),
         shape: const StadiumBorder(),
         labelStyle: TextStyle(
             fontFamily: body,
@@ -193,11 +254,11 @@ class AppTheme {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: border, width: 1),
+          borderSide: const BorderSide(color: fieldBorder, width: 1),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: border, width: 1),
+          borderSide: const BorderSide(color: fieldBorder, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

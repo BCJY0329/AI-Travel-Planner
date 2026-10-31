@@ -1,10 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travel_planner_frontend/main.dart';
+import 'package:travel_planner_frontend/widgets/lemon_brand.dart';
 
 void main() {
   testWidgets('TravelPlannerApp smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const TravelPlannerApp());
     await tester.pumpAndSettle();
-    expect(find.text('LemonTrip'), findsOneWidget);
+    expect(find.byType(LemonBrand), findsOneWidget);
   });
 }

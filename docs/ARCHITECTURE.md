@@ -34,7 +34,7 @@ Paths below are relative to `travel_planner_frontend/`.
 - `lib/main.dart` creates `TravelPlannerApp` (titled LemonTrip). `lib/screens/home_screen.dart` owns navigation across Discover, Flights, Hotels, Attractions and Itinerary, the shared Lemon controller, and the chat panel size. Search tabs are created on first visit and keep their state afterward. Compact widths use a navigation menu; the desktop header scrolls horizontally when labels overflow.
 - `lib/config/app_theme.dart` defines palette, text styles, and central motion durations (200/300/400 ms) and curve. Motion is bypassed when the platform requests reduced animations. `lib/config/api_config.dart` chooses loopback or Android emulator addressing.
 - `lib/chat/lemon_chat_controller.dart` holds rendered messages, transcript, structured trip fields, and the latest itinerary, announced through a `ValueNotifier`. It sends `provider: auto`.
-- `lib/services/lemon_api_service.dart` posts chat (45 s timeout) and plan (100 s timeout) requests. `lib/services/travel_api_service.dart` uses 15 s timeouts, preserves empty results, and propagates failures to Retry UI; there are no fictional travel-list fallbacks.
+- `lib/services/lemon_api_service.dart` posts chat (45 s timeout) and plan (25 s + 75 s per wave of windows, `planTimeoutFor`) requests. `lib/services/travel_api_service.dart` uses 15 s timeouts, preserves empty results, and propagates failures to Retry UI; there are no fictional travel-list fallbacks.
 - `lib/models/` maps backend JSON; hotel cards display only name/location and disclose unavailable price/rating/amenity details.
 - `lib/widgets/` contains the chat panel and launcher, avatar and brand mark, staged range calendar (`trip_date_dialog.dart`), map actions, and hover/reveal motion helpers.
 - `test/` contains widget tests with fake services, including responsive checks at 360, 800 and 1440 px; `test/widget_test.dart` is the app smoke test (asserts LemonTrip).
@@ -45,17 +45,17 @@ Paths below are relative to `travel_planner_frontend/`.
 2. Dates (staged month-grid range calendar, anchored start, 1–30 days, today or later), travelers (numeric 1–20), budget (`low`/`medium`/`high`, shown as Budget-friendly/Comfortable/Premium) and interests (including Other and Surprise me) are collected locally through guided controls.
 3. After an editable review and explicit confirmation, the client posts the structured fields directly to `/lemon/plan`. Errors preserve the local session; retry repeats only the failed stage.
 4. The builder fetches weather and attractions concurrently, each bounded to ten seconds, with `radius_km=5`. Failed context is optional.
-5. Requested dates are divided into three-day windows. A semaphore limits active windows to three; each creates its own provider instance, and all share a 75-second monotonic generation deadline.
+5. Requested dates are divided into three-day windows. A semaphore limits active windows to three; each creates its own provider instance and gets 75 seconds from when it takes a slot, under an overall cap of 75 seconds per wave (`generation_budget_seconds`).
 6. Each window's output must contain exactly its requested dates and absolute day numbers, in order, with nonempty activities. Direct providers get one bounded corrective retry; auto validates each candidate before accepting it. A failed aggregate request cancels outstanding windows.
 7. Windows are assembled in request order. Any mock window labels the whole itinerary mock; mixed successful real providers report `auto`.
 
-The frontend's 100-second plan timeout leaves room for the context phase and cleanup. These are asynchronous wait bounds, not hard wall-clock guarantees.
+The frontend's plan timeout (25 s + 75 s per wave) leaves room for the context phase and cleanup. These are asynchronous wait bounds, not hard wall-clock guarantees.
 
 ## Provider selection
 
 `factory.py` registers `auto`, `groq`, `gemini`, `openrouter`, and `mock`, case-insensitively. Request models default to `mock`; the frontend selects `auto`. Neither `claude` nor `gpt` is registered.
 
-`auto_provider.py` tries Groq → Gemini → OpenRouter with guarded construction, generation, and caller-supplied response validation. Chat allows 9 s per attempt and 30 s total; plan windows allow 25 s per attempt within the remaining shared deadline. Failed real providers are skipped for five minutes using a monotonic clock; cooldowns are process-local and shared across chat and plan. Exhaustion uses the local chat parser or a demo itinerary covering the requested dates; mock is never cooled down.
+`auto_provider.py` tries Groq → Gemini → OpenRouter with guarded construction, generation, and caller-supplied response validation. Chat allows 9 s per attempt and 30 s total. Plan windows stream: each provider exposes `stream_text()` (Groq/OpenRouter via `openai_stream.py`, Gemini on its own thread because google-genai 0.3.0 blocks the event loop), and auto cuts it only after 10 s without a chunk (25 s before the first), within the window budget; `generate_json()` joins the stream into the same raw JSON string. Failed real providers are skipped for a cooldown that depends on the failure kind (5 min hard failures, Retry-After for 429, 30 s timeouts/stalls/invalid output, none for budget-only timeouts; DECISIONS 042), using a monotonic clock; cooldowns are process-local and shared across chat and plan. Groq and OpenRouter clients use `max_retries=0` so auto sees 429s directly. Exhaustion uses the local chat parser or a demo itinerary covering the requested dates; mock is never cooled down.
 
 ## Boundaries
 

@@ -55,6 +55,8 @@ void main() {
     expect(picker.initialDate, now);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Find Flights'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Find Flights'));
     await tester.pumpAndSettle();
     expect(api.dates.last, '2026-10-23');
@@ -62,6 +64,8 @@ void main() {
 
     // A backward clock change must also keep initialDate below lastDate.
     now = DateTime(2024, 1, 1);
+    await tester.ensureVisible(find.text('2026-10-23'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('2026-10-23'));
     await tester.pumpAndSettle();
     picker = tester.widget<DatePickerDialog>(find.byType(DatePickerDialog));

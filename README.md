@@ -92,8 +92,8 @@ Frontend checks: `flutter analyze --no-pub` and `flutter test --no-pub` from `tr
 - Data routes use OpenWeatherMap, Geoapify, and Duffel. No bookings or payments are implemented.
 - Hotel API results contain name/location, not prices, ratings, or amenities. The frontend displays supplied listings, preserves empty results, and shows errors with Retry. It does not invent hotel details or substitute fictional travel listings.
 - Factory-supported providers: `auto`, `groq`, `gemini`, `openrouter`, `mock`; request models default to `mock` and the frontend sends `auto`.
-- `auto` tries Groq → Gemini → OpenRouter with guarded construction and validation, a five-minute in-memory cooldown for failed providers, and local fallback (heuristic chat parser or a demo itinerary that is labelled as such).
-- Itineraries are generated in three-day windows (at most three concurrent, shared 75-second deadline) and must cover every requested date before success is reported.
+- `auto` tries Groq → Gemini → OpenRouter with guarded construction and validation, an in-memory cooldown for failed providers (5 min for hard failures, Retry-After for 429, 30 s for timeouts and invalid output), and local fallback (heuristic chat parser or a demo itinerary that is labelled as such).
+- Itineraries are generated in three-day windows (at most three concurrent, 75 seconds per window under a cap of 75 seconds per wave; providers stream and are cut off only after 10 seconds of silence) and must cover every requested date before success is reported.
 - External provider availability, pricing, quotas, and lifecycle claims are not verified.
 
 ## Documentation

@@ -5,8 +5,11 @@ import asyncio
 import time
 import json
 import sys
+import threading
 import types
 import unittest
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from unittest.mock import patch
 
 # Never import config or SDKs: no credentials or external calls in this suite.
@@ -56,6 +59,107 @@ def provider(name, output=None, constructor_error=False):
     return Fake
 
 
+def window_reply(prompt):
+    """Valid JSON for exactly the days a window prompt asks for."""
+    import re
+    pairs = re.findall(r'(\d+): (\d{4}-\d{2}-\d{2})', prompt.split('Generate ONLY')[1])
+    return json.dumps({'days': [{'day': int(number), 'date': day,
+        'activities': [{'time': '09:00', 'activity': 'Explore'}]} for number, day in pairs]})
+
+
+def streamer(name, pieces, gap=0, stall_after=None, first_delay=0, error=None, on_close=None):
+    """Fake streaming provider: yields `pieces` `gap` seconds apart, optionally stalling."""
+    class Streamer:
+        generate_calls = 0
+        async def stream_text(self, system, user):
+            try:
+                if first_delay:
+                    await asyncio.sleep(first_delay)
+                if error is not None:
+                    raise error
+                for i, piece in enumerate(pieces):
+                    if gap and i:
+                        await asyncio.sleep(gap)
+                    yield piece
+                    if stall_after is not None and i + 1 >= stall_after:
+                        await asyncio.sleep(10)  # Goes silent.
+            finally:
+                if on_close is not None:
+                    on_close()
+        async def generate_json(self, system, user):
+            Streamer.generate_calls += 1
+            return ''.join(pieces)
+    Streamer.name = name
+    return Streamer
+
+
+class FakeOpenAIClient:
+    """Stands in for AsyncOpenAI: create(stream=True) returns chunked deltas."""
+    def __init__(self, pieces, include_empty_chunk=False):
+        self.pieces, self.include_empty_chunk = pieces, include_empty_chunk
+        self.kwargs, self.closed = None, False
+        self.chat = types.SimpleNamespace(completions=types.SimpleNamespace(create=self._create))
+
+    async def _create(self, **kwargs):
+        self.kwargs = kwargs
+        client = self
+        class Stream:
+            response = types.SimpleNamespace(aclose=client._close_response)
+            async def __aiter__(self):
+                if client.include_empty_chunk:
+                    yield types.SimpleNamespace(choices=[])  # e.g. a usage-only chunk
+                for piece in client.pieces:
+                    delta = types.SimpleNamespace(content=piece)
+                    yield types.SimpleNamespace(choices=[types.SimpleNamespace(delta=delta)])
+        return Stream()
+
+    async def _close_response(self):
+        self.closed = True
+
+    async def close(self):
+        pass
+
+
+def load_real_adapter(module_name):
+    """Load a real provider adapter against fake SDK/config modules (never the real config)."""
+    import importlib.util
+    import pathlib
+    created = []
+    class AsyncOpenAI:
+        def __init__(self, **kwargs):
+            created.append(kwargs)
+        async def close(self):
+            pass
+    fake_openai = types.ModuleType('openai')
+    fake_openai.AsyncOpenAI = AsyncOpenAI
+    fake_config = types.ModuleType('config')
+    fake_config.settings = types.SimpleNamespace(**{key: 'test' for key in [
+        'GROQ_API_KEY', 'GROQ_BASE_URL', 'GROQ_MODEL', 'OPENROUTER_API_KEY', 'OPENROUTER_BASE_URL',
+        'OPENROUTER_MODEL', 'GEMINI_API_KEY', 'GEMINI_MODEL']})
+    fake_types = types.ModuleType('google.genai.types')
+    fake_types.GenerateContentConfig = lambda **kwargs: kwargs
+    fake_genai = types.ModuleType('google.genai')
+    fake_genai.Client = lambda **kwargs: None
+    fake_genai.types = fake_types
+    fake_google = types.ModuleType('google')
+    fake_google.genai = fake_genai
+    path = pathlib.Path(__file__).resolve().parents[1] / 'services' / 'llm_providers' / f'{module_name}.py'
+    with patch.dict(sys.modules, {'openai': fake_openai, 'config': fake_config, 'google': fake_google,
+                                  'google.genai': fake_genai, 'google.genai.types': fake_types}):
+        spec = importlib.util.spec_from_file_location(f'services.llm_providers._real_{module_name}', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    return module, created
+
+
+def status_error(status, headers=None, attr='status_code'):
+    """Fake SDK error: OpenAI-style (status_code) or genai-style (code), with response headers."""
+    exc = RuntimeError('provider error')
+    setattr(exc, attr, status)
+    exc.response = types.SimpleNamespace(headers=dict(headers or {}))
+    return exc
+
+
 class AutoTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         auto._cooldown_until.clear()
@@ -81,7 +185,8 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, '{}')
         self.assertTrue(cancelled.is_set())
         self.assertEqual(engine.name, 'fast')
-        self.assertIn('slow', auto._cooldown_until)
+        # A per-attempt timeout is transient: short cooldown, not five minutes.
+        self.assertAlmostEqual(auto._cooldown_until['slow'] - time.monotonic(), 30, delta=1)
 
     async def test_total_budget_shortens_last_attempt_and_skips_rest(self):
         calls = []
@@ -101,6 +206,9 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(engine.name, 'mock')
         self.assertLess(elapsed, .4)
         self.assertNotIn('three', auto._cooldown_until)
+        # 'one' hit its own attempt limit; 'two' was cut only by the shared budget.
+        self.assertAlmostEqual(auto._cooldown_until['one'] - time.monotonic(), 30, delta=1)
+        self.assertNotIn('two', auto._cooldown_until)
 
     async def test_all_slow_chat_returns_local_reply(self):
         class Slow:
@@ -225,7 +333,9 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.provider_used, 'mock')
         self.assertEqual(len(started_context), 2)
         self.assertEqual(budgets[:2], [10.0, 10.0])
-        self.assertIn(25.0, budgets)
+        # No fixed per-attempt cap any more: the attempt is bounded by the window budget.
+        self.assertNotIn(25.0, budgets)
+        self.assertTrue(any(74.0 < value <= 75.0 for value in budgets[2:]), budgets)
         self.assertLess(time.monotonic() - started, .5)
 
     async def test_itinerary_auto_uses_total_budget(self):
@@ -237,7 +347,52 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
             await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-02', provider='auto'))
         self.assertLessEqual(engine.generate_json.call_args.kwargs['total_timeout'], 75.0)
         self.assertGreater(engine.generate_json.call_args.kwargs['total_timeout'], 74.0)
-        self.assertEqual(engine.generate_json.call_args.kwargs['attempt_timeout'], 25.0)
+        kwargs = engine.generate_json.call_args.kwargs
+        self.assertIsNone(kwargs.get('attempt_timeout'))
+        self.assertEqual(kwargs['idle_timeout'], 10.0)
+        self.assertEqual(kwargs['first_chunk_timeout'], 25.0)
+
+    async def test_generation_budget_scales_with_waves(self):
+        from services.itinerary_builder import generation_budget_seconds
+        # 3-day windows, 3 at a time: 1-9 days = 1 wave, 10-18 = 2, 19-27 = 3, 28-30 = 4.
+        for days, budget in [(1, 75), (3, 75), (9, 75), (10, 150), (18, 150), (19, 225), (27, 225), (28, 300), (30, 300)]:
+            with self.subTest(days=days):
+                self.assertEqual(generation_budget_seconds(days), budget)
+
+    async def test_every_window_of_long_trip_gets_full_wave_budget(self):
+        from services import itinerary_builder as builder
+        from unittest.mock import AsyncMock
+        engine = auto.AutoProvider()
+        engine.generate_json = AsyncMock(side_effect=lambda system, prompt, **kw: window_reply(prompt))
+        with patch.object(builder, 'get_provider', return_value=engine):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-30', provider='auto'))
+        budgets = [call.kwargs['total_timeout'] for call in engine.generate_json.call_args_list]
+        self.assertEqual(len(budgets), 10)
+        self.assertTrue(all(74.0 < value <= 75.0 for value in budgets), budgets)
+        self.assertEqual(len(result.days), 30)
+
+    async def test_later_waves_are_not_starved_by_earlier_ones(self):
+        from services import itinerary_builder as builder
+        class SteadyWindow:
+            name = 'steady'
+            async def generate_json(self, system, prompt):
+                await asyncio.sleep(.12)  # Slower than half a wave, faster than a full one.
+                return window_reply(prompt)
+        # 12 days = 4 windows = 2 waves. With the old flat budget the second wave
+        # would start with only ~.08 s left and fall back to mock.
+        with patch.object(builder, 'WAVE_BUDGET_SECONDS', .2), patch.object(auto, '_FALLBACK_ORDER', [SteadyWindow]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-12', provider='auto'))
+        self.assertEqual(result.provider_used, 'steady')
+        self.assertEqual([d.day for d in result.days], list(range(1, 13)))
+
+    async def test_overall_plan_cap_still_bounds_each_window(self):
+        from services import itinerary_builder as builder
+        from unittest.mock import AsyncMock
+        engine = auto.AutoProvider()
+        engine.generate_json = AsyncMock(side_effect=lambda system, prompt, **kw: window_reply(prompt))
+        with patch.object(builder, 'get_provider', return_value=engine), patch.object(builder, 'generation_budget_seconds', return_value=5.0):
+            await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-12', provider='auto'))
+        self.assertTrue(all(call.kwargs['total_timeout'] <= 5.0 for call in engine.generate_json.call_args_list))
 
     async def test_long_real_plan_combines_out_of_order_windows(self):
         from services import itinerary_builder as builder
@@ -296,6 +451,157 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
             result = _mock_parse([ChatTurn(role='user',content=text), ChatTurn(role='user',content='京都')])
             self.assertEqual(result.destination,'京都')
 
+    # ---- Step 3: streaming with an inactivity timeout -------------------------
+
+    async def test_slow_but_steady_stream_succeeds(self):
+        # 20 chunks, .03 s apart: 0.6 s in total, far beyond the .08 s idle limit.
+        reply = json.dumps({'reply': 'x' * 40})
+        pieces = [reply[i:i + 3] for i in range(0, len(reply), 3)]
+        with patch.object(auto, '_FALLBACK_ORDER', [streamer('steady', pieces, gap=.03), provider('next', '{}')]):
+            engine = auto.AutoProvider()
+            result = await engine.generate_json('', '', total_timeout=5, idle_timeout=.08)
+        self.assertEqual(result, reply)  # Same complete raw JSON string as non-streaming.
+        self.assertEqual(engine.name, 'steady')
+        self.assertNotIn('steady', auto._cooldown_until)
+
+    async def test_stalled_stream_is_cut_off_and_next_provider_runs(self):
+        closed = asyncio.Event()
+        stalled = streamer('stalled', ['{"re', 'ply"'], gap=.01, stall_after=2, on_close=closed.set)
+        started = time.monotonic()
+        with patch.object(auto, '_FALLBACK_ORDER', [stalled, provider('next', '{}')]):
+            with self.assertLogs('lemon_ai', level='WARNING') as logs:
+                engine = auto.AutoProvider()
+                result = await engine.generate_json('', '', total_timeout=5, idle_timeout=.08)
+        self.assertLess(time.monotonic() - started, 1)
+        self.assertEqual((result, engine.name), ('{}', 'next'))
+        await asyncio.wait_for(closed.wait(), .5)  # Stream released.
+        self.assertIn('failure=stalled cooldown=30', ' '.join(logs.output))
+        self.assertAlmostEqual(auto._cooldown_until['stalled'] - time.monotonic(), 30, delta=1)
+
+    async def test_empty_chunks_count_as_activity(self):
+        # Reasoning/role chunks carry no answer text but prove the provider is alive.
+        pieces = [''] * 15 + ['{}']
+        with patch.object(auto, '_FALLBACK_ORDER', [streamer('thinking', pieces, gap=.03)]):
+            engine = auto.AutoProvider()
+            self.assertEqual(await engine.generate_json('', '', total_timeout=5, idle_timeout=.08), '{}')
+        self.assertEqual(engine.name, 'thinking')
+
+    async def test_first_chunk_gets_its_own_allowance(self):
+        late = streamer('late', ['{}'], first_delay=.15)
+        with patch.object(auto, '_FALLBACK_ORDER', [late]):
+            engine = auto.AutoProvider()
+            await engine.generate_json('', '', total_timeout=5, idle_timeout=.05, first_chunk_timeout=.3)
+        self.assertEqual(engine.name, 'late')
+        silent = streamer('silent', ['{}'], first_delay=10)
+        with patch.object(auto, '_FALLBACK_ORDER', [silent]):
+            engine = auto.AutoProvider()
+            await asyncio.wait_for(engine.generate_json('', '', total_timeout=5, idle_timeout=.05, first_chunk_timeout=.1), 1)
+        self.assertEqual(engine.name, 'mock')
+        self.assertIn('silent', auto._cooldown_until)
+
+    async def test_steady_stream_still_bounded_by_total_budget(self):
+        endless = streamer('endless', ['x'] * 1000, gap=.01)
+        with patch.object(auto, '_FALLBACK_ORDER', [endless, provider('next', '{}')]):
+            engine = auto.AutoProvider()
+            started = time.monotonic()
+            await engine.generate_json('', '', total_timeout=.15, idle_timeout=.08)
+        self.assertLess(time.monotonic() - started, .5)
+        self.assertEqual(engine.name, 'mock')  # Budget used up: no further provider tried.
+        self.assertNotIn('endless', auto._cooldown_until)
+
+    async def test_stream_errors_keep_their_classification(self):
+        failing = streamer('limited', [], error=status_error(429, {'retry-after': '9'}))
+        with patch.object(auto, '_FALLBACK_ORDER', [failing]), patch.object(auto.time, 'monotonic', return_value=1000):
+            await auto.AutoProvider().generate_json('', '', idle_timeout=5)
+        self.assertEqual(auto._cooldown_until['limited'], 1009)
+
+    async def test_without_idle_timeout_streamers_use_generate_json(self):
+        quiet = streamer('chat', ['{}'])
+        with patch.object(auto, '_FALLBACK_ORDER', [quiet]):
+            engine = auto.AutoProvider()
+            await engine.generate_json('', '', attempt_timeout=1, total_timeout=2)
+        self.assertEqual((engine.name, quiet.generate_calls), ('chat', 1))
+
+    async def test_itinerary_window_streams_past_old_attempt_limit(self):
+        from services import itinerary_builder as builder
+        class SlowWindow:
+            name = 'slow_stream'
+            async def stream_text(self, system, prompt):
+                reply = window_reply(prompt)
+                for i in range(0, len(reply), 20):
+                    await asyncio.sleep(.02)
+                    yield reply[i:i + 20]
+        # Old rules (scaled down): a .1 s attempt cap would cut this ~.2-.3 s stream.
+        with patch.object(builder, 'STREAM_IDLE_SECONDS', .1), patch.object(builder, 'STREAM_FIRST_CHUNK_SECONDS', .1), \
+                patch.object(builder, 'WAVE_BUDGET_SECONDS', 2), patch.object(auto, '_FALLBACK_ORDER', [SlowWindow]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+        self.assertEqual(result.provider_used, 'slow_stream')
+        self.assertEqual([d.day for d in result.days], [1, 2, 3])
+
+    async def test_openai_compatible_stream_joins_text_and_closes(self):
+        from services.llm_providers.openai_stream import collect, stream_chat_json
+        client = FakeOpenAIClient(['{"a"', None, ': 1}'], include_empty_chunk=True)
+        result = await collect(stream_chat_json(client, 'model-x', 'sys', 'user'))
+        self.assertEqual(result, '{"a": 1}')
+        self.assertTrue(client.kwargs['stream'])
+        self.assertEqual(client.kwargs['response_format'], {'type': 'json_object'})
+        self.assertEqual(client.kwargs['model'], 'model-x')
+        self.assertTrue(client.closed)
+
+    async def test_openai_compatible_adapters_stream_without_sdk_retries(self):
+        for module_name, class_name in [('groq_provider', 'GroqProvider'), ('openrouter_provider', 'OpenRouterProvider')]:
+            with self.subTest(module_name):
+                module, created = load_real_adapter(module_name)
+                instance = getattr(module, class_name)()
+                self.assertEqual(created[-1]['max_retries'], 0)
+                instance._client = FakeOpenAIClient(['{"ok"', ': true}'])
+                self.assertEqual(await instance.generate_json('s', 'u'), '{"ok": true}')
+                self.assertTrue(instance._client.kwargs['stream'])
+
+    async def test_gemini_stream_runs_off_the_event_loop(self):
+        module, _ = load_real_adapter('gemini_provider')
+        def blocking_chunks(**kwargs):
+            for piece in ['{"days"', ': ', '[]}']:
+                time.sleep(.05)  # Blocking I/O, as in google-genai 0.3.0.
+                yield types.SimpleNamespace(text=piece)
+            yield types.SimpleNamespace(text=None)
+        ticks = 0
+        async def ticker():
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(.01)
+                ticks += 1
+        gemini = module.GeminiProvider()
+        gemini._client = types.SimpleNamespace(models=types.SimpleNamespace(generate_content_stream=blocking_chunks))
+        tick_task = asyncio.create_task(ticker())
+        try:
+            self.assertEqual(await gemini.generate_json('s', 'u'), '{"days": []}')
+        finally:
+            tick_task.cancel()
+        self.assertGreater(ticks, 5)  # The loop kept running while the SDK blocked.
+
+    async def test_gemini_stall_is_cut_off_without_freezing(self):
+        module, _ = load_real_adapter('gemini_provider')
+        release = threading.Event()
+        def stalls(**kwargs):
+            yield types.SimpleNamespace(text='{"da')
+            release.wait(5)  # A dead connection that never sends more.
+            yield types.SimpleNamespace(text='ys": []}')
+        class StalledGemini(module.GeminiProvider):
+            def __init__(self):
+                super().__init__()
+                self._client = types.SimpleNamespace(models=types.SimpleNamespace(generate_content_stream=stalls))
+        try:
+            with patch.object(auto, '_FALLBACK_ORDER', [StalledGemini, provider('next', '{}')]):
+                engine = auto.AutoProvider()
+                started = time.monotonic()
+                result = await engine.generate_json('', '', total_timeout=5, idle_timeout=.1)
+            self.assertLess(time.monotonic() - started, 1)
+            self.assertEqual((result, engine.name), ('{}', 'next'))
+            self.assertIn('gemini', auto._cooldown_until)
+        finally:
+            release.set()
+
     async def test_factory(self):
         self.assertIsInstance(get_provider('AUTO'), auto.AutoProvider)
         self.assertEqual(get_provider('mock').name, 'mock')
@@ -346,6 +652,66 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(auto, '_FALLBACK_ORDER', [candidate]), patch.object(auto.time, 'monotonic', return_value=401):
             await get_provider('auto').generate_json('', '')
             self.assertEqual(candidate.calls, 2)
+
+    async def _cooldown_after(self, error=None, output=None):
+        """Run one failing candidate at a fixed clock; return its cooldown length."""
+        candidate = provider('p', error if error is not None else output)
+        with patch.object(auto, '_FALLBACK_ORDER', [candidate]), patch.object(auto.time, 'monotonic', return_value=1000):
+            engine = auto.AutoProvider()
+            await engine.generate_json('', '')
+        self.assertEqual(engine.name, 'mock')
+        return auto._cooldown_until.pop('p', 1000) - 1000
+
+    async def test_hard_failures_keep_five_minute_cooldown(self):
+        for status in (401, 403, 404, 503):
+            with self.subTest(status=status):
+                self.assertEqual(await self._cooldown_after(status_error(status)), 300)
+        with self.subTest('missing key'):
+            self.assertEqual(await self._cooldown_after(ValueError('GROQ_API_KEY is not set')), 300)
+        with self.subTest('genai-style code'):
+            self.assertEqual(await self._cooldown_after(status_error(503, attr='code')), 300)
+
+    async def test_invalid_output_gets_short_cooldown(self):
+        self.assertEqual(await self._cooldown_after(output='not json'), 30)
+        with patch.object(auto, '_FALLBACK_ORDER', [provider('bad', '{"days": []}')]):
+            await parse_chat(LemonChatRequest(provider='auto', messages=[]))
+        self.assertAlmostEqual(auto._cooldown_until['bad'] - time.monotonic(), 30, delta=1)
+
+    async def test_sdk_timeout_error_gets_short_cooldown(self):
+        class APITimeoutError(Exception):
+            pass
+        self.assertEqual(await self._cooldown_after(APITimeoutError()), 30)
+
+    async def test_rate_limit_honours_retry_after(self):
+        self.assertEqual(await self._cooldown_after(status_error(429, {'retry-after': '12'})), 12)
+        self.assertEqual(await self._cooldown_after(status_error(429, {'retry-after-ms': '2500'})), 2.5)
+        self.assertEqual(await self._cooldown_after(status_error(429, {'retry-after': '12'}, attr='code')), 12)
+        when = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=120), usegmt=True)
+        self.assertAlmostEqual(await self._cooldown_after(status_error(429, {'retry-after': when})), 120, delta=2)
+
+    async def test_rate_limit_without_usable_retry_after(self):
+        self.assertEqual(await self._cooldown_after(status_error(429)), 300)
+        self.assertEqual(await self._cooldown_after(status_error(429, {'retry-after': 'soon'})), 300)
+        self.assertEqual(await self._cooldown_after(status_error(429, {'retry-after': '86400'})), 3600)
+        self.assertEqual(await self._cooldown_after(status_error(429, {'retry-after': '0'})), 1)
+
+    async def test_short_cooldown_expires_and_retries(self):
+        candidate = provider('flaky', 'not json')
+        with patch.object(auto, '_FALLBACK_ORDER', [candidate]), patch.object(auto.time, 'monotonic', return_value=100):
+            await get_provider('auto').generate_json('', '')
+            await get_provider('auto').generate_json('', '')
+            self.assertEqual(candidate.calls, 1)
+        with patch.object(auto, '_FALLBACK_ORDER', [candidate]), patch.object(auto.time, 'monotonic', return_value=131):
+            await get_provider('auto').generate_json('', '')
+            self.assertEqual(candidate.calls, 2)
+
+    async def test_failure_log_names_kind_and_cooldown(self):
+        with patch.object(auto, '_FALLBACK_ORDER', [provider('limited', status_error(429, {'retry-after': '7'}))]):
+            with self.assertLogs('lemon_ai', level='WARNING') as logs:
+                await auto.AutoProvider().generate_json('', '')
+        output = ' '.join(logs.output)
+        self.assertIn('failure=rate_limit cooldown=7', output)
+        self.assertNotIn('retry-after', output)
 
     async def test_chat_rejects_wrong_schema_then_succeeds(self):
         with patch.object(auto, '_FALLBACK_ORDER', [provider('bad', '{"days": []}'), provider('good', '{"reply": "Hello", "next_field": "destination"}')]):

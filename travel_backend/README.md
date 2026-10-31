@@ -65,7 +65,7 @@ response validation, cooldowns, and task-appropriate local fallback (KI-01/KI-02
 
 ## Lemon.ai — the AI planning layer
 
-`POST /lemon/plan` generates a full itinerary. The date range (1–30 days, validated) is split into windows of up to three days, at most three generated concurrently under a shared 75-second deadline; every window must return exactly its requested dates with activities before the parts are assembled. Any demo window marks the whole response `mock`. Request body:
+`POST /lemon/plan` generates a full itinerary. The date range (1–30 days, validated) is split into windows of up to three days, at most three generated concurrently; each window gets 75 seconds from when it starts (overall cap 75 seconds per wave), and streaming providers are cut off only after 10 seconds of silence (25 before the first chunk); every window must return exactly its requested dates with activities before the parts are assembled. Any demo window marks the whole response `mock`. Request body:
 
 ```json
 {

@@ -317,49 +317,54 @@ class _AttractionsViewState extends State<AttractionsView> {
     );
   }
 
-  Widget _buildAttractionCard(AttractionItem item) => HoverCard(
-      builder: (active) => Padding(
-          padding: const EdgeInsets.all(22),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              AnimatedRotation(
-                  turns: active ? -8 / 360 : 0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOutBack,
-                  child: AnimatedScale(
-                      scale: active ? 1.08 : 1,
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeOutBack,
-                      child: Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                              color: AppTheme.skyMint,
-                              borderRadius: BorderRadius.circular(14)),
-                          child: Icon(
-                              _categoryIcons[item.category] ??
-                                  Icons.place_outlined,
-                              color: AppTheme.textPrimary)))),
-              const SizedBox(width: 12),
-              Flexible(
-                  child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                          color: AppTheme.sky,
-                          borderRadius: BorderRadius.circular(999)),
-                      child: Text(item.category,
-                          style: const TextStyle(
-                              color: AppTheme.primary,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700)))),
-            ]),
-            const SizedBox(height: 12),
-            Text(item.name,
-                style: tripHeading.copyWith(
-                    fontSize: 16, height: 1.35, color: AppTheme.textPrimary)),
-            const SizedBox(height: 14),
-            PillButtonTheme(child: MapAction(lat: item.lat, lon: item.lon)),
-          ])));
+  Widget _buildAttractionCard(AttractionItem item) {
+    // Each category keeps its own palette tone: accent tile, tinted chip.
+    final (tint, accent) = AppTheme.toneFor(item.category);
+    return HoverCard(
+        builder: (active) => Padding(
+            padding: const EdgeInsets.all(22),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                AnimatedRotation(
+                    turns: active ? -8 / 360 : 0,
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeOutBack,
+                    child: AnimatedScale(
+                        scale: active ? 1.08 : 1,
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeOutBack,
+                        child: Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                                color: accent,
+                                borderRadius: BorderRadius.circular(14)),
+                            child: Icon(
+                                _categoryIcons[item.category] ??
+                                    Icons.place_outlined,
+                                color: AppTheme.textPrimary)))),
+                const SizedBox(width: 12),
+                Flexible(
+                    child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: tint,
+                            border: Border.all(color: accent),
+                            borderRadius: BorderRadius.circular(999)),
+                        child: Text(item.category,
+                            style: const TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700)))),
+              ]),
+              const SizedBox(height: 12),
+              Text(item.name,
+                  style: tripHeading.copyWith(
+                      fontSize: 16, height: 1.35, color: AppTheme.textPrimary)),
+              const SizedBox(height: 14),
+              PillButtonTheme(child: MapAction(lat: item.lat, lon: item.lon)),
+            ])));
+  }
 }

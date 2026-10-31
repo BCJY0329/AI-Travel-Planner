@@ -47,12 +47,13 @@ The backend tests are offline by design. At import time, `tests/test_auto_provid
 - The chat endpoint is stateless: the client sends the full transcript each turn and gets back extracted fields, `reply`, `ready`, and `next_field`. The chat parser has an AI extraction path and a local heuristic parser used for `mock` and as the fallback.
 - **Itinerary windowing** (`itinerary_builder.py`):
   1. Weather and attraction context is fetched once, concurrently, with a 10 s limit per lookup. Context is optional, and attractions use `radius_km=5`.
-  2. The date range is split into 3-day windows. At most 3 run concurrently (semaphore), each with its own provider instance, all sharing one 75 s monotonic deadline.
+  2. The date range is split into 3-day windows. At most 3 run concurrently (semaphore), each with its own provider instance. Each window gets 75 s from when it takes a slot, under an overall cap of 75 s × waves (`generation_budget_seconds`).
   3. Each window's output is validated for exact dates, absolute day numbers, and non-empty activities, then all windows are assembled in request order.
   4. If any window falls back to mock, the whole itinerary is labelled mock.
 - **Providers** (`services/llm_providers/`): every provider implements `LLMProvider.generate_json(system, user) -> str` (raw JSON text). `factory.get_provider(name)` is the source of truth for valid names: `auto`, `groq`, `gemini`, `openrouter`, `mock`, matched case-insensitively. Request models default to `mock`, but the frontend sends `auto`.
-- `auto_provider.py` tries Groq → Gemini → OpenRouter. It guards construction, the call, and caller-supplied validation for each one. A failed provider gets a 5-minute in-process cooldown. When all of them are exhausted it falls back to the local chat parser or a mock itinerary.
-- Timing values (25 s per auto attempt, 75 s plan budget, 100 s frontend wait) are set in `docs/DECISIONS.md` #016. Keep the backend and frontend timeouts consistent if you change them.
+- `auto_provider.py` tries Groq → Gemini → OpenRouter. It guards construction, the call, and caller-supplied validation for each one. A failed provider gets an in-process cooldown by failure kind: 5 min for hard failures, Retry-After for 429, 30 s for timeouts/stalls/invalid output, none for budget-only timeouts. When all of them are exhausted it falls back to the local chat parser or a mock itinerary.
+- Plans stream: providers expose `stream_text()` and auto cuts one off only after 10 s of silence (25 s before the first chunk). Gemini streams on its own thread because google-genai 0.3.0 blocks the event loop. Groq/OpenRouter use `max_retries=0`.
+- Timing values (chat 9 s/30 s; plan 75 s per window × waves; 10 s idle / 25 s first chunk; frontend plan wait 25 s + 75 s × waves in `LemonApiService.planTimeoutFor`) are set in `docs/DECISIONS.md` #042. Keep the backend and frontend formulas consistent if you change them. Never shorten itinerary content (token caps, prompt trimming, smaller windows) to fix timing.
 
 ### Frontend
 - `screens/home_screen.dart` owns navigation across the five views (Discover, Flights, Hotels, Attractions, Itinerary), the shared `LemonChatController` (`lib/chat/`), and the chat panel's expanded size. Search tabs are created on first visit and keep their state afterwards.

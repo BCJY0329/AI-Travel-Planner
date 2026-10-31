@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import '../config/discover_content.dart';
+import 'focus_ring.dart';
 import 'gentle_reveal.dart';
 import 'hover_lift.dart';
 import 'lemon_motion.dart';
@@ -10,7 +11,7 @@ import 'lemon_motion.dart';
 /// banner and hover cards.
 
 const _lemonArt = 'assets/images/lemon_avatar.png';
-const _fieldHover = Color(0xFF9FD9CF);
+const _chipSelected = Color(0xFF9EC2EA);
 
 /// Gives a trip page its own type: Outfit body text under Unbounded
 /// headings. Dialogs and pickers opened from inside inherit it too.
@@ -54,7 +55,7 @@ class LemonCircle extends StatelessWidget {
         decoration: BoxDecoration(
             color: background,
             shape: BoxShape.circle,
-            border: Border.all(color: AppTheme.skyMint, width: 1.5)),
+            border: Border.all(color: AppTheme.skyBlue, width: 1.5)),
         child: ClipOval(
             child: Image.asset(_lemonArt,
                 fit: BoxFit.cover,
@@ -94,7 +95,7 @@ class LemonTip extends StatelessWidget {
                                 bottomLeft: Radius.circular(20),
                                 bottomRight: Radius.circular(3)),
                             border: Border.all(
-                                color: AppTheme.accentLemon, width: 2),
+                                color: AppTheme.sandBorder, width: 2),
                             boxShadow: [
                               BoxShadow(
                                   color: Colors.black.withValues(alpha: .1),
@@ -197,8 +198,7 @@ class PageBanner extends StatelessWidget {
                   child: Stack(fit: StackFit.expand, children: [
                     const ColoredBox(color: AppTheme.sky),
                     SlowZoom(
-                        child: BannerImage(photo,
-                            alignment: photoAlignment)),
+                        child: BannerImage(photo, alignment: photoAlignment)),
                     DecoratedBox(
                         decoration: BoxDecoration(
                             gradient: LinearGradient(colors: [
@@ -289,8 +289,31 @@ class _SearchFieldState extends State<SearchField> {
                       color: AppTheme.textSecondary,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
-              widget.child,
+              const SizedBox(height: 6),
+              // A warm, softly squared slot shows where to type or pick. The
+              // slot is the outline, so the text field inside drops the
+              // theme's own border and fill.
+              AnimatedContainer(
+                  duration: reduced ? Duration.zero : AppTheme.motionFast,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                      color: _focus ? AppTheme.surface : AppTheme.background,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color:
+                              _focus ? AppTheme.sandDeep : AppTheme.sandBorder,
+                          width: 1.2)),
+                  child: Theme(
+                      data: Theme.of(context).copyWith(
+                          inputDecorationTheme: Theme.of(context)
+                              .inputDecorationTheme
+                              .copyWith(
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none)),
+                      child: widget.child)),
             ]));
     return MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
@@ -309,8 +332,8 @@ class _SearchFieldState extends State<SearchField> {
                         color: _focus
                             ? AppTheme.primary
                             : _hover
-                                ? _fieldHover
-                                : AppTheme.border,
+                                ? AppTheme.primaryLight
+                                : AppTheme.fieldBorder,
                         width: 1.5),
                     boxShadow: [
                       if (_hover || _focus)
@@ -327,8 +350,10 @@ class _SearchFieldState extends State<SearchField> {
   }
 }
 
-/// Three numbered hints on how to use a page.
+/// Three numbered hints on how to use a page, each on its own soft tint
+/// (sky, peach, lilac) so the row isn't one flat blue.
 class HowToSteps extends StatelessWidget {
+  static const _tints = [AppTheme.ctaSoft, AppTheme.peach, AppTheme.lilac];
   final List<(String, String)> steps;
   const HowToSteps({super.key, required this.steps});
   @override
@@ -345,7 +370,7 @@ class HowToSteps extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
-                            color: AppTheme.sky,
+                            color: _tints[i % _tints.length],
                             borderRadius: BorderRadius.circular(18)),
                         child: Row(children: [
                           Container(
@@ -353,11 +378,10 @@ class HowToSteps extends StatelessWidget {
                               height: 32,
                               alignment: Alignment.center,
                               decoration: const BoxDecoration(
-                                  color: AppTheme.accentLemon,
-                                  shape: BoxShape.circle),
+                                  color: AppTheme.sand, shape: BoxShape.circle),
                               child: Text('${i + 1}',
                                   style: const TextStyle(
-                                      color: AppTheme.lemonInk,
+                                      color: AppTheme.sandInk,
                                       fontWeight: FontWeight.w700))),
                           const SizedBox(width: 12),
                           Expanded(
@@ -421,38 +445,41 @@ class _CityChip extends StatelessWidget {
     return Semantics(
         selected: selected,
         child: HoverLift(
-            child: Material(
-                color: selected ? AppTheme.skyMint : AppTheme.surface,
-                shape: StadiumBorder(
-                    side: BorderSide(
-                        color: selected ? _fieldHover : AppTheme.border,
-                        width: 1.5)),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                    onTap: onTap,
-                    child: Padding(
-                        padding: const EdgeInsets.fromLTRB(6, 6, 16, 6),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          CircleAvatar(
-                              radius: 15,
-                              backgroundColor: AppTheme.skyMint,
-                              backgroundImage: photo == null
-                                  ? null
-                                  : AssetImage(photo.asset),
-                              child: photo == null
-                                  ? Text(city[0],
-                                      style: const TextStyle(
-                                          color: AppTheme.textPrimary,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700))
-                                  : null),
-                          const SizedBox(width: 8),
-                          Text(city,
-                              style: const TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600)),
-                        ]))))));
+            child: FocusRing(
+          borderRadius: BorderRadius.circular(999),
+          child: Material(
+            color: selected ? AppTheme.skyBlue : AppTheme.surface,
+            shape: StadiumBorder(
+                side: BorderSide(
+                    color: selected ? _chipSelected : AppTheme.border,
+                    width: 1.5)),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+                onTap: onTap,
+                child: Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 6, 16, 6),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      CircleAvatar(
+                          radius: 15,
+                          backgroundColor: AppTheme.skyBlue,
+                          backgroundImage:
+                              photo == null ? null : AssetImage(photo.asset),
+                          child: photo == null
+                              ? Text(city[0],
+                                  style: const TextStyle(
+                                      color: AppTheme.textPrimary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700))
+                              : null),
+                      const SizedBox(width: 8),
+                      Text(city,
+                          style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600)),
+                    ]))),
+          ),
+        )));
   }
 }
 
@@ -598,11 +625,13 @@ class PillButtonTheme extends StatelessWidget {
   Widget build(BuildContext context) => TextButtonTheme(
       data: TextButtonThemeData(
           style: TextButton.styleFrom(
-              backgroundColor: AppTheme.skyMint,
-              foregroundColor: AppTheme.textPrimary,
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              textStyle: const TextStyle(fontWeight: FontWeight.w700))),
+                  backgroundColor: AppTheme.skyBlue,
+                  foregroundColor: AppTheme.textPrimary,
+                  shape: const StadiumBorder(),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w700))
+              .copyWith(side: AppTheme.focusOutline())),
       child: child);
 }
 
@@ -645,7 +674,7 @@ class LemonPromptBand extends StatelessWidget {
             decoration: BoxDecoration(
                 color: AppTheme.sky,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppTheme.skyMint)),
+                border: Border.all(color: AppTheme.skyBlue)),
             child: wide
                 ? Row(children: [
                     const LemonCircle(size: 64, background: AppTheme.sky),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../chat/lemon_chat_controller.dart';
 import '../config/app_theme.dart';
+import '../widgets/focus_ring.dart';
 import '../widgets/lemon_bubble.dart';
 import '../widgets/lemon_brand.dart';
 import '../widgets/hover_lift.dart';
@@ -77,12 +78,20 @@ class _HomeScreenState extends State<HomeScreen> {
         toolbarHeight: 72,
         titleSpacing: compact ? 16 : 28,
         title: Row(children: [
-          InkWell(
-              onTap: () => _select(0),
+          FocusRing(
               borderRadius: BorderRadius.circular(12),
-              child: const HoverLift(child: LemonBrand())),
+              child: InkWell(
+                  onTap: () => _select(0),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                      padding: const EdgeInsets.fromLTRB(6, 8, 6, 4),
+                      child: LemonBrand(fontSize: compact ? 26 : 29)))),
           if (!compact) ...[
-            const SizedBox(width: 24),
+            // Room and a divider so the name reads as the app's brand, not
+            // the first of the tabs.
+            const SizedBox(width: 20),
+            Container(width: 1.5, height: 32, color: AppTheme.navBarBorder),
+            const SizedBox(width: 20),
             Expanded(
                 child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -93,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: TextButton.icon(
                                 style: TextButton.styleFrom(
                                     backgroundColor:
-                                        _tab == i ? AppTheme.skyMint : null,
+                                        _tab == i ? AppTheme.skyBlue : null,
                                     foregroundColor: _tab == i
                                         ? AppTheme.textPrimary
                                         : AppTheme.navBarText,
@@ -135,10 +144,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                 .showSnackBar(const SnackBar(
                                     content: Text('Sign in is coming soon.'))),
                             style: OutlinedButton.styleFrom(
-                                backgroundColor: AppTheme.surface,
-                                side: const BorderSide(color: AppTheme.border)),
-                            icon: const Icon(Icons.person_outline_rounded,
-                                size: 18),
+                                    backgroundColor: AppTheme.surface)
+                                .copyWith(
+                                    side: AppTheme.focusOutline(const BorderSide(
+                                        color: AppTheme.border))),
+                            icon:
+                                const Icon(Icons.person_outline_rounded, size: 18),
                             label: const Text('Sign in'))))),
         ],
       ),

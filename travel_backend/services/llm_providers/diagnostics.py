@@ -6,12 +6,18 @@ _FIELDS = set("reply destination start_date end_date travelers budget_level inte
 _REASONS = {400: "invalid_request", 401: "authentication", 403: "permission", 404: "not_found", 429: "rate_limit", 500: "server_error", 503: "unavailable"}
 
 
-def error_details(exc):
-    details = {"error_type": type(exc).__name__}
+def http_status(exc):
+    """HTTP status from OpenAI-style (status_code) or google-genai-style (code) errors."""
     status = getattr(exc, "status_code", None)
     if not isinstance(status, int):
         status = getattr(exc, "code", None)
-    if isinstance(status, int) and 100 <= status <= 599:
+    return status if isinstance(status, int) and 100 <= status <= 599 else None
+
+
+def error_details(exc):
+    details = {"error_type": type(exc).__name__}
+    status = http_status(exc)
+    if status is not None:
         details.update(status=status, reason=_REASONS.get(status, "http_error"))
     if isinstance(exc, ValidationError):
         details["validation"] = [

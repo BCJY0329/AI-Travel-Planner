@@ -84,17 +84,17 @@ class ChatBubbleWidget extends StatelessWidget {
                     return ActionChip(
                       onPressed: () => onQuickReply(opt),
                       backgroundColor:
-                          isPlanIt ? AppTheme.accentLemon : AppTheme.surface,
+                          isPlanIt ? AppTheme.cta : AppTheme.surface,
                       side: BorderSide(
                         color:
-                            isPlanIt ? AppTheme.accentLemon : AppTheme.skyMint,
+                            isPlanIt ? AppTheme.cta : AppTheme.skyBlue,
                         width: 1.2,
                       ),
                       label: Text(
                         opt,
                         style: TextStyle(
                           color:
-                              isPlanIt ? AppTheme.lemonInk : AppTheme.primary,
+                              isPlanIt ? AppTheme.ctaInk : AppTheme.primary,
                           fontWeight: FontWeight.w600,
                           fontSize: 12.5,
                         ),
@@ -124,8 +124,8 @@ class ChatBubbleWidget extends StatelessWidget {
                   icon: const Icon(Icons.calendar_today_rounded, size: 15),
                   label: const Text('Pick a Date'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentLemon,
-                    foregroundColor: AppTheme.lemonInk,
+                    backgroundColor: AppTheme.cta,
+                    foregroundColor: AppTheme.ctaInk,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     shape: RoundedRectangleBorder(
@@ -168,7 +168,7 @@ class ChatBubbleWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isBot ? AppTheme.surface : AppTheme.skyMint,
+        color: isBot ? AppTheme.surface : AppTheme.skyBlue,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(isBot ? 4 : 18),
           topRight: const Radius.circular(18),
@@ -282,7 +282,7 @@ class ChatBubbleWidget extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.auto_awesome_rounded,
+                      const Icon(Icons.lightbulb_outline_rounded,
                           color: AppTheme.primary, size: 16),
                       const SizedBox(width: 8),
                       Expanded(

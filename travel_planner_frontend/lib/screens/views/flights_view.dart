@@ -608,8 +608,8 @@ class _FlightsViewState extends State<FlightsView> {
         width: size,
         height: size,
         alignment: Alignment.center,
-        decoration: const BoxDecoration(
-            color: AppTheme.skyMint, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+            color: AppTheme.toneFor(offer.carrier).$2, shape: BoxShape.circle),
         child: Text(offer.carrier,
             style: const TextStyle(
                 color: AppTheme.textPrimary, fontWeight: FontWeight.w700)),
@@ -620,13 +620,13 @@ class _FlightsViewState extends State<FlightsView> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       decoration: BoxDecoration(
-          color: direct ? AppTheme.sky : AppTheme.lemon,
+          color: direct ? AppTheme.sky : AppTheme.sand,
           borderRadius: BorderRadius.circular(999)),
       child: Text(direct ? 'Direct' : offer.stopsText,
           style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: direct ? AppTheme.primary : const Color(0xFF6B4E00))),
+              color: direct ? AppTheme.primary : AppTheme.sandInk)),
     );
   }
 
@@ -634,12 +634,12 @@ class _FlightsViewState extends State<FlightsView> {
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         decoration: BoxDecoration(
-            color: AppTheme.lemon, borderRadius: BorderRadius.circular(999)),
+            color: AppTheme.sand, borderRadius: BorderRadius.circular(999)),
         child: const Text('Lowest price',
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF6B4E00))),
+                color: AppTheme.sandInk)),
       );
 
   Widget _details(FlightOffer offer) => OutlinedButton(
@@ -794,7 +794,7 @@ class _DashPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppTheme.skyMint
+      ..color = AppTheme.skyBlue
       ..strokeWidth = 2;
     for (double x = 0; x < size.width; x += 14) {
       canvas.drawLine(Offset(x, 1),

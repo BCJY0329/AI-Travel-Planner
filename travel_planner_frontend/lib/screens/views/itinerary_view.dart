@@ -4,24 +4,25 @@ import '../../config/app_theme.dart';
 import '../../config/discover_content.dart';
 import '../../models/itinerary_models.dart';
 import '../../services/place_photos.dart';
+import '../../widgets/focus_ring.dart';
 import '../../widgets/gentle_reveal.dart';
 import '../../widgets/hover_lift.dart';
 import '../../widgets/lemon_motion.dart';
 import '../../widgets/page_parts.dart';
 
-// Lemon's tip colours: a warm lemon wash with dark honey text.
-const _tipFill = Color(0xFFFFF6CC);
-const _tipNoteFill = Color(0xFFFFFBEA);
-const _tipBorder = Color(0xFFF5DC7A);
-const _tipInk = Color(0xFF5E4500);
+// Lemon's tip colours: lemon sorbet with a sand edge and honey-brown text.
+const _tipFill = AppTheme.sorbet;
+const _tipNoteFill = Color(0xFFFFFDF6);
+const _tipBorder = AppTheme.sandBorder;
+const _tipInk = AppTheme.sorbetInk;
 
 /// Each day gets its own soft colour (header tint, accent) so days are easy
 /// to tell apart, as in the original itinerary.
 const _dayTones = [
-  (AppTheme.mint, Color(0xFF9FD9CF)),
+  (AppTheme.ctaSoft, AppTheme.cta),
   (AppTheme.peach, Color(0xFFFFC9AE)),
-  (AppTheme.lemon, AppTheme.accentLemon),
-  (Color(0xFFE3EFFB), Color(0xFFB5D3F2)),
+  (AppTheme.sorbet, AppTheme.sand),
+  (AppTheme.lilac, AppTheme.lilacAccent),
 ];
 
 class ItineraryView extends StatefulWidget {
@@ -106,9 +107,9 @@ class _ItineraryViewState extends State<ItineraryView> {
                     Container(
                         padding: const EdgeInsets.all(24),
                         decoration: const BoxDecoration(
-                            color: Color(0xFFE1F1EB), shape: BoxShape.circle),
+                            color: AppTheme.ctaSoft, shape: BoxShape.circle),
                         child: const Icon(Icons.route_outlined,
-                            color: AppTheme.teal, size: 44)),
+                            color: AppTheme.primary, size: 44)),
                     const SizedBox(height: 24),
                     Text('Your next adventure starts here',
                         textAlign: TextAlign.center,
@@ -123,7 +124,7 @@ class _ItineraryViewState extends State<ItineraryView> {
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
                         onPressed: widget.onOpenLemon,
-                        icon: const Icon(Icons.auto_awesome),
+                        icon: const Icon(Icons.luggage_rounded),
                         label: const Text('Plan with Lemon')),
                   ]))));
     }
@@ -153,7 +154,7 @@ class _ItineraryViewState extends State<ItineraryView> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 18, vertical: 14),
                             decoration: BoxDecoration(
-                                color: AppTheme.lemon,
+                                color: AppTheme.sorbet,
                                 borderRadius: BorderRadius.circular(18)),
                             child: const Row(children: [
                               Icon(Icons.info_outline_rounded, color: _tipInk),
@@ -337,8 +338,7 @@ class _TripBanner extends StatelessWidget {
                   Positioned.fill(
                       child: Stack(fit: StackFit.expand, children: [
                     const _PlainBanner(),
-                    if (photo != null)
-                      SlowZoom(child: BannerImage(photo!)),
+                    if (photo != null) SlowZoom(child: BannerImage(photo!)),
                   ])),
                   const Positioned.fill(
                       child: DecoratedBox(
@@ -383,9 +383,8 @@ class _TripBanner extends StatelessWidget {
                                                       vertical: 5),
                                                   decoration: BoxDecoration(
                                                       color: demo
-                                                          ? AppTheme.lemon
-                                                          : AppTheme
-                                                              .accentLemon,
+                                                          ? AppTheme.sand
+                                                          : AppTheme.sorbet,
                                                       borderRadius:
                                                           BorderRadius.circular(
                                                               999)),
@@ -398,10 +397,10 @@ class _TripBanner extends StatelessWidget {
                                                                 ? Icons
                                                                     .info_outline
                                                                 : Icons
-                                                                    .auto_awesome,
+                                                                    .route_rounded,
                                                             size: 15,
                                                             color: AppTheme
-                                                                .lemonInk),
+                                                                .sorbetInk),
                                                         const SizedBox(
                                                             width: 6),
                                                         Text(
@@ -410,7 +409,7 @@ class _TripBanner extends StatelessWidget {
                                                                 : 'Planned by Lemon',
                                                             style: const TextStyle(
                                                                 color: AppTheme
-                                                                    .lemonInk,
+                                                                    .sorbetInk,
                                                                 fontSize: 13,
                                                                 fontWeight:
                                                                     FontWeight
@@ -488,7 +487,7 @@ class _TripBanner extends StatelessWidget {
       });
 }
 
-/// The mint banner used when a destination has no photo.
+/// The sky blue banner used when a destination has no photo.
 class _PlainBanner extends StatelessWidget {
   const _PlainBanner();
   @override
@@ -568,7 +567,7 @@ class _StopState extends State<_Stop> {
         onExit: (_) => setState(() => _hover = false),
         child: AnimatedContainer(
             duration: motion,
-            color: _hover ? const Color(0xFFF8FCFB) : const Color(0x00FFFFFF),
+            color: _hover ? const Color(0xFFF7FAFE) : const Color(0x00FFFFFF),
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
             child: Stack(clipBehavior: Clip.none, children: [
               // The timeline thread, running on to the next stop's dot.
@@ -681,35 +680,39 @@ class _StopState extends State<_Stop> {
       button: true,
       expanded: _open,
       child: HoverLift(
-          child: Material(
-              color: _tipFill,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: const BorderSide(color: _tipBorder)),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                  onTap: () => setState(() => _open = !_open),
-                  child: Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const LemonCircle(
-                            size: 30, background: _tipFill, float: false),
-                        const SizedBox(width: 8),
-                        Flexible(
-                            child: Text(
-                                _open
-                                    ? 'Hide Lemon’s tip'
-                                    : _tipLabels[(widget.number - 1) %
-                                        _tipLabels.length],
-                                style: lemonNote.copyWith(
-                                    color: _tipInk,
-                                    fontSize: 15.5,
-                                    fontWeight: FontWeight.w600))),
-                        const SizedBox(width: 4),
-                        AnimatedRotation(
-                            turns: _open ? .5 : 0,
-                            duration: AppTheme.motionStandard,
-                            child: const Icon(Icons.expand_more_rounded,
-                                size: 20, color: _tipInk)),
-                      ]))))));
+          child: FocusRing(
+        borderRadius: BorderRadius.circular(14),
+        child: Material(
+          color: _tipFill,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: _tipBorder)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+              onTap: () => setState(() => _open = !_open),
+              child: Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const LemonCircle(
+                        size: 30, background: _tipFill, float: false),
+                    const SizedBox(width: 8),
+                    Flexible(
+                        child: Text(
+                            _open
+                                ? 'Hide Lemon’s tip'
+                                : _tipLabels[
+                                    (widget.number - 1) % _tipLabels.length],
+                            style: lemonNote.copyWith(
+                                color: _tipInk,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w600))),
+                    const SizedBox(width: 4),
+                    AnimatedRotation(
+                        turns: _open ? .5 : 0,
+                        duration: AppTheme.motionStandard,
+                        child: const Icon(Icons.expand_more_rounded,
+                            size: 20, color: _tipInk)),
+                  ]))),
+        ),
+      )));
 }

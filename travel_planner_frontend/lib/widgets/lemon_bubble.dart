@@ -55,7 +55,7 @@ class _LemonBubbleState extends State<LemonBubble> {
       shadowColor: Colors.black.withValues(alpha: .25),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_expanded ? 28 : 40),
-          side: const BorderSide(color: AppTheme.skyMint, width: 1.5)),
+          side: const BorderSide(color: AppTheme.skyBlue, width: 1.5)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: widget.onTap,
@@ -80,7 +80,7 @@ class _LemonBubbleState extends State<LemonBubble> {
                           children: [
                             const Text('Hey, explorer! ✨',
                                 style: TextStyle(
-                                    color: AppTheme.teal,
+                                    color: AppTheme.primary,
                                     fontWeight: FontWeight.w800)),
                             const SizedBox(height: 6),
                             Text(invitations[_invitation < 0 ? 0 : _invitation],

@@ -4,7 +4,9 @@ Lemon.ai itinerary generation with bounded three-day windows:
    external call fails, we degrade gracefully and tell the model that data is missing,
    rather than failing the whole request).
 2. Build one system prompt + one user prompt containing that context.
-3. Generate date windows with at most three concurrent calls and a shared budget.
+3. Generate date windows with at most three concurrent calls. Each window gets a
+   full wave budget from when it starts, under an overall cap that scales with
+   the number of waves (see generation_budget_seconds).
 4. Parse and validate the JSON response before returning it.
 """
 import asyncio
@@ -19,6 +21,24 @@ from routers.weather import get_forecast
 from routers.places import get_attractions
 
 logger = logging.getLogger("lemon_ai")
+
+# Windowing and timing (DECISIONS 016, scaled per wave). The frontend mirrors
+# these in LemonApiService.planTimeoutFor; keep the two in step.
+WINDOW_DAYS = 3
+MAX_CONCURRENT_WINDOWS = 3
+WAVE_BUDGET_SECONDS = 75.0
+# Streaming providers are cut off only when silent, not for being slow: no new
+# chunk for STREAM_IDLE_SECONDS, or no first chunk within STREAM_FIRST_CHUNK_SECONDS
+# (long prompts and thinking models can take a while before the first token).
+STREAM_IDLE_SECONDS = 10.0
+STREAM_FIRST_CHUNK_SECONDS = 25.0
+
+
+def generation_budget_seconds(day_count: int) -> float:
+    """Shared generation budget: one wave budget per wave of concurrent windows."""
+    windows = -(-max(1, day_count) // WINDOW_DAYS)
+    waves = -(-windows // MAX_CONCURRENT_WINDOWS)
+    return WAVE_BUDGET_SECONDS * waves
 
 SYSTEM_PROMPT = """You are Lemon.ai, a friendly, practical travel-planning assistant.
 You will receive a traveler's trip details plus real weather and attraction data for
@@ -106,13 +126,16 @@ Attractions data:
     # Small date windows prevent long trips from exhausting one model response.
     start = date.fromisoformat(trip.start_date)
     count = (date.fromisoformat(trip.end_date) - start).days + 1
-    deadline = time.monotonic() + 75.0
-    slots = asyncio.Semaphore(3)
+    # Overall safety cap; each window also gets a full wave budget from the
+    # moment it takes a slot, so later waves are not starved by earlier ones.
+    plan_deadline = time.monotonic() + generation_budget_seconds(count)
+    slots = asyncio.Semaphore(MAX_CONCURRENT_WINDOWS)
 
     async def window(offset):
         async with slots:
+            deadline = min(plan_deadline, time.monotonic() + WAVE_BUDGET_SECONDS)
             expected = [(start + timedelta(days=i)).isoformat()
-                        for i in range(offset, min(offset + 3, count))]
+                        for i in range(offset, min(offset + WINDOW_DAYS, count))]
             prompt = user_prompt + "\nGenerate ONLY these days (absolute day number, date):\n" + ", ".join(
                 f"{offset + i + 1}: {value}" for i, value in enumerate(expected))
             prompt += "\nInclude every listed date exactly once, in order, with 3-5 concise activities per day. Do not omit days."
@@ -141,7 +164,9 @@ Attractions data:
                 elif isinstance(provider, AutoProvider):
                     raw = await provider.generate_json(SYSTEM_PROMPT, prompt,
                         validate=validate, mock_fallback=demo,
-                        attempt_timeout=25.0, total_timeout=remaining)
+                        total_timeout=remaining,
+                        idle_timeout=STREAM_IDLE_SECONDS,
+                        first_chunk_timeout=STREAM_FIRST_CHUNK_SECONDS)
                 else:
                     # One corrective retry for invalid/partial output within the same budget.
                     for attempt in range(2):
@@ -163,7 +188,7 @@ Attractions data:
                     except Exception:
                         pass
 
-    tasks = [asyncio.create_task(window(i)) for i in range(0, count, 3)]
+    tasks = [asyncio.create_task(window(i)) for i in range(0, count, WINDOW_DAYS)]
     try:
         parts = await asyncio.gather(*tasks)
     except BaseException:

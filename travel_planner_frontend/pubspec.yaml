@@ -54,6 +54,8 @@ flutter:
           weight: 500
         - asset: assets/fonts/Fredoka-600.ttf
           weight: 600
+        - asset: assets/fonts/Fredoka-700.ttf
+          weight: 700
     - family: Poppins
       fonts:
         - asset: assets/fonts/Poppins-500.ttf

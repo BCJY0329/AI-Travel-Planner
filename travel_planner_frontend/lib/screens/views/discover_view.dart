@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../config/app_theme.dart';
 import '../../config/discover_content.dart';
+import '../../widgets/focus_ring.dart';
 import '../../widgets/gentle_reveal.dart';
 import '../../widgets/hover_lift.dart';
 import '../../widgets/lemon_motion.dart';
@@ -50,7 +51,7 @@ class DiscoverView extends StatelessWidget {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               const Icon(Icons.map_outlined,
-                                  color: AppTheme.teal),
+                                  color: AppTheme.primary),
                               Text(
                                   '${activeItinerary!.destination} · ${activeItinerary!.days.length} day${activeItinerary!.days.length == 1 ? '' : 's'}',
                                   style: const TextStyle(
@@ -211,7 +212,7 @@ class _HeroState extends State<_Hero> {
                                   textStyle: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700)),
-                              icon: const Icon(Icons.auto_awesome, size: 19),
+                              icon: const Icon(Icons.luggage_rounded, size: 19),
                               label: const Text('Plan a trip with Lemon'))),
                       HoverLift(
                           child: OutlinedButton.icon(
@@ -237,7 +238,7 @@ class _HeroState extends State<_Hero> {
                       ])
                         Row(mainAxisSize: MainAxisSize.min, children: [
                           const Icon(Icons.check_rounded,
-                              size: 18, color: Color(0xFFC9A21A)),
+                              size: 18, color: AppTheme.primary),
                           const SizedBox(width: 6),
                           Flexible(
                               child: Text(step,
@@ -304,15 +305,26 @@ class _HeroState extends State<_Hero> {
               Positioned(
                   right: 18,
                   bottom: 12,
-                  child: Text('Photo by ${photo.credit} on Pixabay',
-                      style: const TextStyle(
-                          color: AppTheme.textSecondary, fontSize: 12))),
+                  // A near-opaque backing keeps the credit readable on any
+                  // photo (at least 6:1 even over black).
+                  child: DecoratedBox(
+                      decoration: BoxDecoration(
+                          color: AppTheme.surface.withValues(alpha: .92),
+                          borderRadius: BorderRadius.circular(999)),
+                      child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          child: Text('Photo by ${photo.credit} on Pixabay',
+                              style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 12))))),
           ]),
         );
       });
 }
 
-/// A lemon highlighter stroke behind part of the headline.
+/// A slim lemon underline behind part of the headline: one of Lemon's few
+/// touches of yellow.
 class _Highlight extends StatelessWidget {
   final String text;
   final TextStyle style;
@@ -324,15 +336,15 @@ class _Highlight extends StatelessWidget {
       Positioned(
           left: -2,
           right: -2,
-          bottom: size * .1,
-          height: size * .36,
+          bottom: size * .06,
+          height: size * .16,
           child: const ColoredBox(color: AppTheme.accentLemon)),
       Text(text, style: style),
     ]);
   }
 }
 
-/// Lemon on her yellow halo, floating, with a greeting bubble.
+/// Lemon on her sorbet halo with a lemon rim, floating, with a greeting bubble.
 class _LemonShowcase extends StatelessWidget {
   final double halo;
   final bool withBubble;
@@ -393,8 +405,12 @@ class _LemonShowcase extends StatelessWidget {
                     width: halo,
                     height: halo,
                     decoration: BoxDecoration(
-                        color: AppTheme.accentLemon,
+                        // Sorbet halo with a lemon rim: warm, but the yellow
+                        // stays a thin accent.
+                        color: AppTheme.sorbet,
                         shape: BoxShape.circle,
+                        border:
+                            Border.all(color: AppTheme.accentLemon, width: 5),
                         boxShadow: [
                           BoxShadow(
                               color: AppTheme.surface.withValues(alpha: .75),
@@ -509,14 +525,17 @@ class _HoverCardState extends State<_HoverCard> {
                 blurRadius: active ? 40 : 10,
                 offset: Offset(0, active ? 18 : 2))
           ]),
-          child: Material(
-            color: AppTheme.surface,
+          child: FocusRing(
             borderRadius: radius,
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-                onTap: widget.onTap,
-                onFocusChange: (value) => setState(() => _focus = value),
-                child: widget.builder(active && !reduced)),
+            child: Material(
+              color: AppTheme.surface,
+              borderRadius: radius,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                  onTap: widget.onTap,
+                  onFocusChange: (value) => setState(() => _focus = value),
+                  child: widget.builder(active && !reduced)),
+            ),
           ),
         ),
       ),
@@ -601,7 +620,7 @@ class _HowItWorks extends StatelessWidget {
                                                         BorderRadius.circular(
                                                             16),
                                                     border: Border.all(
-                                                        color: AppTheme.skyMint,
+                                                        color: AppTheme.skyBlue,
                                                         width: 1.5)),
                                                 child: Image.asset(_lemonArt,
                                                     fit: BoxFit.cover,
@@ -613,7 +632,7 @@ class _HowItWorks extends StatelessWidget {
                                             width: 52,
                                             height: 52,
                                             decoration: BoxDecoration(
-                                                color: AppTheme.skyMint,
+                                                color: AppTheme.skyBlue,
                                                 borderRadius:
                                                     BorderRadius.circular(16)),
                                             child: Icon(step.$2,
@@ -848,8 +867,7 @@ class _Destinations extends StatelessWidget {
                                                         horizontal: 16,
                                                         vertical: 10),
                                                     decoration: BoxDecoration(
-                                                        color: AppTheme
-                                                            .accentLemon,
+                                                        color: AppTheme.cta,
                                                         borderRadius:
                                                             BorderRadius
                                                                 .circular(999)),
@@ -861,7 +879,7 @@ class _Destinations extends StatelessWidget {
                                                               'Plan with Lemon',
                                                               style: TextStyle(
                                                                   color: AppTheme
-                                                                      .lemonInk,
+                                                                      .ctaInk,
                                                                   fontSize: 14,
                                                                   fontWeight:
                                                                       FontWeight
@@ -872,7 +890,7 @@ class _Destinations extends StatelessWidget {
                                                                   .arrow_forward,
                                                               size: 16,
                                                               color: AppTheme
-                                                                  .lemonInk),
+                                                                  .ctaInk),
                                                         ])))),
                                       ])),
                             ])))),
@@ -922,7 +940,7 @@ class _ReadyBand extends StatelessWidget {
           decoration: BoxDecoration(
               color: AppTheme.sky,
               borderRadius: BorderRadius.circular(32),
-              border: Border.all(color: AppTheme.skyMint)),
+              border: Border.all(color: AppTheme.skyBlue)),
           child: wide
               ? Row(children: [
                   avatar,

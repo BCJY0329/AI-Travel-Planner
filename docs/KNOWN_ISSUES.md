@@ -4,9 +4,51 @@
 
 Source-inspected on 2026-10-08 against the current working tree. The initial review made no application fixes; subsequent repairs are recorded below, and the dated sections are chronological (later entries supersede earlier ones).
 
-**Open as of 2026-10-24:** KI-07 (Python environment), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), Flutter Web emoji fallback, and pending local visual review. KI-09, KI-10, KI-11, KI-21 and KI-25 were resolved on 2026-10-24 (DECISIONS 037–039), as was the `test_chat_exhaustion_matches_explicit_mock` failure.
+**Open as of 2026-10-31:** as 2026-10-24 below, plus KI-26 (accessibility audit findings, see the 2026-10-31 section; visual items fixed, screen-reader items deferred by the user), plus the unverified live behaviour of the provider timing changes (KI-27, below). The 2026-10-24 browser check of the trip-following tabs and airport chips was done by the user, who reported no problems.
+
+**Superseded — open as of 2026-10-24:** KI-07 (Python environment), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), Flutter Web emoji fallback, and pending local visual review. KI-09, KI-10, KI-11, KI-21 and KI-25 were resolved on 2026-10-24 (DECISIONS 037–039), as was the `test_chat_exhaustion_matches_explicit_mock` failure.
 
 **Superseded — open as of 2026-10-17:** KI-07 (Python environment), KI-09 (partial: chat roles/payload sizes and travel-search validation), KI-10 (travel route transport errors), KI-11 (backend exception detail in plan errors), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), KI-21 (search tabs ignore trip context), Flutter Web emoji fallback, and pending local visual review. All other numbered issues are resolved; see the status notes below. Findings below are source-derived unless explicitly marked as a command observation; runtime reproduction remains pending.
+
+## Provider timing (KI-27) — 2026-10-31
+
+Fixed (DECISIONS 042): slow but working providers were treated as failed on long itineraries. A flat 75 s budget starved later waves of windows, a fixed 25 s attempt limit cut off providers that were still producing text, and every timeout cost a five-minute cooldown, so later windows and requests were pushed to weaker providers or the mock plan. Verified with offline tests only (backend 79 of 79).
+
+Still open or unverified:
+
+- **No live check yet.** Not observed with real Groq, Gemini or OpenRouter: time to first chunk on long window prompts, whether gpt-oss (Groq) and OpenRouter free models send reasoning chunks while thinking, whether 429 responses carry `Retry-After`, and whether OpenRouter's free routing streams for every routed model. If first chunks routinely take longer than 25 s, plans will still fall back; the fix would be raising `STREAM_FIRST_CHUNK_SECONDS`, not cutting content.
+- **Gemini stream threads can linger.** google-genai 0.3.0 sets no network timeout. When a Gemini stream is cut off, its daemon thread stops at the next chunk; on a connection that dies without closing it may stay blocked until the server restarts. It holds no lock and does not block the event loop.
+- **Long waits.** A 30-day plan may take up to about 5½ minutes before the frontend gives up, with only the normal loading state shown.
+- **Fallback time inside a window.** A provider that streams steadily for the whole 75 s window budget and then fails validation leaves no time for the next provider in that window; that window becomes mock.
+- **Direct provider use** (`provider: groq`/`openrouter`, not `auto`) no longer gets the OpenAI SDK's automatic retries (`max_retries=0`).
+
+Lesson: a total-time limit cannot tell "slow" from "stuck"; streaming plus a silence limit can. Before relying on an SDK's async API for timeouts, check that it really yields to the event loop (google-genai 0.3.0's does not).
+
+## Accessibility audit (KI-26) — 2026-10-31
+
+Source-inspected only: no screen reader, keyboard-only or text-scaling run was made. Contrast ratios were computed from the theme hex values (WCAG 2.x formula), on flat backgrounds; text over photos was not measured. Nothing was fixed yet.
+
+Already in good shape: every animation (reveals, floats, pulse, slow zoom, hover lifts, hero slideshow) stops when `disableAnimations` is set; icon-only buttons have tooltips; the step progress, calendar days, tip toggle (with expanded state), launcher, resize grip and city chips carry semantics; core text pairs pass AA (textPrimary on cream 7.2:1, CTA lemonInk on lemon 10.9:1, nav text 5.3:1, primary links 5.1:1); layouts switch to compact under text scaling.
+
+Findings, roughly by impact:
+
+1. **Search fields have no accessible name.** `SearchField` (page_parts.dart) draws its label as a separate `Text` above a `TextField` with `InputDecoration.collapsed`, so a screen reader announces only the hint ("e.g. KUL"). Affects From/To, Departure, Travelers, Destination city, Search radius, City or region.
+2. **Results, loading and errors are not announced.** No `liveRegion` or `SemanticsService.announce` anywhere: search results, "Searching…", error/Retry cards in Flights/Hotels/Attractions, and new Lemon chat messages, busy text and errors appear silently.
+3. **No headings.** No `Semantics(header: true)` in the app, so screen-reader users cannot jump between page titles and sections.
+4. **Chat panel is not modal and does not manage focus.** On compact widths it covers the screen, but the page behind stays in the focus and semantics order; opening does not move focus into the panel, closing does not return it to the launcher.
+5. **Error red fails contrast.** `AppTheme.error` #EF4444 on white is 3.76:1 (needs 4.5:1); used for the date-range and 30-day errors in the chat and date dialog.
+6. **Ambiguous repeated buttons.** Every hotel/attraction card says "View location" and every flight card "View details", with no per-item name.
+7. **Weak non-text contrast.** Search field and input outlines (`border` #E9E4D8 on white) are 1.27:1 against the 3:1 guideline; focus is shown only by Material's faint overlay on cards, chips and text buttons (focused text fields do get a 5.1:1 primary border).
+8. **Smaller contrast misses.** textSecondary on `sky` 4.41:1 (How-to step descriptions); teal subtitle on the chat header's skyMint corner about 4.1:1; the Pixabay credit on the Discover hero sits on the photo without a scrim.
+9. **Dragging-only resize.** The chat's corner grip has no keyboard or button alternative (the panel works at its default size, so low impact).
+10. **Page language missing.** `web/index.html` has `<html>` without `lang="en"`.
+11. **Calendar detail.** Days inside the selected range are not announced as selected or in range (only start/end), and past or out-of-month days are told apart only by a slightly lighter ink.
+
+Unreachable code, not counted: `chat_bubble.dart`'s itinerary card, loading bubble and date-picker message types are never created by the controller; they contain failing pairs (amber 900 note text 2.79:1, white on primaryLight 3.98:1) and could be deleted.
+
+**Status later on 2026-10-31 (DECISIONS 040):** fixed items 5, 7, 8 and the visual half of 11 (unavailable days faded, past days struck through). **Deferred by the user to a future session: the screen-reader items 1, 2, 3, 4, 6 and the semantic half of 11 (in-range days not announced).** Items 9 (drag-only resize) and 10 (`lang="en"`) remain open. The fixes are source- and test-verified only; the new focus ring and colours have not been viewed in a browser.
+
+Still to do at runtime: a screen reader pass (NVDA + Chrome after enabling Flutter Web semantics), keyboard-only navigation, 200% browser zoom, OS reduced-motion check on web, and measuring text over photos.
 
 ## API caching and photos — 2026-10-20
 

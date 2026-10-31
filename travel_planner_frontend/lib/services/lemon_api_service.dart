@@ -46,6 +46,33 @@ class LemonApiService {
     throw LemonApiException('Lemon had trouble understanding that.');
   }
 
+  /// Mirrors travel_backend/services/itinerary_builder.py: 3-day windows run
+  /// 3 at a time, each wave gets 75 s. The extra 25 s covers the backend's
+  /// 10 s context lookup plus response slack (the original 100 s for one wave).
+  static const int _windowDays = 3;
+  static const int _concurrentWindows = 3;
+  static const int _waveSeconds = 75;
+  static const int _overheadSeconds = 25;
+
+  static Duration planTimeoutFor(TripRequest request) {
+    var days = 1;
+    try {
+      final start = DateTime.parse(request.startDate);
+      final end = DateTime.parse(request.endDate);
+      // UTC calendar dates, so a daylight-saving change can't shorten the count.
+      days = DateTime.utc(end.year, end.month, end.day)
+              .difference(DateTime.utc(start.year, start.month, start.day))
+              .inDays +
+          1;
+    } on FormatException {
+      // The backend rejects malformed dates quickly; one wave is plenty.
+    }
+    if (days < 1) days = 1;
+    final windows = (days + _windowDays - 1) ~/ _windowDays;
+    final waves = (windows + _concurrentWindows - 1) ~/ _concurrentWindows;
+    return Duration(seconds: _overheadSeconds + _waveSeconds * waves);
+  }
+
   Future<ItineraryResponse> planTrip(TripRequest request) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/lemon/plan');
     late final http.Response response;
@@ -56,7 +83,7 @@ class LemonApiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
-          .timeout(const Duration(seconds: 100));
+          .timeout(planTimeoutFor(request));
     } catch (e) {
       throw LemonApiException(
         "I couldn't reach the travel planner backend. Make sure the server is running and try again.",

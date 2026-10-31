@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
+import 'focus_ring.dart';
 
 /// End-date edits keep the start anchored until explicitly changed.
 class TripDateDialog extends StatefulWidget {
@@ -129,43 +130,57 @@ class _TripDateDialogState extends State<TripDateDialog> {
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: inRange ? AppTheme.mint : Colors.transparent,
+            color: inRange ? AppTheme.paleBlue : Colors.transparent,
             borderRadius: radius,
           ),
           child: SizedBox(
               height: 44,
               child: Center(
-                  child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: enabled ? () => select(date) : null,
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: endpoint ? AppTheme.primary : Colors.transparent,
-                      shape: BoxShape.circle,
-                      border: isToday && !endpoint
-                          ? Border.all(color: AppTheme.primary, width: 1.5)
-                          : null,
-                    ),
-                    child: Text('${date.day}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: endpoint || isToday
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: endpoint
-                              ? Colors.white
-                              : enabled
-                                  ? AppTheme.textPrimary
-                                  : AppTheme.textMuted,
-                        )),
-                  ),
-                ),
-              ))),
+                  child: FocusRing(
+                      circle: true,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: enabled ? () => select(date) : null,
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: endpoint
+                                  ? AppTheme.primary
+                                  : Colors.transparent,
+                              shape: BoxShape.circle,
+                              border: isToday && !endpoint
+                                  ? Border.all(
+                                      color: AppTheme.primary, width: 1.5)
+                                  : null,
+                            ),
+                            child: Text('${date.day}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: endpoint || isToday
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  // Unavailable days are clearly faded so they no
+                                  // longer look tappable (inactive controls are
+                                  // exempt from the contrast minimum).
+                                  color: endpoint
+                                      ? Colors.white
+                                      : enabled
+                                          ? AppTheme.textPrimary
+                                          : AppTheme.textMuted
+                                              .withValues(alpha: .38),
+                                  decoration: enabled || !inMonth
+                                      ? null
+                                      : TextDecoration.lineThrough,
+                                  decorationColor:
+                                      AppTheme.textMuted.withValues(alpha: .38),
+                                )),
+                          ),
+                        ),
+                      )))),
         ),
       ),
     );
@@ -196,7 +211,7 @@ class _TripDateDialogState extends State<TripDateDialog> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                        color: AppTheme.mint,
+                        color: AppTheme.paleBlue,
                         borderRadius: BorderRadius.circular(16)),
                     child: Wrap(spacing: 12, runSpacing: 10, children: [
                       _dateSummary(
@@ -270,7 +285,7 @@ class _TripDateDialogState extends State<TripDateDialog> {
         decoration: BoxDecoration(
             color: Colors.white, borderRadius: BorderRadius.circular(12)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 17, color: AppTheme.teal),
+          Icon(icon, size: 17, color: AppTheme.primary),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title,

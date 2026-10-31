@@ -125,7 +125,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
         shadowColor: Colors.black.withValues(alpha: 0.2),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
-            side: const BorderSide(color: AppTheme.skyMint, width: 1.5)),
+            side: const BorderSide(color: AppTheme.skyBlue, width: 1.5)),
         clipBehavior: Clip.antiAlias,
         child: Stack(fit: StackFit.expand, children: [
           Column(children: [
@@ -133,13 +133,11 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                 padding: EdgeInsets.fromLTRB(
                     widget.onResize == null ? 16 : 30, 14, 8, 14),
                 decoration: const BoxDecoration(
-                  gradient: LinearGradient(colors: [
-                    AppTheme.skyMint,
-                    AppTheme.surface
-                  ], stops: [
-                    0,
-                    .75
-                  ], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  gradient: LinearGradient(
+                      colors: [AppTheme.skyBlue, AppTheme.surface],
+                      stops: [0, .75],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight),
                   border: Border(
                       bottom: BorderSide(color: AppTheme.border, width: 1)),
                 ),
@@ -177,8 +175,10 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                           Flexible(
                             child: Text('Your personal travel companion',
                                 overflow: TextOverflow.ellipsis,
+                                // Darker than primary: sits on the skyBlue end
+                                // of the header gradient (6.8:1).
                                 style: TextStyle(
-                                    color: AppTheme.teal,
+                                    color: AppTheme.primaryDark,
                                     fontSize: 12,
                                     letterSpacing: 0.2,
                                     fontWeight: FontWeight.w600)),
@@ -242,19 +242,24 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(c.error!),
-                                      TextButton.icon(
-                                          onPressed: c.isBusy ? null : c.retry,
-                                          icon: const Icon(Icons.refresh),
-                                          label: const Text('Retry')),
-                                      TextButton(
-                                          onPressed: c.isBusy
-                                              ? null
-                                              : () => c.editField(c.canRetryPlan
-                                                  ? 'confirm'
-                                                  : 'destination'),
-                                          child: Text(c.canRetryPlan
-                                              ? 'Edit trip details'
-                                              : 'Change destination')),
+                                      const SizedBox(height: 12),
+                                      ..._spaced([
+                                        _primaryAction(
+                                            'Retry',
+                                            Icons.refresh_rounded,
+                                            c.isBusy ? null : c.retry),
+                                        _secondaryAction(
+                                            c.canRetryPlan
+                                                ? 'Edit trip details'
+                                                : 'Change destination',
+                                            Icons.edit_outlined,
+                                            c.isBusy
+                                                ? null
+                                                : () => c.editField(
+                                                    c.canRetryPlan
+                                                        ? 'confirm'
+                                                        : 'destination')),
+                                      ]),
                                     ])),
                           if (!c.isBusy && c.error == null) ..._controls(),
                         ]))),
@@ -299,7 +304,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                                           borderRadius:
                                               BorderRadius.circular(16),
                                           borderSide: const BorderSide(
-                                              color: AppTheme.lavenderTint)),
+                                              color: AppTheme.fieldBorder)),
                                       focusedBorder: OutlineInputBorder(
                                           borderRadius:
                                               BorderRadius.circular(16),
@@ -313,8 +318,8 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                                 c.isBusy || c.error != null ? null : _send,
                             tooltip: 'Send message',
                             style: IconButton.styleFrom(
-                                backgroundColor: AppTheme.accentLemon,
-                                foregroundColor: AppTheme.lemonInk,
+                                backgroundColor: AppTheme.cta,
+                                foregroundColor: AppTheme.ctaInk,
                                 fixedSize: const Size(46, 46)),
                             icon: const Icon(Icons.send_rounded, size: 20)),
                       ])),
@@ -339,7 +344,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                         height: 30,
                         child: CustomPaint(
                             painter: _CornerGripPainter(
-                                color: AppTheme.teal.withValues(
+                                color: AppTheme.primary.withValues(
                                     alpha: _gripHover ? 0.95 : 0.55))),
                       ),
                     ),
@@ -349,17 +354,70 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
             ),
         ]),
       );
+
+  /// The step's main action: bold sky blue with a soft glow so it stands out.
+  Widget _primaryAction(String label, IconData icon, VoidCallback? onPressed) =>
+      ElevatedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 20),
+          label: Text(label),
+          style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  shadowColor: const Color(0xFF6EA0DC).withValues(alpha: .5),
+                  textStyle: const TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .1))
+              .copyWith(
+                  elevation: WidgetStateProperty.resolveWith(
+                      (states) => states.contains(WidgetState.disabled)
+                          ? 0
+                          : states.contains(WidgetState.hovered)
+                              ? 6
+                              : 3)));
+
+  /// Other choices: the same sky blue family, paler, so the pair reads as one
+  /// set rather than two competing colours.
+  Widget _secondaryAction(
+          String label, IconData icon, VoidCallback? onPressed) =>
+      OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 19),
+          label: Text(label),
+          style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                  backgroundColor: AppTheme.ctaSoft,
+                  foregroundColor: AppTheme.ctaInk,
+                  textStyle: const TextStyle(
+                      fontSize: 14.5, fontWeight: FontWeight.w700))
+              .copyWith(
+                  side: AppTheme.focusOutline(
+                      const BorderSide(color: AppTheme.cta, width: 1.5))));
+
+  /// Puts a 10px gap between stacked buttons so they never touch.
+  List<Widget> _spaced(List<Widget> buttons) => [
+        for (var i = 0; i < buttons.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          buttons[i],
+        ]
+      ];
+
   List<Widget> _controls() {
     switch (c.nextField) {
       case 'dates':
         return [
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-              onPressed: _pickDates,
-              icon: const Icon(Icons.date_range),
-              label: const Text('Choose travel dates')),
+          const SizedBox(height: 14),
+          _primaryAction(
+              'Pick my travel dates', Icons.calendar_month_rounded, _pickDates),
           if (_dateError != null)
-            Text(_dateError!, style: const TextStyle(color: AppTheme.error))
+            Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(_dateError!,
+                    style: const TextStyle(color: AppTheme.error)))
         ];
       case 'travelers':
         return [
@@ -373,28 +431,29 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                   labelText: 'Number of travelers',
                   helperText: 'Enter a whole number from 1 to 20',
                   errorText: _travelerError)),
-          const SizedBox(height: 10),
-          ElevatedButton(
-              onPressed: _submitTravelers, child: const Text('Continue'))
+          const SizedBox(height: 14),
+          _primaryAction(
+              'Continue', Icons.arrow_forward_rounded, _submitTravelers)
         ];
       case 'budget_level':
         return [
-          const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
+          const SizedBox(height: 14),
+          ..._spaced([
             for (final choice in [
-              ('low', 'Budget-friendly'),
-              ('medium', 'Comfortable'),
-              ('high', 'Premium')
+              ('low', 'Budget-friendly', Icons.savings_outlined),
+              ('medium', 'Comfortable', Icons.weekend_outlined),
+              ('high', 'Premium', Icons.diamond_outlined)
             ])
-              ActionChip(
-                  label: Text(choice.$2),
-                  onPressed: () => c.setBudget(choice.$1)),
+              _secondaryAction(
+                  choice.$2, choice.$3, () => c.setBudget(choice.$1)),
           ])
         ];
       case 'interests':
+        final ready =
+            c.selectedInterests.isNotEmpty || _other.text.trim().isNotEmpty;
         return [
           const SizedBox(height: 12),
-          Wrap(spacing: 6, runSpacing: 6, children: [
+          Wrap(spacing: 8, runSpacing: 8, children: [
             for (final interest in [
               'Food',
               'Culture & history',
@@ -407,6 +466,19 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
             ])
               FilterChip(
                   label: Text(interest),
+                  // Picked interests turn pale blue, matching the buttons.
+                  selectedColor: AppTheme.ctaSoft,
+                  checkmarkColor: AppTheme.ctaInk,
+                  side: WidgetStateBorderSide.resolveWith((states) =>
+                      states.contains(WidgetState.focused) && AppTheme.showFocus
+                          ? AppTheme.focusSide
+                          : BorderSide(
+                              color: states.contains(WidgetState.selected)
+                                  ? AppTheme.cta
+                                  : AppTheme.border,
+                              width: states.contains(WidgetState.selected)
+                                  ? 1.5
+                                  : 1)),
                   selected: c.selectedInterests.contains(interest),
                   onSelected: (selected) => setState(() {
                         if (selected) {
@@ -427,53 +499,53 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
               decoration: const InputDecoration(
                   labelText: 'Other interests or preferences',
                   hintText: 'For example, vegetarian food or gentle walks')),
-          const SizedBox(height: 8),
-          ElevatedButton(
-              onPressed: c.selectedInterests.isEmpty &&
-                      _other.text.trim().isEmpty
-                  ? null
-                  : () {
-                      c.setInterests([
-                        ...c.selectedInterests,
-                        if (_other.text.trim().isNotEmpty) _other.text.trim()
-                      ]);
-                      _other.clear();
-                    },
-              child: const Text('Continue with these interests')),
-          OutlinedButton.icon(
-              onPressed: () {
-                c.setInterests([]);
-                _other.clear();
-              },
-              icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-              label: const Text('Surprise me'))
+          if (!ready)
+            const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text('Pick at least one, or let Lemon surprise you.',
+                    style: TextStyle(color: AppTheme.textSecondary))),
+          ..._spaced([
+            _primaryAction(
+                'Go with these interests',
+                Icons.check_rounded,
+                ready
+                    ? () {
+                        c.setInterests([
+                          ...c.selectedInterests,
+                          if (_other.text.trim().isNotEmpty) _other.text.trim()
+                        ]);
+                        _other.clear();
+                      }
+                    : null),
+            _secondaryAction('Surprise me', Icons.casino_rounded, () {
+              c.setInterests([]);
+              _other.clear();
+            }),
+          ])
         ];
       case 'confirm':
         return [
           _brief(),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-              onPressed: c.confirmTrip,
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('Generate my itinerary'))
+          const SizedBox(height: 14),
+          _primaryAction('Generate my itinerary', Icons.route_rounded,
+              c.confirmTrip)
         ];
       default:
         return [
           if (c.latestItinerary != null) ...[
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-                onPressed: widget.onViewItinerary,
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('View itinerary')),
-            if (c.latestItinerary!.providerUsed == 'mock')
-              TextButton(
-                  onPressed: c.retry,
-                  child: const Text('Retry personalized generation')),
-            TextButton(
-                onPressed: () => c.editField('confirm'),
-                child: const Text('Edit trip details')),
-            TextButton(
-                onPressed: c.startOver, child: const Text('Plan another trip')),
+            const SizedBox(height: 14),
+            ..._spaced([
+              _primaryAction('View my itinerary', Icons.map_outlined,
+                  widget.onViewItinerary),
+              if (c.latestItinerary!.providerUsed == 'mock')
+                // Wording matches the mock itinerary's own note.
+                _secondaryAction('Retry personalized generation',
+                    Icons.refresh_rounded, c.retry),
+              _secondaryAction('Edit trip details', Icons.edit_outlined,
+                  () => c.editField('confirm')),
+              _secondaryAction(
+                  'Plan another trip', Icons.add_location_alt, c.startOver),
+            ]),
           ]
         ];
     }
@@ -565,7 +637,7 @@ class _StepProgress extends StatelessWidget {
                       color: i < current
                           ? AppTheme.primary
                           : i == current
-                              ? AppTheme.accentLemon
+                              ? AppTheme.cta
                               : AppTheme.border,
                       borderRadius: BorderRadius.circular(99))),
               const SizedBox(height: 5),

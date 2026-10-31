@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:travel_planner_frontend/widgets/lemon_bubble.dart';
+import 'package:travel_planner_frontend/widgets/lemon_brand.dart';
 import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:travel_planner_frontend/widgets/hover_lift.dart';
@@ -353,7 +354,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Gentle walks');
     await tester.pump();
     expect(c.interests, isEmpty);
-    await tester.tap(find.text('Continue with these interests'));
+    await tester.tap(find.text('Go with these interests'));
     await tester.pumpAndSettle();
     expect(c.interests, ['Food', 'Nature', 'Gentle walks']);
     expect(tester.takeException(), isNull);
@@ -419,7 +420,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(const TravelPlannerApp());
       await tester.pumpAndSettle();
-      expect(find.text('LemonTrip'), findsOneWidget);
+      expect(find.byType(LemonBrand), findsOneWidget);
       expect(tester.takeException(), isNull);
       if (width < 1050) {
         await tester.tap(find.byTooltip('Navigation'));
