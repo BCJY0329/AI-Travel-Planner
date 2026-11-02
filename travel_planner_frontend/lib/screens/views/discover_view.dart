@@ -155,99 +155,119 @@ class _HeroState extends State<_Hero> {
         final wide = box.maxWidth > 900;
         final title = TextStyle(
             fontFamily: AppTheme.tripHeadingFont,
-            color: AppTheme.textPrimary,
+            color: AppTheme.ctaInk,
             fontSize: (box.maxWidth / 24).clamp(28.0, 54.0),
             height: 1.12,
             letterSpacing: -1.6,
             fontWeight: FontWeight.w700);
+        // The hero's words and buttons use Outfit, as in the mock.
+        const outfit = TextStyle(fontFamily: AppTheme.tripBodyFont);
         final copy = Padding(
           padding: EdgeInsets.fromLTRB(
               wide ? 52 : 24, wide ? 52 : 28, 24, wide ? 52 : 12),
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const GentleReveal(
-                    child: Text('YOUR AI TRAVEL COMPANION',
-                        style: TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 13,
-                            letterSpacing: 1.4,
-                            fontWeight: FontWeight.w700))),
-                const SizedBox(height: 16),
-                GentleReveal(
-                    delay: const Duration(milliseconds: 80),
-                    child: Text('A little curiosity.', style: title)),
-                GentleReveal(
-                    delay: const Duration(milliseconds: 160),
-                    child: Text.rich(
-                        TextSpan(text: 'A whole new ', children: [
-                          WidgetSpan(
-                              alignment: PlaceholderAlignment.baseline,
-                              baseline: TextBaseline.alphabetic,
-                              child: _Highlight('adventure.', style: title)),
-                        ]),
-                        style: title)),
-                const SizedBox(height: 20),
-                GentleReveal(
-                    delay: const Duration(milliseconds: 240),
-                    child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 520),
-                        child: const Text(
-                            "Tell Lemon where you're dreaming of. She'll ask a few quick questions, then build a day-by-day plan around you.",
-                            style: TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 18,
-                                height: 1.6)))),
-                const SizedBox(height: 28),
-                GentleReveal(
-                    delay: const Duration(milliseconds: 320),
-                    child: Wrap(spacing: 12, runSpacing: 12, children: [
-                      HoverLift(
-                          child: ElevatedButton.icon(
-                              onPressed: widget.onOpenLemon,
-                              style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 26, vertical: 18),
-                                  textStyle: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700)),
-                              icon: const Icon(Icons.luggage_rounded, size: 19),
-                              label: const Text('Plan a trip with Lemon'))),
-                      HoverLift(
-                          child: OutlinedButton.icon(
-                              onPressed: widget.onExplore,
-                              iconAlignment: IconAlignment.end,
-                              style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 24, vertical: 18),
-                                  textStyle: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700)),
-                              icon: const Icon(Icons.arrow_forward, size: 18),
-                              label: const Text('Explore places'))),
-                    ])),
-                const SizedBox(height: 30),
-                GentleReveal(
-                    delay: const Duration(milliseconds: 400),
-                    child: Wrap(spacing: 18, runSpacing: 8, children: [
-                      for (final step in const [
-                        'Pick your somewhere',
-                        'Add a little of you',
-                        'Lemon connects the dots'
-                      ])
-                        Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.check_rounded,
-                              size: 18, color: AppTheme.primary),
-                          const SizedBox(width: 6),
-                          Flexible(
+          child: DefaultTextStyle.merge(
+            style: outfit,
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GentleReveal(
+                      child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                              color: AppTheme.sorbet,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: AppTheme.sandBorder)),
+                          child: const Text('YOUR AI TRAVEL COMPANION',
+                              style: TextStyle(
+                                  color: AppTheme.sandInk,
+                                  fontSize: 12.5,
+                                  letterSpacing: 1.4,
+                                  fontWeight: FontWeight.w800)))),
+                  const SizedBox(height: 16),
+                  GentleReveal(
+                      delay: const Duration(milliseconds: 80),
+                      child: Text('A little curiosity.', style: title)),
+                  const SizedBox(height: 20),
+                  GentleReveal(
+                      delay: const Duration(milliseconds: 240),
+                      child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: const Text(
+                              "Tell Lemon where you'd like to go and she'll shape the days around what you love.",
+                              style: TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 18,
+                                  height: 1.6)))),
+                  const SizedBox(height: 28),
+                  GentleReveal(
+                      delay: const Duration(milliseconds: 320),
+                      child: Wrap(spacing: 12, runSpacing: 12, children: [
+                        HoverLift(
+                            child: ElevatedButton.icon(
+                                onPressed: widget.onOpenLemon,
+                                style: planWithLemonStyle(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 26, vertical: 18)),
+                                icon:
+                                    const Icon(Icons.luggage_rounded, size: 19),
+                                label: const Text('Plan a trip with Lemon'))),
+                        HoverLift(
+                            child: OutlinedButton.icon(
+                                onPressed: widget.onExplore,
+                                iconAlignment: IconAlignment.end,
+                                // Filled with its own outline colour and
+                                // a solid shadow, like the other buttons
+                                // (DECISIONS 057).
+                                style: OutlinedButton.styleFrom(
+                                        backgroundColor: AppTheme.ctaEdge,
+                                        shadowColor: AppTheme.ctaShadow,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 24, vertical: 18),
+                                        textStyle: AppTheme.buttonText(
+                                            size: 16, weight: FontWeight.w700))
+                                    .copyWith(
+                                        elevation: AppTheme.solidElevation()),
+                                icon: const Icon(Icons.arrow_forward, size: 18),
+                                label: const Text('Explore places'))),
+                      ])),
+                  const SizedBox(height: 30),
+                  GentleReveal(
+                      delay: const Duration(milliseconds: 400),
+                      child: Wrap(spacing: 8, runSpacing: 8, children: [
+                        // Sky, peach and lilac, as approved in the mock.
+                        for (final (step, fill, ink) in const [
+                          (
+                            'Pick your somewhere',
+                            Color(0xFFEEF5FC),
+                            AppTheme.ctaInk
+                          ),
+                          (
+                            'Add a little of you',
+                            Color(0xFFFFF4EE),
+                            Color(0xFF5A2A12)
+                          ),
+                          (
+                            'Lemon connects the dots',
+                            Color(0xFFF5F2FD),
+                            Color(0xFF2F2566)
+                          ),
+                        ])
+                          Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                  color: fill,
+                                  borderRadius: BorderRadius.circular(999)),
                               child: Text(step,
-                                  style: const TextStyle(
-                                      color: AppTheme.textSecondary,
-                                      fontSize: 14))),
-                        ]),
-                    ])),
-              ]),
+                                  style: TextStyle(
+                                      color: ink,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600))),
+                      ])),
+                ]),
+          ),
         );
         return ClipRRect(
           borderRadius: BorderRadius.circular(32),
@@ -321,27 +341,6 @@ class _HeroState extends State<_Hero> {
           ]),
         );
       });
-}
-
-/// A slim lemon underline behind part of the headline: one of Lemon's few
-/// touches of yellow.
-class _Highlight extends StatelessWidget {
-  final String text;
-  final TextStyle style;
-  const _Highlight(this.text, {required this.style});
-  @override
-  Widget build(BuildContext context) {
-    final size = style.fontSize ?? 40;
-    return Stack(clipBehavior: Clip.none, children: [
-      Positioned(
-          left: -2,
-          right: -2,
-          bottom: size * .06,
-          height: size * .16,
-          child: const ColoredBox(color: AppTheme.accentLemon)),
-      Text(text, style: style),
-    ]);
-  }
 }
 
 /// Lemon on her sorbet halo with a lemon rim, floating, with a greeting bubble.
@@ -905,7 +904,10 @@ class _ReadyBand extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
         final wide = box.maxWidth > 700;
         // Lemon takes the band's own colour (only the hero keeps her yellow).
-        const avatar = LemonCircle(size: 112, background: AppTheme.sky);
+        const avatar = LemonCircle(
+            size: 112,
+            background: AppTheme.surface,
+            ring: AppTheme.accentLemon);
         const copy = Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -913,24 +915,21 @@ class _ReadyBand extends StatelessWidget {
               Text('Ready when you are.',
                   style: TextStyle(
                       fontFamily: AppTheme.tripHeadingFont,
-                      color: AppTheme.textPrimary,
+                      color: AppTheme.sandInk,
                       fontSize: 24,
                       height: 1.2,
                       fontWeight: FontWeight.w700)),
               SizedBox(height: 6),
               Text('Lemon is one tap away, from any page.',
-                  style:
-                      TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
+                  style: TextStyle(color: AppTheme.sorbetInk, fontSize: 16)),
             ]);
         final button = HoverLift(
             child: ElevatedButton.icon(
                 onPressed: onOpenLemon,
                 iconAlignment: IconAlignment.end,
-                style: ElevatedButton.styleFrom(
+                style: planWithLemonStyle(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 26, vertical: 18),
-                    textStyle: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                        horizontal: 26, vertical: 18)),
                 icon: const Icon(Icons.arrow_forward, size: 18),
                 label: const Text('Start planning')));
         return Container(
@@ -938,9 +937,9 @@ class _ReadyBand extends StatelessWidget {
           padding: EdgeInsets.symmetric(
               horizontal: wide ? 44 : 24, vertical: wide ? 36 : 28),
           decoration: BoxDecoration(
-              color: AppTheme.sky,
+              color: AppTheme.sand,
               borderRadius: BorderRadius.circular(32),
-              border: Border.all(color: AppTheme.skyBlue)),
+              border: Border.all(color: AppTheme.sandBorder)),
           child: wide
               ? Row(children: [
                   avatar,

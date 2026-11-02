@@ -8,7 +8,11 @@ import '../../services/travel_api_service.dart';
 import '../../widgets/page_parts.dart';
 
 class AttractionsView extends StatefulWidget {
-  const AttractionsView({super.key, this.apiService, this.photos, this.trip});
+  const AttractionsView(
+      {super.key, this.apiService, this.photos, this.trip, this.onOpenLemon});
+
+  /// Opens Lemon's chat from the "Plan with Lemon" band; null hides the band.
+  final VoidCallback? onOpenLemon;
   final TravelApiService? apiService;
 
   /// Country photos for cities without a bundled photo; null keeps them plain.
@@ -133,7 +137,8 @@ class _AttractionsViewState extends State<AttractionsView> {
                     'Find sights, landmarks and culture near your destination, then add them to your plan with Lemon.',
                 tip:
                     'Use the filters to narrow things down. Culture & Heritage is great for museums and monuments.',
-                search: SearchCard(child: _buildSearchFields()),
+                // A single field: a compact card, not a long bar.
+                search: SearchCard(maxWidth: 760, child: _buildSearchFields()),
               ),
               const SizedBox(height: 22),
               CityChips(
@@ -157,6 +162,14 @@ class _AttractionsViewState extends State<AttractionsView> {
               ]),
               const SizedBox(height: 40),
               _buildResultsSection(context, cityPhoto),
+              if (widget.onOpenLemon != null) ...[
+                const SizedBox(height: 40),
+                LemonPromptBand(
+                    title: 'Spotted somewhere you love?',
+                    text: 'Ask Lemon to fit it into your days.',
+                    action: 'Plan with Lemon',
+                    onPressed: widget.onOpenLemon!),
+              ],
               const SizedBox(height: 28),
               PhotoCredits(photos: [
                 DiscoverContent.sights,
@@ -184,10 +197,9 @@ class _AttractionsViewState extends State<AttractionsView> {
         label: const Text('Discover Attractions'),
         style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)));
+            textStyle: AppTheme.buttonText(size: 16)));
     return LayoutBuilder(builder: (context, box) {
-      if (box.maxWidth >= 600) {
+      if (searchRowFits(context, box.maxWidth, 600)) {
         return Row(children: [
           Expanded(child: city),
           const SizedBox(width: 12),
@@ -318,8 +330,9 @@ class _AttractionsViewState extends State<AttractionsView> {
   }
 
   Widget _buildAttractionCard(AttractionItem item) {
-    // Each category keeps its own palette tone: accent tile, tinted chip.
-    final (tint, accent) = AppTheme.toneFor(item.category);
+    // As on Hotels: a lemon icon tile (with its matching category tag), a
+    // sky blue button and the sand of the page (DECISIONS 051).
+    const tint = AppTheme.lemonTint, accent = AppTheme.lemonAccent;
     return HoverCard(
         builder: (active) => Padding(
             padding: const EdgeInsets.all(22),

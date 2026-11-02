@@ -43,7 +43,8 @@ class LemonChatResult {
     this.nextField,
   });
 
-  factory LemonChatResult.fromJson(Map<String, dynamic> json) => LemonChatResult(
+  factory LemonChatResult.fromJson(Map<String, dynamic> json) =>
+      LemonChatResult(
         // Defense-in-depth: also sanitize on the client even though the
         // backend already strips markdown before sending this over.
         reply: cleanAiText(json['reply'] as String? ?? ''),
@@ -54,7 +55,9 @@ class LemonChatResult {
         endDate: json['end_date'] as String?,
         travelers: (json['travelers'] as num?)?.toInt(),
         budgetLevel: json['budget_level'] as String?,
-        interests: (json['interests'] as List? ?? []).map((e) => e.toString()).toList(),
+        interests: (json['interests'] as List? ?? [])
+            .map((e) => e.toString())
+            .toList(),
         ready: json['ready'] as bool? ?? false,
         nextField: json['next_field'] as String?,
       );

@@ -249,7 +249,10 @@ class _FlightsViewState extends State<FlightsView> {
                     'Compare routes, schedules and prices in one place, then let Lemon plan the days around them.',
                 tip:
                     'Use 3-letter airport codes, like KUL for Kuala Lumpur or NRT for Tokyo Narita.',
-                search: SearchCard(child: _buildSearchFields()),
+                // Capped like Hotels and Attractions; still wide enough
+                // (1052 px inside) for the four fields and the button on
+                // one row.
+                search: SearchCard(maxWidth: 1080, child: _buildSearchFields()),
               ),
               const SizedBox(height: 20),
               if (_tripAirports.isNotEmpty ||
@@ -328,7 +331,9 @@ class _FlightsViewState extends State<FlightsView> {
           Flexible(
               child: Text(_departureDate,
                   style: searchValueStyle.copyWith(
-                      fontSize: 18, fontWeight: FontWeight.w500))),
+                      fontFamily: AppTheme.tripBodyFont,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600))),
         ]));
     final travelers = SearchField(
         label: 'Travelers',
@@ -338,7 +343,9 @@ class _FlightsViewState extends State<FlightsView> {
                 isDense: true,
                 isExpanded: true,
                 style: searchValueStyle.copyWith(
-                    fontSize: 18, fontWeight: FontWeight.w500),
+                    fontFamily: AppTheme.tripBodyFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600),
                 icon: const Icon(Icons.expand_more_rounded,
                     color: AppTheme.primary),
                 items: [for (var n = 1; n <= _maxAdults; n++) n]
@@ -351,28 +358,45 @@ class _FlightsViewState extends State<FlightsView> {
                     _search();
                   }
                 })));
-    final button = ElevatedButton.icon(
-        onPressed: _isLoading ? null : _search,
-        icon: const Icon(Icons.search_rounded, size: 20),
-        label: const Text('Find Flights'),
-        style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)));
+    final button = SearchButton(
+        label: 'Find Flights', onPressed: _isLoading ? null : _search);
     return LayoutBuilder(builder: (context, box) {
-      if (box.maxWidth >= 900) {
+      // The button sits beside the fields rather than on its own full-width
+      // row below them, so the card has no empty band.
+      if (searchRowFits(context, box.maxWidth, 960)) {
         return Row(children: [
           Expanded(flex: 3, child: from),
           Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6), child: swap),
           Expanded(flex: 3, child: to),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(flex: 4, child: date),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(flex: 3, child: travelers),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           button,
         ]);
+      }
+      if (searchRowFits(context, box.maxWidth, 600)) {
+        return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(children: [
+                Expanded(child: from),
+                Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: swap),
+                Expanded(child: to),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(flex: 4, child: date),
+                const SizedBox(width: 10),
+                Expanded(flex: 3, child: travelers),
+                const SizedBox(width: 10),
+                button,
+              ]),
+            ]);
       }
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -608,8 +632,10 @@ class _FlightsViewState extends State<FlightsView> {
         width: size,
         height: size,
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-            color: AppTheme.toneFor(offer.carrier).$2, shape: BoxShape.circle),
+        decoration: const BoxDecoration(
+            // Every carrier is sky blue; lemon and sand mark the stops.
+            color: AppTheme.cta,
+            shape: BoxShape.circle),
         child: Text(offer.carrier,
             style: const TextStyle(
                 color: AppTheme.textPrimary, fontWeight: FontWeight.w700)),
@@ -620,13 +646,14 @@ class _FlightsViewState extends State<FlightsView> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       decoration: BoxDecoration(
-          color: direct ? AppTheme.sky : AppTheme.sand,
+          // Direct is lemon yellow, any stops warm sand (DECISIONS 051).
+          color: direct ? AppTheme.lemonAccent : AppTheme.sand,
           borderRadius: BorderRadius.circular(999)),
       child: Text(direct ? 'Direct' : offer.stopsText,
           style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: direct ? AppTheme.primary : AppTheme.sandInk)),
+              color: direct ? AppTheme.lemonInk : AppTheme.sandInk)),
     );
   }
 
@@ -645,8 +672,8 @@ class _FlightsViewState extends State<FlightsView> {
   Widget _details(FlightOffer offer) => OutlinedButton(
       onPressed: () => _showDetails(offer),
       style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700)),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          textStyle: AppTheme.buttonText(size: 14, weight: FontWeight.w700)),
       child: const Text('View details'));
 
   Widget _clock(String time, String airport, CrossAxisAlignment align) =>

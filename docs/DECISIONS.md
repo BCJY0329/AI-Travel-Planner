@@ -200,3 +200,171 @@ Consequences: a 30-day plan can take up to about 5½ minutes before the client g
 Chosen by the user after a series of mocks (canvas https://claude.ai/artifact/L5nqavbdcThi8BAWxF8LCj). Sky Mint is replaced by Calm Sky Blue and a warm-neutral third colour is added, balanced 60/30/10 in `app_theme.dart`: 60% warm neutrals (cream page, `sorbet` #FBF6E3, `sand` #F1E6D3) carry Lemon's halo, her tip boxes, step numbers, tags and badges; 30% sky blue marks everything pressable (`cta` #B5D3F2 with `ctaInk` #23395B for the main action, `ctaSoft` #E3EFFB for partners, `skyBlue` #CFE1F6 for the selected tab and chips, `primary` #2F5F98 for links and icons); 10% lemon yellow belongs to Lemon only (avatar ring, a rim round her sorbet halo, a slim "adventure." underline, her tip bulb, the lemon on the wordmark). Supersedes the lemon CTA buttons of DECISIONS 026 and 041. Old Sky Mint names were renamed (`skyMint`→`skyBlue`, `skyMintBright`→`skyBlueBright`, `teal`→`primary`, `mint`→`paleBlue`) and pale `lemon` removed; secondary text darkened to #52637A so it keeps 4.5:1 on the blue chips and sand. Itinerary days cycle sky, peach, sand and lilac.
 
 The lemon icon tile is gone. `LemonBrand` is now a Fredoka 600 wordmark at 26–29px whose "i" is a dotless ı with a painted lemon and leaf as its dot (positioned from Fredoka's x-height, 0.5 em). It plays one colour wave (dark → lemon → sand → dark, per letter, about 2.9 s with the lemon wiggle) when it first appears and again on hover; it never loops, honours `disableAnimations`, and exposes the semantics label "LemonTrip". The nav bar gives it room and a divider before the tabs.
+
+## 044 - Page colours for the search buttons; warm sand for "Plan with Lemon" (2026-11-01)
+
+**Partly superseded by 046:** Hotels and Attractions are sky blue again. The sand pre-plan itinerary and the sand "Plan with Lemon" bands stay.
+
+Approved by the user on the mock canvas (page "Page colours", https://claude.ai/artifact/L5nqavbdcThi8BAWxF8LCj). **Implemented in Flutter on 2026-11-01** (`PagePalette` in `app_theme.dart`, `PageTone` and `planWithLemonStyle` in `page_parts.dart`). This narrows the "sky blue marks everything pressable" rule of DECISIONS 043 in two places only:
+
+- Each search page has its own palette colour, and its search button takes that colour. Flights stays sky blue ("Find Flights": `cta` #B5D3F2 with `ctaInk` #23395B). On Hotels, "Find Hotels" is peach (#FFC9AE with ink #5A2A12, about 8:1). On Attractions, "Discover Attractions" is lilac (#CFC6F2 with ink #2F2566, about 7.9:1). The pre-plan Itinerary page is sand and has no search button. The page colour also tints that page's hero, search card, step numbers and result tiles in the mock.
+- "Plan with Lemon" calls to action are warm sand (#E8D3AC fill, #D9BF92 border, ink #4E3B22, about 7.4:1). This covers the strip at the foot of Flights, Hotels and Attractions, the hero button on the pre-plan Itinerary page, and "Plan a trip with Lemon" and "Start planning" on Discover. The strip's card stays sorbet with a sand border.
+
+Every other pressable item stays sky blue as DECISIONS 043 says. That includes "View details", "View location", chips, filters, tabs, swap, "Explore places" and Lemon's chat buttons. Lemon yellow stays reserved for Lemon.
+
+In Flutter the page colour reaches the shared parts through `PageTone`: the banner's tint and eyebrow pill, the search card's fill, and each field's label and outline. Fields are white boxes whose outline keeps 3:1 on white (`PagePalette.field`). It also reaches the how-to step numbers. Hotel bed tiles and attraction tiles and tags take the page colour too. Outside a `PageTone`, as on the planned itinerary, `HowToSteps` keeps its earlier sky, peach and lilac tints. Hotels and Attractions gained the "Plan with Lemon" band that Flights already had. The pre-plan itinerary is now a sand page with:
+
+- Lemon's invitation
+- her five questions
+- four placeholder days in the day colours
+
+On Discover, the hero has a sorbet eyebrow pill and the single headline "A little curiosity." (the underlined "A whole new adventure." line is gone). The new subtitle is "Tell Lemon where you'd like to go and she'll shape the days around what you love.". The three steps are coloured pills, "Explore places" is white with a sky edge, and the "Ready when you are" card is sand.
+
+## 045 - Lemon.ai chat panel: sorbet header, lemon badge, coloured progress and bubbles (2026-11-01)
+
+Chosen by the user from the halo mocks (option A combined with C; canvas board "Chosen: A + C, progress colours, lemon-to-sand messages"). Implemented in `lemon_chat_panel.dart` and `chat_bubble.dart`.
+
+- **Header:** a sorbet gradient header with a thin lemon ring and soft glow around Lemon. The wordmark's lemon (`LemonMark`) sits on her shoulder as a badge. The green online dot stays, and the word "Online" is not added. The panel edge is sand.
+- **Step progress:** grey (`stepTodo`) before a step, warm sand (`stepCurrent`) while it waits for an answer, and lemon once answered. Grey and sand are close in lightness, so answered steps also get a tick and the current label is bold. Each step's semantics label still says "done", "current step" or "to do".
+- **Bubbles:** the traveller's bubbles fade lemon → pale lemon → sand with `lemonInk` text. Lemon's fade sky blue (`cta`) → lilac with `ctaInk` text. Both use weight 600 on a pale cream message area. This supersedes the white Lemon bubble and the sky blue traveller bubble.
+- **Chat buttons:** the panel's buttons, send button and message box stay sky blue (DECISIONS 041 and 043).
+
+## 046 - Search pages back to sky blue; Outfit on named controls; shuffled tip names (2026-11-01)
+
+After seeing the Flutter build, the user found peach and lilac cards next to sky blue buttons looked unnatural.
+
+- **Colours:** Hotels and Attractions return to the sky blue look Flights has, with no `PageTone`. That covers the banner, search card, fields, "Find Hotels" and "Discover Attractions", the how-to steps (back to their rotating tints), the hotel bed tiles and the per-category attraction tiles. The rest of DECISIONS 044 stays: the pre-plan itinerary is sand, and every search page ends with the warm sand and lemon "Plan with Lemon" band. `PagePalette.peach` and `PagePalette.lilac` remain in `app_theme.dart` but are unused by pages.
+- **Bold text:** text that sets its own style without naming a font falls back to Roboto, which Flutter on the web shows without a real bold, so it looked slim. The user chose the bundled Outfit font for these controls only: the Find Flights, Find Hotels and Discover Attractions buttons (700); the Flights Departure and Travelers values and the Hotels search radius value (600, up from 500); the "Copy itinerary" button (700); and the top navigation tabs (600, or 700 for the open tab, at 14.5 px). Any other text change waits for the user to ask.
+- **Tip names:** a planned day no longer labels its stops' tips in the same order every day. `tipLabelFor(day, stop)` in `itinerary_view.dart` picks from the 24 orderings of the four labels, shuffled once with a fixed seed. The result is stable across rebuilds, no two days in a row share an order, and no label repeats within a day's first four stops.
+
+## 047 - Three colours only; the mock's search button; Outfit in the Discover hero (2026-11-01)
+
+**Partly superseded by 048:** the three-colour rule covers Flights, Hotels and Attractions only, and the Hotels and Attractions search buttons are back to their earlier pill style.
+
+The user asked that pages use only the app's three colours, calm sky blue, lemon yellow and warm sand, balanced between them. They also asked for the mock's search button design and the mock's Outfit type in the Discover hero.
+
+- **Colours:** `AppTheme.softTones` is now sky blue, lemon (new `lemonTint` and `lemonAccent`) and warm sand; peach and lilac are gone from it. Anything that rotates through it follows: hotel bed tiles, attraction tiles and tags, flight carrier dots and itinerary days (which now repeat every three days). `HowToSteps` outside a `PageTone` uses sky, lemon and sorbet. The Discover hero's step pills are sky, lemon and sand. `PagePalette.peach`, `PagePalette.lilac`, `AppTheme.peach`, `peachAccent` and `lilacAccent` were removed. `AppTheme.lilac` remains only as the far end of Lemon's chat bubble fade (DECISIONS 045). The chat panel was not part of this request.
+- **Search button:** the shared `SearchButton` in `page_parts.dart` replaces each page's own button. It is sky blue (`cta`) with `ctaInk` text in Outfit 800 at 16 px, has 18 px corners, a soft blue shadow (the mock's rgba(110,160,220,.4), 10 px blur, 3 px down) and is at least 66 px tall. On Flights it takes its own full-width row under the fields. On Hotels and Attractions it ends the field row at the fields' height, at least 240 or 280 px wide. Attractions now uses the search icon, as in the mock. `searchRowFits` scales each page's row breakpoint (900, 700, 600 px) by the text size, so large text stacks the fields with the button underneath.
+- **Discover hero:** the eyebrow, subtitle, step pills and both buttons use Outfit; "Plan a trip with Lemon" is Outfit 800 at 16 px and "Explore places" Outfit 700. The title stays Unbounded and Lemon's greeting bubble stays Fredoka.
+
+## 048 - Three colours on the search pages only; chat bubbles swapped; KI-28 fixed (2026-11-01)
+
+The user clarified that the sky blue, lemon and warm sand rule from 047 was meant for the Flights, Hotels and Attractions pages only.
+
+- **Itinerary and Discover keep their earlier colours.** Itinerary days rotate sky blue, peach, warm sand and lilac again, and the planned itinerary's how-to steps use sky, peach and lilac. The Discover hero's step pills are sky, peach and lilac, as in the approved mock. `AppTheme.peach`, `peachAccent` and `lilacAccent` are back. `softTones` stays sky blue, lemon and sand; only the search pages use it. `HowToSteps` takes a `tints` list, which defaults to `searchTints` (sky, lemon, sorbet); the itinerary passes its own.
+- **Search buttons:** the rounded `SearchButton` made the Hotels and Attractions search bars look bulky, because the row stretched the fields to the button's height. Those two pages are back to the theme's sky blue pill button (Outfit 700) at its natural height in a plain row. Flights keeps `SearchButton` on its own row under the fields. `searchRowFits` stays on all three, so large text stacks the fields.
+- **Chat bubbles** (replaces the colours in 045): Lemon's bubbles fade lemon yellow → pale lemon → warm sand with `lemonInk` text (over 10:1). The traveller's fade sky blue (`cta`) → lilac with `ctaInk` text (7.5:1 or more). The shadows swapped to match.
+- **KI-28 fixed:** `ResultsBanner` was a fixed 150 px tall. It is now at least 150 px and grows with its text. The photo and shade are `Positioned.fill` layers behind a `Container` with `minHeight: 150`, 18 px top and bottom padding, and the text centred on the left.
+
+## 049 - Attraction tiles rotate; compact one-field search; larger nav tabs (2026-11-01)
+
+- **Attraction tiles:** colours came from each result's category (`toneFor`). A search that returns only "Sightseeing" therefore showed every card in sky blue. Tiles and tags now rotate sky blue, lemon and sand by card position, as hotel tiles do. `toneFor` still colours the flight carrier dots.
+- **One-field search card:** on Attractions, the only search page with a single field, the search card is capped at 760 px and sits to the left in the banner instead of stretching across it. Pages with two or more fields keep the full width.
+- **Nav tabs:** the top navigation labels went from 14.5 to 16 px (Outfit, 600, or 700 for the open tab) and their icons from 18 to 20 px.
+
+## 050 - Nunito for Lemon.ai chat messages and typing (2026-11-01)
+
+The chat's message bubbles and typing boxes fell back to Roboto, which on Flutter web shows no real bold and looked slim. From the options offered (Nunito, Outfit, Lexend), the user chose **Nunito**: rounded and friendly to match Lemon's voice and her Fredoka tips, and readable at chat size.
+
+- **Files:** `assets/fonts/Nunito-400/600/700/800.ttf` are static Latin-subset TTFs from Fontsource (jsDelivr CDN), the same source used for Nunito in DECISIONS 021. The licence, `OFL-Nunito.txt` (SIL OFL 1.1), sits beside them. They are registered as the `Nunito` family in `pubspec.yaml`, with no new package, so tests stay offline. Characters outside the Latin subset fall back to platform fonts.
+- **Where:** `AppTheme.chatFont`. It covers both voices' message bubbles (`chat_bubble.dart`, weight 600) and the panel's three typing boxes: destination, number of travellers and other interests. In those boxes, `_ChatTyping` in `lemon_chat_panel.dart` sets the typed text (600), label, hint, helper and error text.
+- **Unchanged:** the panel title (Poppins), the subtitle, the step labels, the buttons and the interest chips.
+- Nunito has no italic file, so the few italic bubbles use a slanted regular.
+
+## 051 - One role per colour on result cards; Lemon's hover card matches the chat (2026-11-01)
+
+The search pages' result cards now give each colour one job instead of rotating colours.
+
+- **Flights:** every carrier circle is sky blue (`cta`). The "Direct" pill is lemon (`lemonAccent` with `lemonInk`), and stop pills stay warm sand. "Lowest price" is unchanged.
+- **Hotels and Attractions:** every icon tile is lemon (`lemonAccent`), and so is the attraction category tag (`lemonTint` with a `lemonAccent` edge), as it always matched its tile. The "View location" button is the existing sky blue pill, and the card number stays sand. This supersedes the card rotation in 049.
+- `AppTheme.softTones` and `toneFor` had no callers left, so they were removed.
+- **Lemon's hover card** (`lemon_bubble.dart`), the launcher grown on hover or focus, now matches the chat panel:
+  - The chat header's sorbet fade, a sand edge and a sand-tinted shadow.
+  - "Hey, explorer!" in Poppins 700 `sandInk`, with the invitation in Nunito 600 `sorbetInk`.
+  - "Let's plan together" as a sky blue pill label (the whole card stays the one button).
+  - Lemon's round avatar on a sorbet disc with the panel's lemon ring and glow, in place of the full-length picture.
+  - The small round launcher and its pulse are unchanged.
+
+## 052 - Classify attractions from Geoapify's full category list (2026-11-01)
+
+Almost every attraction landed in the "Sightseeing" chip. The backend returned only the first entry of Geoapify's per-place `categories` array. That is often a broad parent such as `building`, though Geoapify's real ordering was not checked against a live response. The app then classified from that one string.
+
+- **Backend** (`routers/places.py`): each attraction carries `categories`, the full list of strings. `category` is kept as the first entry for older clients. The Geoapify request adds `heritage` (`ATTRACTION_CATEGORIES` = `tourism.sights,tourism.attraction,entertainment,heritage`), so castles, monuments and protected sites without a tourism tag are found. `limit` (20) and `radius_km` are unchanged. The response is a plain dict, so no Pydantic model was involved.
+- **App** (`AttractionItem` in `models/travel_models.dart`): `categories` is parsed from JSON. When it is absent (older responses or cache entries), the list falls back to `[category]`. `AttractionItem.classify`, a pure static helper, checks every entry, most specific first:
+  1. any entry starting with `entertainment` → Entertainment;
+  2. any entry starting with `heritage` or containing `culture` → Culture & Heritage;
+  3. any entry starting with `tourism.sights` or `tourism.attraction` → Landmark & Sights;
+  4. otherwise Sightseeing.
+- Because every entry is checked, the result doesn't depend on Geoapify's order. Heritage now outranks sights, where the old single-string check ranked sights first. A castle tagged both is Culture & Heritage, and a museum tagged `entertainment.museum` is Entertainment.
+- Chip labels and icons in `attractions_view.dart` are unchanged.
+- **Side effect:** the itinerary builder JSON-dumps the attractions response into the plan prompt, so the new lists add some prompt length. Plan output and the prompt's instructions are unchanged.
+
+## 053 - One attractions search per chip; white Lemon bubbles; full hover avatar; compact search cards (2026-11-01)
+
+**Attractions (KI-29).** After 052 the user still saw almost no variety. The backend and app were both running the 052 code (uvicorn reloaded at 17:38, the app started at 20:29). The Paris response the app had already fetched, read back from the local cache with no new Geoapify call, held 14 named places. Nine were memorial plaques or monuments. None came from `entertainment`, and none were museums. One search for 20 places in no useful order is dominated by whatever is most numerous. The user chose one search per chip.
+
+- **Backend** (`routers/places.py`): `ATTRACTION_GROUPS` holds four Geoapify searches, run at once: `tourism.attraction`; `tourism.sights`; `heritage,entertainment.museum,entertainment.culture`; `entertainment`.
+  - Each search asks for 20 places, nearest to the centre first (`bias=proximity`).
+  - Up to 10 are kept per search. A place already listed by an earlier search is skipped. Plain memorials (`tourism.sights.memorial` with no more specific memorial, heritage or entertainment tag) go last.
+  - A search that fails is logged, with type and status only, as httpx messages carry the URL and `apiKey`. The rest are returned without being cached, so the next request tries again. If every search fails, the first failure becomes the error, as before.
+  - This is up to 4 Geoapify requests per city and radius on a cache miss, where there was 1.
+- **App** (`AttractionItem.classify`): the chips now match the four searches. The page tip already says Culture & Heritage is "great for museums and monuments", so museums move there from Entertainment:
+  1. `heritage`, `entertainment.museum` or anything containing `culture` → Culture & Heritage;
+  2. other `entertainment` (zoos, theme parks, cinemas) → Entertainment;
+  3. `tourism.sights` (monuments, towers, ruins, memorials) → Landmark & Sights;
+  4. everything else, including `tourism.attraction` artworks, viewpoints and fountains → Sightseeing.
+- This supersedes 052's ranking, which put entertainment first and counted `tourism.attraction` as a landmark, and its single search.
+- **Prompt:** up to 40 places, not 20, now reach the plan prompt as context. Plan output and instructions are unchanged.
+
+**Lemon's chat bubbles** are white, with a pale lemon border (`lemonBubbleEdge`), a 4 px `accentLemon` stripe on the left and the same soft lemon shadow. Yellow emoji were lost on the lemon-to-sand fade. The user asked for a recommendation, and this keeps Lemon's colour on the edge while the emoji sit on white. Text stays `lemonInk`. The traveller's sky-to-lilac bubble is unchanged. This supersedes 048's Lemon bubble; `AppTheme.lemonBubble` is removed.
+
+**Lemon's hover card** shows her full, uncropped avatar again (`lemon_avatar.png`, 88 × 116, `BoxFit.contain`), as before 051. The user preferred it to the 051 circle crop. The rest of the 051 look (sorbet fade, sand edge, fonts, sky blue call to action) stays.
+
+**Search cards:** `SearchCard` takes an optional `maxWidth` and left-aligns itself within it. Attractions keeps 760, Hotels is 940 and Flights 1080. Those still leave room for every field on one row at desktop width: 700 and 900 px inside the card. Narrow screens and large text stack as before. This extends 049's compact card to Hotels and Flights, at the user's request.
+
+## 054 - Flights search button beside the fields (2026-11-01)
+
+The user asked to move search buttons beside the fields wherever a card has several fields, to remove empty space. Hotels and Attractions already did this, so only Flights changed: its "Find Flights" `SearchButton` no longer takes its own full-width row under the fields.
+
+- **Wide** (row fits 960 px inside the card, scaled for large text): From, swap, To, Departure, Travelers and the button sit on one row. The card keeps its 1080 cap (1052 px inside).
+- **Medium** (fits 600 px): two rows. From, swap and To on the first; Departure, Travelers and the button on the second.
+- **Narrow** (phones, large text): stacked as before, with the button last.
+
+This supersedes the full-width Flights button row from 047/053.
+
+## 055 - Lemon's chat bubbles: plain white, no yellow outline (2026-11-01)
+
+The user found the 053 bubbles unattractive: the 1.5 px lemon border, the 4 px `accentLemon` stripe and the lemon shadow put a yellow frame round every message, so lemon took far more than its 10% share, and the 🍋 emoji sat right beside a stripe of the same yellow.
+
+- Lemon's bubble is plain white with a 1 px warm hairline (`lemonBubbleEdge`, now `#EDE6D6`) and a soft warm-grey shadow (`bubbleShadow` at 8%, blur 10). The stripe and its clip are removed. Her yellow stays on her avatar, the header badge and the wordmark.
+- White gives yellow, blue and other emoji the most contrast. Her text is `chatText` slate (9:1 on white) at Nunito 400, matching the app's slate-blue ink, where it was near-black `lemonInk` at 600.
+- The traveller's sky-to-lilac bubble is unchanged apart from a slightly softer shadow; its text stays `ctaInk` at 600.
+
+This supersedes 053's Lemon bubble.
+
+## 056 - One button font, slightly taller and solid buttons (2026-11-02)
+
+The user found button fonts inconsistent, some buttons a little short, and some flat and dull next to "Find Flights" (sky fill, soft blue shadow, extra bold label), which they named as the model for every button.
+
+- **Font:** every button label uses `AppTheme.buttonFont` (Outfit) through `AppTheme.buttonText()`: 800 on filled buttons (theme `ElevatedButton`, `SearchButton`, `planWithLemonStyle`), 700 on outlined, text and pill buttons. The theme sets it whether or not a body font is given, so the light theme (app frame, Lemon's chat panel, dialogs) no longer falls back to Roboto. Hotels' and Attractions' search buttons move from 700 to 800 to match Find Flights. Outfit was chosen because it already carries the search buttons, nav tabs and trip pages and is bundled at 400–800.
+- **Solid:** `AppTheme.solidElevation()` gives filled buttons a resting shadow (elevation 3, 6 on hover or focus, 0 when disabled) in `ctaShadow` (the Find Flights blue at 50%), or warm sand on "Plan with Lemon". Outlined partner buttons keep their pale sky fill with a deeper `ctaEdge` outline (`#9CC2EA`) and a faint shadow (1, 3 on hover). Result-card pills ("View location") get a light shadow too. `SearchButton` keeps its own decorated shadow (elevation 0 on the button itself so it isn't doubled).
+- **Height, a few px only:** theme filled buttons 14 → 16 px vertical padding with a 48 px minimum; outlined 12 → 14 (44 minimum); pills 12 → 14; "View details" 14 → 15; Itinerary's "Copy itinerary" and "Change with Lemon" 16 → 17; chat panel actions 52 → 54 and 48 → 50 tall. Buttons that were already 18–22 px padded are unchanged.
+
+Colours and shapes are unchanged: sky blue stays the pressable colour and sand stays "Plan with Lemon" (044, 047, 048).
+
+## 057 - Lemon.ai chat polish, Lexend, hover card, centred search, filled partner button (2026-11-02)
+
+Built from the canvas page "Chat panel polish" (https://claude.ai/artifact/L5nqavbdcThi8BAWxF8LCj), which the user approved, plus the user's follow-up requests. New pieces live in `lib/widgets/chat_parts.dart`. Every animation is skipped when animations are turned off.
+
+- **Messages rise in:** each new message fades in while rising 12 px (380 ms). Messages already there when the panel opens show at once. Each step's controls rise in 120 ms after Lemon's question.
+- **Typing dots:** while Lemon reads the destination (`/lemon/chat`), three bobbing dots show in a Lemon bubble, replacing the spinner and "Finding your destination…". Screen readers hear "Lemon is finding your destination…". The guided steps answer locally and at once, so they get no artificial delay.
+- **Planning card:** while the plan builds, a sorbet card replaces the spinner. It holds Lemon's face floating in a pulsing lemon ring, "Lemon is planning your trip", a status line that changes every 2.5 s and holds on the last one, a sliding lemon-to-sky bar, and "Longer trips can take over a minute. You can keep browsing while you wait." The lines run on a timer, not on progress (the backend sends none), so they stay general. Browsing is safe because the controller lives in `HomeScreen`, not in the panel.
+- **Pill chat box:** the destination field is a white pill with the sky blue send button (arrow up) inside it, a deeper sky edge and a soft sky glow while focused. The hint is "Try Kyoto, or a beach trip in Bali". The send button is enabled whenever Lemon can take a message, and an empty box sends nothing.
+- **Budget pills (`OptionPill`):** icon tile, Outfit label, Lexend hint ("Simple stays, local food, free sights" / "Mid-range stays and a few treats" / "Top hotels and special experiences") and a tick circle. White with a pale sky edge at rest, lifting on hover, solid sky blue with a shadow once picked.
+- **Interest pills (`InterestPill`):** each interest has an icon. Picked pills fill sky blue with a shadow, and the icon pops into a tick. A "N picked · tap again to remove" line appears under them. The "Other interests" field is keyed so it keeps focus as that line and the hint come and go (see KNOWN_ISSUES).
+- **Lexend for Lemon's words:** `AppTheme.chatFont` is now Lexend (bundled 400/600/700 Latin TTFs from Fontsource, OFL licence in `assets/fonts/OFL-Lexend.txt`), compared against Nunito, Figtree, Plus Jakarta Sans, DM Sans and Atkinson Hyperlegible on the canvas. It is used for both bubbles, the typing boxes, pill hints, the planning card and the hover card's invitation. This supersedes 050. Nunito is no longer in `pubspec.yaml`, and its font files were deleted at the user's request.
+- **Hover card:** the sky blue "Let's plan together →" pill is removed, since the whole card opens the chat. The title is "Hi, I'm Lemon!" in Fredoka 700 (it was "Hey, explorer! ✨" in Poppins; the sparkle had read as an AI symbol before), and the invitations are rewritten in Lexend 400. Lemon's full, uncropped avatar stays (053).
+- **Search cards centred:** `SearchCard` keeps its width caps (Attractions 760, Hotels 940, Flights 1080) and now centres within the page instead of aligning left.
+- **"Explore places"** (Discover hero) was white. It is now filled with its own outline colour (`ctaEdge`) and has the filled-button shadow (3, 6 on hover). The user kept "Sign in" white.
+
+**Approved:** the user reviewed the running app on 2026-11-02 and approved this round, including 056's buttons ("i like it now").

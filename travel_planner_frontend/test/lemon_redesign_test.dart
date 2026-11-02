@@ -404,9 +404,9 @@ void main() {
       } else {
         expect(second.dy, greaterThan(first.dy));
       }
-      await tester.ensureVisible(find.text("A little tip from Lemon").first);
+      await tester.ensureVisible(find.text(tipLabelFor(1, 1)).first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text("A little tip from Lemon").first);
+      await tester.tap(find.text(tipLabelFor(1, 1)).first);
       await tester.pumpAndSettle();
       expect(find.text('Bring comfortable shoes'), findsOneWidget);
       expect(tester.takeException(), isNull);

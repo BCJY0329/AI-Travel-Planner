@@ -1,5 +1,49 @@
 import 'package:flutter/material.dart';
 
+/// One page's colour from the palette. The search pages use sky blue (the
+/// default) and the pre-plan itinerary uses sand (DECISIONS 044, 046, 047).
+/// It tints the hero, search card, field labels, step numbers and tiles.
+class PagePalette {
+  final Color tint, mid, card, accent, deep, ink, body, field;
+  final Color search, searchInk;
+  const PagePalette(
+      {required this.tint,
+      required this.mid,
+      required this.card,
+      required this.accent,
+      required this.deep,
+      required this.ink,
+      required this.body,
+      required this.field,
+      required this.search,
+      required this.searchInk});
+
+  // Contrast: deep labels are 5.6–6.8:1 on white, ink and body 7:1 or more
+  // on tint, field outlines at least 3:1 on white.
+  static const sky = PagePalette(
+      tint: Color(0xFFEEF5FC),
+      mid: Color(0xFFCFE1F6),
+      card: Color(0xFFCFE1F6),
+      accent: Color(0xFFB5D3F2),
+      deep: Color(0xFF2F5F98),
+      ink: Color(0xFF23395B),
+      body: Color(0xFF52637A),
+      field: Color(0xFF7189A6),
+      search: Color(0xFFB5D3F2),
+      searchInk: Color(0xFF23395B));
+  static const sand = PagePalette(
+      tint: Color(0xFFFBF6E3),
+      mid: Color(0xFFF1E6D3),
+      card: Color(0xFFF1E6D3),
+      accent: Color(0xFFEADBC2),
+      deep: Color(0xFF7A5C2E),
+      ink: Color(0xFF4E3B22),
+      body: Color(0xFF5E4A1A),
+      field: Color(0xFF9A8259),
+      search: Color(0xFFE8D3AC),
+      searchInk: Color(0xFF4E3B22));
+}
+
 class AppTheme {
   static const motionFast = Duration(milliseconds: 200);
   static const motionStandard = Duration(milliseconds: 300);
@@ -13,7 +57,6 @@ class AppTheme {
   // - 10% lemon yellow belongs to Lemon herself: her avatar ring, the
   //   lemon on the wordmark's "i", a ring round her halo and her tip bulb.
   static const Color paleBlue = Color(0xFFE6F0FB); // Calendar range, day tint
-  static const Color peach = Color(0xFFFFEADF);
   static const Color sky = Color(0xFFEEF5FC); // Soft blue tint for boxes
   static const Color skyBlue = Color(0xFFCFE1F6); // Selected tab and chips
   static const Color skyBlueBright = Color(0xFF3D8BD9);
@@ -42,6 +85,9 @@ class AppTheme {
   static const Color cta = Color(0xFFB5D3F2);
   static const Color ctaInk = Color(0xFF23395B); // 7.5:1 on cta
   static const Color ctaSoft = Color(0xFFE3EFFB);
+  // Outline for the pale partner buttons: one step deeper than [cta] so
+  // the edge holds on white and on the pale tints.
+  static const Color ctaEdge = Color(0xFF9CC2EA);
 
   // Warm neutrals for Lemon's voice and quiet details.
   static const Color sorbet = Color(0xFFFBF6E3);
@@ -49,24 +95,38 @@ class AppTheme {
   static const Color sandBorder = Color(0xFFEADBC2);
   static const Color sandInk = Color(0xFF4E3B22); // 8.6:1 on sand
   static const Color sorbetInk = Color(0xFF5E4A1A); // 7.9:1 on sorbet
-  static const Color lilac = Color(0xFFECE8FB); // Fourth itinerary day
-  static const Color lilacAccent = Color(0xFFCFC6F2);
+  // Peach and lilac belong to the itinerary, Discover and the traveller's
+  // chat bubble only; Flights, Hotels and Attractions use sky blue, lemon
+  // and sand (DECISIONS 048).
+  static const Color peach = Color(0xFFFFEADF);
   static const Color peachAccent = Color(0xFFFFC9AE);
+  static const Color lilac = Color(0xFFECE8FB);
+  static const Color lilacAccent = Color(0xFFCFC6F2);
+  // Soft lemon for tiles, steps and day colours; textPrimary is 6.8:1 or
+  // more on both, lemonInk 12.8:1 or more.
+  static const Color lemonTint = Color(0xFFFFF6CC);
+  static const Color lemonAccent = Color(0xFFFCE89A);
 
-  /// Soft (tint, accent) pairs from the palette (sky, peach, sand, lilac)
-  /// that the search pages rotate through so cards and steps don't all share
-  /// one blue. textPrimary reads above 4.5:1 on every one of them.
-  static const List<(Color, Color)> softTones = [
-    (ctaSoft, cta),
-    (peach, peachAccent),
-    (sorbet, sand),
-    (lilac, lilacAccent),
-  ];
+  // Chat bubbles. Lemon's are plain white with a warm hairline edge and a
+  // soft shadow (DECISIONS 055): white keeps yellow and blue emoji vivid,
+  // and her yellow stays on her avatar instead of outlining every message.
+  // chatText is 9:1 on white. The traveller's fade sky blue into lilac
+  // (ctaInk, 7.5:1 or more; DECISIONS 048).
+  static const Color lemonBubbleEdge = Color(0xFFEDE6D6);
+  static const Color bubbleShadow = Color(0xFF6B5A3A);
+  static const travellerBubble = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [cta, lilac]);
 
-  /// A stable tone for [key], so the same carrier or category keeps its
-  /// colour across searches.
-  static (Color, Color) toneFor(String key) =>
-      softTones[key.codeUnits.fold<int>(0, (a, c) => a + c) % softTones.length];
+  // Chat progress: grey before a step, sand while it waits for an answer,
+  // lemon once answered.
+  static const stepTodo = Color(0xFFDDE1E6);
+  static const stepCurrent = Color(0xFFE2CBA2);
+
+  // Warm sand "Plan with Lemon" buttons (DECISIONS 044): sandInk is 7.4:1.
+  static const planButton = Color(0xFFE8D3AC);
+  static const planButtonBorder = Color(0xFFD9BF92);
 
   // Text colors: slate-blue ink that stays above 4.5:1 on cream, white,
   // the blue tints and sand (secondary: 4.6:1 on skyBlue, 6.1:1 on white).
@@ -95,6 +155,38 @@ class AppTheme {
   static const String tripHeadingFont = 'Unbounded';
   static const String tripBodyFont = 'Outfit';
   static const String noteFont = 'Fredoka';
+  // Lemon.ai chat: message bubbles, option hints, the hover card and what
+  // the traveller types (DECISIONS 057, replacing 050's Nunito). Lexend is
+  // built for easy reading, so Lemon's words stay clear without drawing
+  // attention; bundled at 400, 600 and 700.
+  static const String chatFont = 'Lexend';
+  // Every button label, on every page and in the chat panel (DECISIONS
+  // 056): Outfit, extra bold (800) on filled buttons and bold (700) on
+  // outlined, text and pill buttons, so no button falls back to Roboto.
+  static const String buttonFont = 'Outfit';
+
+  /// A button label in [buttonFont].
+  static TextStyle buttonText(
+          {double size = 15, FontWeight weight = FontWeight.w800}) =>
+      TextStyle(
+          fontFamily: buttonFont,
+          fontSize: size,
+          fontWeight: weight,
+          letterSpacing: .1);
+
+  // Solid buttons (DECISIONS 056): a soft coloured shadow under every
+  // filled button at rest, deeper on hover, none while disabled, matching
+  // the Find Flights button.
+  static const Color ctaShadow = Color(0x806EA0DC);
+  static WidgetStateProperty<double?> solidElevation(
+          {double rest = 3, double hover = 6}) =>
+      WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.disabled)
+              ? 0
+              : states.contains(WidgetState.hovered) ||
+                      states.contains(WidgetState.focused)
+                  ? hover
+                  : rest);
 
   /// Whether focus should be drawn: never after touch input, matching
   /// Material's own focus highlight.
@@ -203,30 +295,32 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: cta,
           foregroundColor: ctaInk,
-          elevation: 0,
-          shadowColor: const Color(0xFF6EA0DC).withValues(alpha: .5),
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          shadowColor: ctaShadow,
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+          minimumSize: const Size(64, 48),
           shape: const StadiumBorder(),
-          textStyle: TextStyle(
-              fontFamily: body, fontWeight: FontWeight.w700, fontSize: 14),
-        ).copyWith(
-            side: focusOutline(),
-            elevation: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.hovered) ? 4 : 0)),
+          textStyle: buttonText(),
+        ).copyWith(side: focusOutline(), elevation: solidElevation()),
       ),
+      // Partner buttons: pale sky blue with a deeper sky edge and a faint shadow, so
+      // they read as pressable without competing with the filled action.
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           backgroundColor: ctaSoft,
           foregroundColor: ctaInk,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          shadowColor: ctaShadow,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          minimumSize: const Size(64, 44),
           shape: const StadiumBorder(),
-          textStyle: TextStyle(
-              fontFamily: body, fontWeight: FontWeight.w600, fontSize: 13),
+          textStyle: buttonText(size: 14, weight: FontWeight.w700),
         ).copyWith(
-            side: focusOutline(const BorderSide(color: cta, width: 1.5))),
+            side: focusOutline(const BorderSide(color: ctaEdge, width: 1.5)),
+            elevation: solidElevation(rest: 1, hover: 3)),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: primary)
+        style: TextButton.styleFrom(
+                foregroundColor: primary,
+                textStyle: buttonText(size: 14, weight: FontWeight.w700))
             .copyWith(side: focusOutline()),
       ),
       iconButtonTheme:

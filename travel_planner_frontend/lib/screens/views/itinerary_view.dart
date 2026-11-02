@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/app_theme.dart';
@@ -20,7 +21,7 @@ const _tipInk = AppTheme.sorbetInk;
 /// to tell apart, as in the original itinerary.
 const _dayTones = [
   (AppTheme.ctaSoft, AppTheme.cta),
-  (AppTheme.peach, Color(0xFFFFC9AE)),
+  (AppTheme.peach, AppTheme.peachAccent),
   (AppTheme.sorbet, AppTheme.sand),
   (AppTheme.lilac, AppTheme.lilacAccent),
 ];
@@ -97,37 +98,7 @@ class _ItineraryViewState extends State<ItineraryView> {
   @override
   Widget build(BuildContext context) {
     final trip = widget.itinerary;
-    if (trip == null) {
-      return Center(
-          child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: const BoxDecoration(
-                            color: AppTheme.ctaSoft, shape: BoxShape.circle),
-                        child: const Icon(Icons.route_outlined,
-                            color: AppTheme.primary, size: 44)),
-                    const SizedBox(height: 24),
-                    Text('Your next adventure starts here',
-                        textAlign: TextAlign.center,
-                        style:
-                            tripHeading.copyWith(fontSize: 24, height: 1.25)),
-                    const SizedBox(height: 12),
-                    const Text(
-                        'Tell Lemon where you want to go. Choose your dates and interests, then build a day-by-day plan.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: AppTheme.textSecondary, height: 1.6)),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                        onPressed: widget.onOpenLemon,
-                        icon: const Icon(Icons.luggage_rounded),
-                        label: const Text('Plan with Lemon')),
-                  ]))));
-    }
+    if (trip == null) return _PrePlan(onOpenLemon: widget.onOpenLemon);
     final demo = trip.providerUsed == 'mock';
     final photo = _banner.resolve(widget.photos, trip.destination.trim(), () {
       if (mounted) setState(() {});
@@ -172,7 +143,11 @@ class _ItineraryViewState extends State<ItineraryView> {
                             child: GentleReveal(
                                 child: _Overview(summary: trip.summary!))),
                       const SizedBox(height: 18),
-                      HowToSteps(steps: [
+                      HowToSteps(tints: const [
+                        AppTheme.ctaSoft,
+                        AppTheme.peach,
+                        AppTheme.lilac
+                      ], steps: [
                         if (trip.days.length > 1)
                           (
                             'Pick a day to focus',
@@ -292,6 +267,7 @@ class _ItineraryViewState extends State<ItineraryView> {
                   for (var i = 0; i < day.activities.length; i++)
                     _Stop(
                         activity: day.activities[i],
+                        day: day.day,
                         number: i + 1,
                         tint: tint,
                         accent: accent,
@@ -455,13 +431,12 @@ class _TripBanner extends StatelessWidget {
                                                       padding: const EdgeInsets
                                                           .symmetric(
                                                           horizontal: 20,
-                                                          vertical: 16),
+                                                          vertical: 17),
                                                       textStyle:
-                                                          const TextStyle(
-                                                              fontSize: 14,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w700)),
+                                                          AppTheme.buttonText(
+                                                              size: 15,
+                                                              weight: FontWeight
+                                                                  .w700)),
                                                   icon: const Icon(
                                                       Icons.copy_outlined,
                                                       size: 18),
@@ -478,7 +453,7 @@ class _TripBanner extends StatelessWidget {
                                                                   horizontal:
                                                                       20,
                                                                   vertical:
-                                                                      16)),
+                                                                      17)),
                                                   child: const Text(
                                                       'Change with Lemon'))),
                                         ])),
@@ -530,7 +505,7 @@ class _Overview extends StatelessWidget {
       ]));
 }
 
-// Lemon's invitations to open a tip, rotated by stop so they don't repeat.
+// Lemon's invitations to open a tip.
 const _tipLabels = [
   'A little tip from Lemon',
   'Psst! Lemon has an idea',
@@ -538,14 +513,35 @@ const _tipLabels = [
   'Lemon’s happy hint',
 ];
 
+/// Every ordering of [_tipLabels], shuffled once with a fixed seed so a plan
+/// looks the same on every rebuild. Day n takes ordering n, so no two days in
+/// a row share an order, and no label repeats within a day's first four stops.
+final List<List<String>> _tipOrders = () {
+  List<List<String>> permute(List<String> items) => items.length <= 1
+      ? [items]
+      : [
+          for (final head in items)
+            for (final rest in permute([...items]..remove(head)))
+              [head, ...rest]
+        ];
+  return permute(_tipLabels)..shuffle(math.Random(7));
+}();
+
+/// The tip label for stop [number] (1-based) on day [day].
+String tipLabelFor(int day, int number) {
+  final order = _tipOrders[(day - 1) % _tipOrders.length];
+  return order[(number - 1) % order.length];
+}
+
 /// One stop on a day's timeline, with Lemon's tip behind a toggle.
 class _Stop extends StatefulWidget {
   final ItineraryActivity activity;
-  final int number;
+  final int day, number;
   final Color tint, accent;
   final bool last;
   const _Stop(
       {required this.activity,
+      required this.day,
       required this.number,
       required this.tint,
       required this.accent,
@@ -700,8 +696,7 @@ class _StopState extends State<_Stop> {
                         child: Text(
                             _open
                                 ? 'Hide Lemon’s tip'
-                                : _tipLabels[
-                                    (widget.number - 1) % _tipLabels.length],
+                                : tipLabelFor(widget.day, widget.number),
                             style: lemonNote.copyWith(
                                 color: _tipInk,
                                 fontSize: 15.5,
@@ -715,4 +710,194 @@ class _StopState extends State<_Stop> {
                   ]))),
         ),
       )));
+}
+
+/// The itinerary page before a plan exists: the sand page (DECISIONS 044).
+/// Lemon invites the traveller in, lists her five questions and shows where
+/// the days will appear.
+class _PrePlan extends StatelessWidget {
+  final VoidCallback onOpenLemon;
+  const _PrePlan({required this.onOpenLemon});
+
+  static const _tone = PagePalette.sand;
+  static const _questions = [
+    ('Where', 'A city, region or country.'),
+    ('When', 'Up to 30 days.'),
+    ('Who', 'How many are travelling.'),
+    ('Budget', 'Budget-friendly, comfortable or premium.'),
+    ('Loves', 'Food, culture, nature and more.'),
+  ];
+
+  @override
+  Widget build(BuildContext context) => PageTone(
+      palette: _tone,
+      child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 120),
+          child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1180),
+                  child: LayoutBuilder(builder: (context, box) {
+                    final wide = box.maxWidth >= 820;
+                    return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          GentleReveal(child: _hero(wide)),
+                          const SizedBox(height: 30),
+                          _heading('What Lemon will ask'),
+                          const SizedBox(height: 14),
+                          _grid(box.maxWidth, wide ? 5 : 2, [
+                            for (var i = 0; i < _questions.length; i++)
+                              _question(i + 1, _questions[i]),
+                          ]),
+                          const SizedBox(height: 30),
+                          _heading('Your days will appear here'),
+                          const SizedBox(height: 14),
+                          ExcludeSemantics(
+                              child: _grid(box.maxWidth, wide ? 4 : 2, [
+                            for (var i = 0; i < 4; i++) _ghostDay(i),
+                          ])),
+                        ]);
+                  })))));
+
+  Widget _hero(bool wide) {
+    final copy = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                  color: _tone.tint, borderRadius: BorderRadius.circular(999)),
+              child: Text('MY ITINERARY',
+                  style: TextStyle(
+                      color: _tone.ink,
+                      fontSize: 12.5,
+                      letterSpacing: 1.4,
+                      fontWeight: FontWeight.w800))),
+          const SizedBox(height: 14),
+          Text('Your next adventure starts here',
+              style: tripHeading.copyWith(
+                  color: _tone.ink,
+                  fontSize: wide ? 38 : 26,
+                  height: 1.18,
+                  letterSpacing: -1)),
+          const SizedBox(height: 14),
+          ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Text(
+                  'Tell Lemon where you want to go. Choose your dates and interests, then build a day-by-day plan.',
+                  style:
+                      TextStyle(color: _tone.body, fontSize: 17, height: 1.6))),
+          const SizedBox(height: 20),
+          HoverLift(
+              child: ElevatedButton.icon(
+                  onPressed: onOpenLemon,
+                  style: planWithLemonStyle(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 26, vertical: 18)),
+                  icon: const Icon(Icons.luggage_rounded, size: 20),
+                  label: const Text('Plan with Lemon'))),
+        ]);
+    final lemon = Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+          constraints: const BoxConstraints(maxWidth: 320),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+          decoration: BoxDecoration(
+              color: AppTheme.surface,
+              border: Border.all(color: AppTheme.accentLemon, width: 2),
+              borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(4))),
+          child: Text(
+              "Five quick questions and I'll sketch out every day for you.",
+              style: lemonNote.copyWith(color: _tone.ink, fontSize: 16.5))),
+      const SizedBox(height: 14),
+      LemonCircle(
+          size: wide ? 150 : 110,
+          background: _tone.tint,
+          ring: AppTheme.accentLemon),
+    ]);
+    return Container(
+        padding: EdgeInsets.all(wide ? 44 : 24),
+        decoration: BoxDecoration(
+            color: _tone.mid,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: _tone.accent)),
+        child: wide
+            ? Row(children: [
+                Expanded(child: copy),
+                const SizedBox(width: 40),
+                lemon,
+              ])
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [copy, const SizedBox(height: 24), lemon]));
+  }
+
+  Widget _heading(String text) => Text(text,
+      style: tripHeading.copyWith(color: _tone.ink, fontSize: 20, height: 1.3));
+
+  Widget _grid(double width, int columns, List<Widget> children) {
+    final cell = (width - (columns - 1) * 12) / columns;
+    return Wrap(spacing: 12, runSpacing: 12, children: [
+      for (final child in children) SizedBox(width: cell, child: child),
+    ]);
+  }
+
+  Widget _question(int number, (String, String) q) => Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+          color: _tone.tint,
+          border: Border.all(color: _tone.accent),
+          borderRadius: BorderRadius.circular(18)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration:
+                BoxDecoration(color: _tone.deep, shape: BoxShape.circle),
+            child: Text('$number',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700))),
+        const SizedBox(height: 8),
+        Text(q.$1,
+            style: TextStyle(
+                color: _tone.ink, fontSize: 15.5, fontWeight: FontWeight.w700)),
+        Text(q.$2,
+            style: TextStyle(color: _tone.body, fontSize: 14, height: 1.4)),
+      ]));
+
+  /// A placeholder day in that day's colour, the order the plan will use.
+  Widget _ghostDay(int index) {
+    final (tint, accent) = _dayTones[index % _dayTones.length];
+    Widget bar(double widthFactor) => FractionallySizedBox(
+        widthFactor: widthFactor,
+        alignment: Alignment.centerLeft,
+        child: Container(
+            height: 10,
+            decoration: BoxDecoration(
+                color: accent.withValues(alpha: .6),
+                borderRadius: BorderRadius.circular(99))));
+    return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+            color: tint.withValues(alpha: .7),
+            border: Border.all(color: accent, width: 2),
+            borderRadius: BorderRadius.circular(22)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Day ${index + 1}',
+              style: const TextStyle(
+                  color: AppTheme.textPrimary, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          bar(.8),
+          const SizedBox(height: 12),
+          bar(.6),
+          const SizedBox(height: 12),
+          bar(.7),
+        ]));
+  }
 }

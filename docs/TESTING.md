@@ -1,8 +1,129 @@
 # Testing and verification
 
-## Current status — 2026-10-31
+## Current status — 2026-11-02
+
+- 2026-11-02 (user review): the user looked at the running app after DECISIONS 056 and 057 and approved it. This was the user's own visual check; the agent did not run the app.
 
 Latest recorded results (details in the dated entries below; entries are chronological and later ones supersede earlier ones):
+
+- 2026-11-02 (chat polish, Lexend, hover card, centred search, DECISIONS 057):
+  - Passed, frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 98 passed, 0 failed; `flutter build web --no-pub` succeeded with the Lexend assets. New `test/chat_polish_test.dart` (9) covers:
+    - the pill chat box with the send arrow inside, right of the field;
+    - messages present at open don't replay, new ones rise in;
+    - typing dots while `/lemon/chat` is pending, with no spinner;
+    - the planning card during generation, with its first status line and browsing note, and no spinner;
+    - three budget `OptionPill`s with hints and Outfit labels, where picking sets the budget;
+    - interest pills filling `cta` with a tick and a count line, and toggling back;
+    - no exceptions with animations off;
+    - the Attractions search card centred at 1440;
+    - "Explore places" filled with `ctaEdge` and a resting elevation.
+  - Updated tests: the hover card tests in `page_colours_test.dart` and `lemon_personality_ui_test.dart` now expect the Fredoka title, the new invitations and no pill. The font test expects Lexend.
+  - Found and fixed while testing, both real bugs, not test-only:
+    1. Picking the first interest re-created the "Other interests" field, losing focus and anything typed into it, so it is now keyed (KNOWN_ISSUES).
+    2. The send button only enabled on the frame after typing, so a tap in the same frame did nothing. It now enables whenever Lemon can take a message.
+  - Not run: a visual check in the running app.
+
+- 2026-11-02 (button font, height and shadow, DECISIONS 056):
+  - Passed, frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 89 passed, 0 failed. New `test/button_style_test.dart` (2) checks, under both the light and trip themes, that filled, outlined, text and "Plan with Lemon" buttons use Outfit (800 filled, 700 outlined), that enabled filled and outlined buttons have a resting elevation above 0 and disabled ones 0, and that filled buttons are at least 48 px tall. `page_colours_test.dart` now expects Outfit 800 on all three search buttons.
+  - Not run: a visual check in the running app.
+
+- 2026-11-01 (Flights search button beside the fields, DECISIONS 054):
+  - Passed, frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 87 passed, 0 failed. The `page_colours_test.dart` search-row test now checks that the Flights button sits to the right of the Travelers field, vertically centred on it, at 1440 and 800 px (it used to check for a full-width row below).
+  - Not run: a visual check in the running app.
+
+- 2026-11-01 (attractions per chip, Lemon bubbles, hover avatar, compact search, DECISIONS 053):
+  - Diagnosis, read-only: the running uvicorn worker (reloaded 17:38) and `flutter run` (20:29) both post-dated the 052 edits. One GET to the local backend for Paris at 8 km returned the response the app had already cached, so it made no Geoapify call. That response showed the place mix, not the classification, was the problem (DECISIONS 053).
+  - Passed, backend: 89 passed, 0 failed, offline, with the same bundled runtime command. `tests/test_places.py` now has 10 tests:
+    - one request per group, with `limit=20`, the circle filter and `bias=proximity`;
+    - the full category list and first entry;
+    - nameless, geometry-less and non-numeric-coordinate places skipped, and malformed categories;
+    - plaques last and ten kept per group;
+    - a place in two groups listed once;
+    - the plain-memorial rule;
+    - one failed group returning the rest uncached, with a warning that omits the key;
+    - every group failing (429 passed through, timeouts as 504).
+  - Passed, frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 87 passed, 0 failed.
+    - `attraction_category_test.dart` (8) covers the new chip ranking: museums and theatres → Culture & Heritage; zoos, theme parks and cinemas → Entertainment; towers and memorials → Landmark & Sights; artworks → Sightseeing.
+    - `page_colours_test.dart` adds: Lemon's bubble is white with a lemon edge and stripe, and the traveller's keeps its gradient; the hover card shows the full 88 × 116 avatar; Hotels and Flights search cards are capped at 940 and 1080, with Hotels' fields on one row at 1440.
+    - A hit-test warning prints during `lemon_redesign_test.dart` "New shorter itinerary resets old day filter" (tap on "Day 5"). That test passes and its code wasn't touched this round.
+  - Not run: live Geoapify calls (not authorized), so the real chip spread and acceptance of the Culture search's categories are unverified. Also not run: a browser check of the bubbles, avatar and search cards, and the effect of the longer plan prompt on latency.
+
+- 2026-11-01 (attraction categories, KI-29, DECISIONS 052):
+  - Passed, backend: 83 passed, 0 failed, offline. Run with the bundled runtime command from CLAUDE.md (`C:\Users\Acer\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe`, Python 3.12.14, with the venv's site-packages appended).
+    - New `tests/test_places.py` has 4 tests. Like `test_photos.py`, it uses a fake `config` and fresh router imports, with Geoapify as an `httpx.MockTransport` and `_geocode_city` stubbed. It checks:
+      - `categories` holds the full list and `category` the first entry;
+      - nameless, empty-name and geometry-less places are skipped;
+      - a missing or non-list `categories` gives `[]`, and non-string entries are dropped;
+      - the request's `categories` includes `heritage` and the other three, with `limit=20` and the circle filter for 5 km.
+  - Passed, frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 87 passed, 0 failed.
+    - New `test/attraction_category_test.dart` has 8 tests. It covers a museum → Entertainment, a castle with `heritage` and `tourism.sights` → Culture & Heritage, `culture` → Culture & Heritage, a viewpoint and `tourism.attraction` → Landmark & Sights, and unmatched or empty lists → Sightseeing. It also covers a legacy payload with only `category`, a bare payload, dropped non-string entries, and prefix-only matching.
+  - Not run: any live Geoapify call (not authorized), so Geoapify's real category order and how the chips fill for real cities are unverified. Also not run: a running backend or browser check. The prompt-length effect on `/lemon/plan` was not measured.
+
+- 2026-11-01 (result card colour roles, Lemon hover card, DECISIONS 051):
+  - Passed: `flutter analyze --no-pub` clean; `flutter test --no-pub` 79 passed, 0 failed.
+  - `page_colours_test.dart` checks:
+    - Hotel and attraction icon tiles are all `lemonAccent`; the three fake attractions give three tiles.
+    - Flight carrier circles are all `cta`. A test-only fake gives three different airline codes, which per-airline colours would have told apart. "Direct" pills are `lemonAccent` and stop pills `sand`.
+    - Lemon's hover card is checked under a simulated mouse hover: the title is in `sandInk`, the invitation in Nunito `sorbetInk`, a gradient is behind it, the call-to-action pill is `cta`, and a tap opens the chat.
+  - The attraction rotation test and the `softTones` test from 049 were replaced, as those colours are gone.
+  - Not run: viewing the app in a browser; backend (no backend change).
+
+- 2026-11-01 (Nunito in the chat, DECISIONS 050):
+  - Passed: `flutter analyze --no-pub` clean; `flutter test --no-pub` 78 passed, 0 failed; `flutter build web --no-pub` built, with all four Nunito files in `build/web/assets/assets/fonts` and a `Nunito` family in `FontManifest.json`.
+  - The four downloaded TTFs were checked for the TrueType header (`00 01 00 00`) before being copied into `assets/fonts`.
+  - New test in `page_colours_test.dart`: the bot and traveller bubbles resolve to Nunito, and so does the typed text in the destination, travellers and interests boxes (weight 600 checked on the destination box).
+  - Not tested: how Nunito actually looks. Widget tests do not load real font files, so they check only the font family name. Not run: viewing in a browser; backend (no backend change).
+
+- 2026-11-01 (attraction tile colours, compact one-field search, nav tab size, DECISIONS 049):
+  - Passed: `flutter analyze --no-pub` clean; `flutter test --no-pub` 77 passed, 0 failed.
+  - New in `page_colours_test.dart`:
+    - Three attraction results (two "Sightseeing") show one tile in each of the sky blue, lemon and sand accents.
+    - The Attractions search card is at most 760 px wide at 1440 px, while the Hotels card is wider than 1000 px.
+  - The nav tab size change is covered only by the existing 360, 800 and 1440 px layout tests, which raised no errors.
+  - Not run: viewing the app in a browser; backend (no backend change).
+
+- 2026-11-01 (search-page colours only, button revert, chat bubbles, KI-28, DECISIONS 048):
+  - Passed: `flutter analyze --no-pub` clean; `flutter test --no-pub` 75 passed, 0 failed.
+  - `page_colours_test.dart` checks:
+    - At 360, 800 and 1440 px, Flights has `SearchButton` (filled `cta`, Outfit 800), and Hotels and Attractions have the theme pill (Outfit 700); all three are without `PageTone` and raise no layout errors.
+    - At 1440 px, the Hotels and Attractions buttons are no taller than the fields, and the Flights button spans the row under them.
+    - The three search pages at 800 and 1100 px with 1.6x text raise no errors at all; the earlier `ResultsBanner` exception filter was removed.
+    - `ResultsBanner` is exactly 150 px at normal text and taller, without errors, at 2x.
+    - The chat bubble gradients: Lemon lemon to sand, traveller sky blue to lilac.
+  - `page_redesign_test.dart` again expects four different day colours.
+  - Not run: viewing the app in a browser; backend (no backend change).
+
+- 2026-11-01 (three colours, search button, Discover hero font, DECISIONS 047):
+  - Passed: `flutter analyze --no-pub` clean; `flutter test --no-pub` 73 passed, 0 failed.
+  - `page_colours_test.dart` checks:
+    - Flights, Hotels and Attractions at 360, 800 and 1440 px: no layout errors and no `PageTone`; the search button is filled with `cta`, its label is Outfit 800, and it is at least 66 px tall.
+    - At 1440 px, the Hotels and Attractions buttons share the field's top and height and sit to its right; the Flights button spans the field row underneath it.
+    - `softTones` is exactly sky blue, lemon and sand.
+    - The Discover hero's eyebrow, subtitle, buttons and pills resolve to Outfit, and the title stays Unbounded.
+    - The three search pages at 800 and 1100 px with 1.6x text and animations off raise no layout errors apart from the older `ResultsBanner` overflow (KI-28).
+  - `page_redesign_test.dart` now expects three day colours, with day 4 matching day 1.
+  - A first version of the large-text test failed with an overflow on Attractions at 800 px. Part was the new row (fixed with `searchRowFits`), and the rest was `ResultsBanner`, unchanged since the last commit. A later version hung the runner because it called `expect` while `FlutterError.onError` was replaced; it was rewritten to restore the handler first.
+  - Widths in tests use the test font, whose letters are wider than Outfit's, so real buttons are narrower than in tests.
+  - Not run: viewing the app in a browser; backend (no backend change).
+
+- 2026-11-01 (sky blue revert, Outfit controls, shuffled tips, DECISIONS 046):
+  - Passed: `flutter analyze --no-pub` clean; `flutter test --no-pub` 69 passed, 0 failed.
+  - `page_colours_test.dart`: the search-button test now checks that Flights, Hotels and Attractions keep the theme's sky blue fill, have no `PageTone`, and render the button label in Outfit 700. A new unit test checks that the tip labels for 30 days have no repeats within a day, differ between neighbouring days, vary in their first label and are stable.
+  - `page_redesign_test.dart` and `lemon_redesign_test.dart` now find the first tip by `tipLabelFor(1, 1)` instead of a fixed label.
+  - Not tested: the Outfit font on the dropdown values, "Copy itinerary" and nav tabs (set in source only); how the weights look in a browser.
+  - Not run: viewing the app in a browser; backend (no backend change).
+
+- 2026-11-01 (page colours and chat panel, DECISIONS 044 and 045):
+  - Passed: `flutter analyze --no-pub` clean; `flutter test --no-pub` 68 passed, 0 failed.
+  - New `test/page_colours_test.dart` has 7 tests:
+    - the Hotels and Attractions search buttons use the page colour, and Flights keeps the theme;
+    - "Plan with Lemon" is sand on Hotels and Attractions, opens Lemon, and is hidden without a callback;
+    - the pre-plan itinerary renders and opens Lemon at 360, 800 and 1440 px;
+    - the chat header shows the lemon badge, and the step semantics read done, current step and to do;
+    - the pre-plan page at 360 px and the chat panel at 320 px raise no layout errors with text at 1.6x and animations off.
+  - The off-screen tap warning in `lemon_redesign_test.dart` (Day 5) predates this change. Checked by rerunning that file with the changes stashed.
+  - Contrast was computed from hex values, not measured on screen. Lowest pairs: field outlines about 3.0–3.6:1 on white; page-deep labels 5.6:1 and above.
+  - Not run: viewing the app in a browser; backend (no backend change).
 
 - 2026-10-31 (Fredoka 700 wordmark, search-field slots): `flutter analyze --no-pub` clean; `flutter test --no-pub` 61 passed, 0 failed. `flights_view_test.dart` "Stale selection stays within picker and search bounds" first failed (taps missed "Find Flights" and the date field, off-screen at 800×600 after the fields grew); fixed with `ensureVisible` before each tap. The wordmark and a row of search fields were rendered to PNG with the real fonts in throwaway golden tests (deleted afterwards) and inspected. Not run: browser viewing.
 

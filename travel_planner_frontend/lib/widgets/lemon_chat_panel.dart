@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../chat/chat_message.dart';
 import '../chat/lemon_chat_controller.dart';
 import '../config/app_theme.dart';
 import 'chat_bubble.dart';
+import 'chat_parts.dart';
 import 'trip_date_dialog.dart';
 import 'lemon_avatar_image.dart';
+import 'lemon_brand.dart';
 
 class LemonChatPanel extends StatefulWidget {
   final LemonChatController controller;
@@ -31,6 +34,9 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
   String? _dateError;
   String? _lastField;
   bool _gripHover = false;
+  // Messages already shown appear at once; later ones rise in (057).
+  late int _seen;
+  final _textFocus = FocusNode();
   @override
   void initState() {
     super.initState();
@@ -38,6 +44,8 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
     _travelers = TextEditingController(text: '${c.travelers ?? 1}');
     _other = TextEditingController(text: c.otherInterests);
     _lastField = c.nextField;
+    _seen = c.messages.length;
+    _textFocus.addListener(() => setState(() {}));
     c.addListener(_update);
   }
 
@@ -48,6 +56,7 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
     _travelers.dispose();
     _other.dispose();
     _scroll.dispose();
+    _textFocus.dispose();
     super.dispose();
   }
 
@@ -125,37 +134,72 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
         shadowColor: Colors.black.withValues(alpha: 0.2),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
-            side: const BorderSide(color: AppTheme.skyBlue, width: 1.5)),
+            side: const BorderSide(color: AppTheme.sandBorder, width: 1.5)),
         clipBehavior: Clip.antiAlias,
         child: Stack(fit: StackFit.expand, children: [
           Column(children: [
+            // Warm sorbet header with a thin lemon ring and the wordmark's
+            // lemon as a badge (halo options A + C, DECISIONS 045).
             Container(
                 padding: EdgeInsets.fromLTRB(
                     widget.onResize == null ? 16 : 30, 14, 8, 14),
                 decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                      colors: [AppTheme.skyBlue, AppTheme.surface],
-                      stops: [0, .75],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight),
+                  gradient: LinearGradient(colors: [
+                    Color(0xFFF6EBD4),
+                    AppTheme.sorbet,
+                    AppTheme.surface
+                  ], stops: [
+                    0,
+                    .45,
+                    .9
+                  ], begin: Alignment.topLeft, end: Alignment.bottomRight),
                   border: Border(
-                      bottom: BorderSide(color: AppTheme.border, width: 1)),
+                      bottom: BorderSide(color: AppTheme.sandBorder, width: 1)),
                 ),
                 child: Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(2.5),
-                    decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(colors: [
-                          AppTheme.accentLemon,
-                          AppTheme.accentLemonDark
-                        ])),
-                    child: const CircleAvatar(
-                        radius: 24,
-                        backgroundColor: AppTheme.surface,
-                        child: LemonAvatarImage(radius: 22)),
+                  SizedBox(
+                    width: 58,
+                    height: 56,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      Container(
+                        width: 53,
+                        height: 53,
+                        padding: const EdgeInsets.all(1.5),
+                        decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppTheme.accentLemon,
+                            boxShadow: [
+                              BoxShadow(
+                                  color: AppTheme.accentLemon
+                                      .withValues(alpha: .22),
+                                  spreadRadius: 4)
+                            ]),
+                        child: const CircleAvatar(
+                            radius: 25,
+                            backgroundColor: AppTheme.surface,
+                            child: LemonAvatarImage(radius: 23.5)),
+                      ),
+                      Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                              width: 24,
+                              height: 24,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                  color: AppTheme.surface,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: AppTheme.ctaInk
+                                            .withValues(alpha: .2),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1))
+                                  ]),
+                              child: const LemonMark(size: 20))),
+                    ]),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   const Expanded(
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,10 +219,9 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                           Flexible(
                             child: Text('Your personal travel companion',
                                 overflow: TextOverflow.ellipsis,
-                                // Darker than primary: sits on the skyBlue end
-                                // of the header gradient (6.8:1).
+                                // 7.9:1 on the sorbet header.
                                 style: TextStyle(
-                                    color: AppTheme.primaryDark,
+                                    color: AppTheme.sorbetInk,
                                     fontSize: 12,
                                     letterSpacing: 0.2,
                                     fontWeight: FontWeight.w600)),
@@ -198,38 +241,33 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
             Expanded(
                 child: DecoratedBox(
                     decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                            colors: [
-                          AppTheme.lavenderSubtle,
-                          Color(0xFFFFFCF1)
-                        ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter)),
+                        // Pale cream so both bubble fades stand out.
+                        color: Color(0xFFFFFCF5)),
                     child: ListView(
                         controller: _scroll,
                         padding: const EdgeInsets.all(16),
                         children: [
-                          for (final message in c.messages)
-                            ChatBubbleWidget(
-                                message: message,
-                                onQuickReply: c.handleQuickReply,
-                                onPickDate: (_) => _pickDates()),
+                          for (final (i, message) in c.messages.indexed)
+                            RiseIn(
+                                key: ObjectKey(message),
+                                play: i >= _seen,
+                                origin: message.sender == ChatSender.bot
+                                    ? Alignment.topLeft
+                                    : Alignment.bottomRight,
+                                child: ChatBubbleWidget(
+                                    message: message,
+                                    onQuickReply: c.handleQuickReply,
+                                    onPickDate: (_) => _pickDates())),
                           if (c.isBusy)
-                            Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Row(children: [
-                                  const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2)),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                      child: Text(c.phase ==
-                                              ChatPhase.generating
-                                          ? 'Building your itinerary. Longer trips can take over a minute.'
-                                          : 'Finding your destination…')),
-                                ])),
+                            RiseIn(
+                                key: ValueKey(c.phase),
+                                child: c.phase == ChatPhase.generating
+                                    ? const PlanningCard()
+                                    : const Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: TypingDots(
+                                            label:
+                                                'Lemon is finding your destination…'))),
                           if (c.error != null)
                             Container(
                                 padding: const EdgeInsets.all(14),
@@ -261,68 +299,16 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                                                         : 'destination')),
                                       ]),
                                     ])),
-                          if (!c.isBusy && c.error == null) ..._controls(),
+                          if (!c.isBusy && c.error == null)
+                            RiseIn(
+                                key: ValueKey('controls-${c.nextField}'),
+                                delay: const Duration(milliseconds: 120),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: _controls())),
                         ]))),
-            if (c.nextField == 'destination')
-              Container(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 10, 12),
-                  decoration: const BoxDecoration(
-                      color: AppTheme.surface,
-                      border:
-                          Border(top: BorderSide(color: AppTheme.borderLight))),
-                  child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                            child: CallbackShortcuts(
-                                bindings: {
-                              const SingleActivator(LogicalKeyboardKey.enter):
-                                  _send,
-                              const SingleActivator(
-                                  LogicalKeyboardKey.numpadEnter): _send,
-                            },
-                                child: TextField(
-                                  controller: _text,
-                                  textInputAction: TextInputAction.send,
-                                  maxLength: 600,
-                                  buildCounter: (context,
-                                          {required currentLength,
-                                          required isFocused,
-                                          maxLength}) =>
-                                      null,
-                                  minLines: 1,
-                                  maxLines: 3,
-                                  onChanged: (v) => c.draft = v,
-                                  onSubmitted: (_) => _send(),
-                                  decoration: InputDecoration(
-                                      labelText: 'Where would you like to go?',
-                                      hintText:
-                                          'For example, Kyoto or a beach trip in Bali',
-                                      counterText: '',
-                                      fillColor: AppTheme.lavenderSubtle,
-                                      enabledBorder: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          borderSide: const BorderSide(
-                                              color: AppTheme.fieldBorder)),
-                                      focusedBorder: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          borderSide: const BorderSide(
-                                              color: AppTheme.primary,
-                                              width: 1.6))),
-                                ))),
-                        const SizedBox(width: 8),
-                        IconButton.filled(
-                            onPressed:
-                                c.isBusy || c.error != null ? null : _send,
-                            tooltip: 'Send message',
-                            style: IconButton.styleFrom(
-                                backgroundColor: AppTheme.cta,
-                                foregroundColor: AppTheme.ctaInk,
-                                fixedSize: const Size(46, 46)),
-                            icon: const Icon(Icons.send_rounded, size: 20)),
-                      ])),
+            if (c.nextField == 'destination') _chatBox(),
           ]),
           if (widget.onResize != null)
             Positioned(
@@ -355,6 +341,94 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
         ]),
       );
 
+  /// The typing box: a white pill with the send button inside it and a soft
+  /// sky glow while focused (DECISIONS 057).
+  Widget _chatBox() {
+    final focused = _textFocus.hasFocus;
+    final canSend = !c.isBusy && c.error == null;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : AppTheme.motionFast;
+    return Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        decoration: const BoxDecoration(
+            color: AppTheme.surface,
+            border: Border(top: BorderSide(color: AppTheme.borderLight))),
+        child: AnimatedContainer(
+            duration: duration,
+            constraints: const BoxConstraints(minHeight: 52),
+            padding: const EdgeInsets.fromLTRB(18, 5, 6, 5),
+            decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                    color: focused ? AppTheme.primary : AppTheme.ctaEdge,
+                    width: 1.5),
+                boxShadow: [
+                  if (focused)
+                    BoxShadow(
+                        color: AppTheme.cta.withValues(alpha: .7),
+                        spreadRadius: 4),
+                  BoxShadow(
+                      color: AppTheme.ctaShadow
+                          .withValues(alpha: focused ? .25 : .18),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2)),
+                ]),
+            child: Row(children: [
+              Expanded(
+                  child: CallbackShortcuts(
+                      bindings: {
+                    const SingleActivator(LogicalKeyboardKey.enter): _send,
+                    const SingleActivator(LogicalKeyboardKey.numpadEnter):
+                        _send,
+                  },
+                      child: _ChatTyping(
+                          child: TextField(
+                        controller: _text,
+                        focusNode: _textFocus,
+                        textInputAction: TextInputAction.send,
+                        maxLength: 600,
+                        buildCounter: (context,
+                                {required currentLength,
+                                required isFocused,
+                                maxLength}) =>
+                            null,
+                        minLines: 1,
+                        maxLines: 3,
+                        onChanged: (v) => c.draft = v,
+                        onSubmitted: (_) => _send(),
+                        decoration: const InputDecoration(
+                            isCollapsed: true,
+                            filled: false,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                            counterText: '',
+                            semanticCounterText: '',
+                            hintText: 'Try Kyoto, or a beach trip in Bali'),
+                      )))),
+              const SizedBox(width: 6),
+              IconButton(
+                  // An empty box sends nothing (see _send).
+                  onPressed: canSend ? _send : null,
+                  tooltip: 'Send message',
+                  style: IconButton.styleFrom(
+                          backgroundColor: AppTheme.cta,
+                          foregroundColor: AppTheme.ctaInk,
+                          disabledBackgroundColor: AppTheme.ctaSoft,
+                          disabledForegroundColor: AppTheme.fieldBorder,
+                          shadowColor: AppTheme.ctaShadow,
+                          fixedSize: const Size(40, 40),
+                          minimumSize: const Size(40, 40))
+                      .copyWith(
+                          elevation:
+                              AppTheme.solidElevation(rest: 2, hover: 4)),
+                  icon: const Icon(Icons.arrow_upward_rounded, size: 21)),
+            ])));
+  }
+
   /// The step's main action: bold sky blue with a soft glow so it stands out.
   Widget _primaryAction(String label, IconData icon, VoidCallback? onPressed) =>
       ElevatedButton.icon(
@@ -362,21 +436,9 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
           icon: Icon(icon, size: 20),
           label: Text(label),
           style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  shadowColor: const Color(0xFF6EA0DC).withValues(alpha: .5),
-                  textStyle: const TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: .1))
-              .copyWith(
-                  elevation: WidgetStateProperty.resolveWith(
-                      (states) => states.contains(WidgetState.disabled)
-                          ? 0
-                          : states.contains(WidgetState.hovered)
-                              ? 6
-                              : 3)));
+              minimumSize: const Size.fromHeight(54),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
+              textStyle: AppTheme.buttonText(size: 15.5)));
 
   /// Other choices: the same sky blue family, paler, so the pair reads as one
   /// set rather than two competing colours.
@@ -387,16 +449,10 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
           icon: Icon(icon, size: 19),
           label: Text(label),
           style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                  backgroundColor: AppTheme.ctaSoft,
-                  foregroundColor: AppTheme.ctaInk,
-                  textStyle: const TextStyle(
-                      fontSize: 14.5, fontWeight: FontWeight.w700))
-              .copyWith(
-                  side: AppTheme.focusOutline(
-                      const BorderSide(color: AppTheme.cta, width: 1.5))));
+              minimumSize: const Size.fromHeight(50),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              textStyle:
+                  AppTheme.buttonText(size: 14.5, weight: FontWeight.w700)));
 
   /// Puts a 10px gap between stacked buttons so they never touch.
   List<Widget> _spaced(List<Widget> buttons) => [
@@ -422,15 +478,16 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
       case 'travelers':
         return [
           const SizedBox(height: 12),
-          TextField(
-              controller: _travelers,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _submitTravelers(),
-              decoration: InputDecoration(
-                  labelText: 'Number of travelers',
-                  helperText: 'Enter a whole number from 1 to 20',
-                  errorText: _travelerError)),
+          _ChatTyping(
+              child: TextField(
+                  controller: _travelers,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submitTravelers(),
+                  decoration: InputDecoration(
+                      labelText: 'Number of travelers',
+                      helperText: 'Enter a whole number from 1 to 20',
+                      errorText: _travelerError))),
           const SizedBox(height: 14),
           _primaryAction(
               'Continue', Icons.arrow_forward_rounded, _submitTravelers)
@@ -438,14 +495,34 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
       case 'budget_level':
         return [
           const SizedBox(height: 14),
+          // Solid option pills with a hint each (DECISIONS 057).
           ..._spaced([
-            for (final choice in [
-              ('low', 'Budget-friendly', Icons.savings_outlined),
-              ('medium', 'Comfortable', Icons.weekend_outlined),
-              ('high', 'Premium', Icons.diamond_outlined)
+            for (final (value, label, hint, icon) in const [
+              (
+                'low',
+                'Budget-friendly',
+                'Simple stays, local food, free sights',
+                Icons.savings_outlined
+              ),
+              (
+                'medium',
+                'Comfortable',
+                'Mid-range stays and a few treats',
+                Icons.weekend_outlined
+              ),
+              (
+                'high',
+                'Premium',
+                'Top hotels and special experiences',
+                Icons.diamond_outlined
+              ),
             ])
-              _secondaryAction(
-                  choice.$2, choice.$3, () => c.setBudget(choice.$1)),
+              OptionPill(
+                  label: label,
+                  hint: hint,
+                  icon: icon,
+                  selected: c.budgetLevel == value,
+                  onPressed: () => c.setBudget(value)),
           ])
         ];
       case 'interests':
@@ -453,34 +530,23 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
             c.selectedInterests.isNotEmpty || _other.text.trim().isNotEmpty;
         return [
           const SizedBox(height: 12),
+          // Icon pills that fill sky blue when picked (DECISIONS 057).
           Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final interest in [
-              'Food',
-              'Culture & history',
-              'Nature',
-              'Beaches',
-              'Shopping',
-              'Adventure',
-              'Nightlife',
-              'Relaxation'
+            for (final (interest, icon) in const [
+              ('Food', Icons.restaurant_rounded),
+              ('Culture & history', Icons.account_balance_outlined),
+              ('Nature', Icons.eco_outlined),
+              ('Beaches', Icons.beach_access_outlined),
+              ('Shopping', Icons.shopping_bag_outlined),
+              ('Adventure', Icons.terrain_outlined),
+              ('Nightlife', Icons.nightlife_rounded),
+              ('Relaxation', Icons.spa_outlined),
             ])
-              FilterChip(
-                  label: Text(interest),
-                  // Picked interests turn pale blue, matching the buttons.
-                  selectedColor: AppTheme.ctaSoft,
-                  checkmarkColor: AppTheme.ctaInk,
-                  side: WidgetStateBorderSide.resolveWith((states) =>
-                      states.contains(WidgetState.focused) && AppTheme.showFocus
-                          ? AppTheme.focusSide
-                          : BorderSide(
-                              color: states.contains(WidgetState.selected)
-                                  ? AppTheme.cta
-                                  : AppTheme.border,
-                              width: states.contains(WidgetState.selected)
-                                  ? 1.5
-                                  : 1)),
+              InterestPill(
+                  label: interest,
+                  icon: icon,
                   selected: c.selectedInterests.contains(interest),
-                  onSelected: (selected) => setState(() {
+                  onChanged: (selected) => setState(() {
                         if (selected) {
                           c.selectedInterests.add(interest);
                         } else {
@@ -488,22 +554,39 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                         }
                       })),
           ]),
+          if (c.selectedInterests.isNotEmpty)
+            Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                    '${c.selectedInterests.length} picked · tap again to remove',
+                    style: const TextStyle(
+                        fontFamily: AppTheme.chatFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary))),
           const SizedBox(height: 12),
-          TextField(
-              controller: _other,
-              maxLength: 120,
-              onChanged: (v) {
-                c.otherInterests = v;
-                setState(() {});
-              },
-              decoration: const InputDecoration(
-                  labelText: 'Other interests or preferences',
-                  hintText: 'For example, vegetarian food or gentle walks')),
+          // Keyed so it keeps focus when the picked count and the hint
+          // above and below it come and go.
+          _ChatTyping(
+              key: const ValueKey('other-interests'),
+              child: TextField(
+                  controller: _other,
+                  maxLength: 120,
+                  onChanged: (v) {
+                    c.otherInterests = v;
+                    setState(() {});
+                  },
+                  decoration: const InputDecoration(
+                      labelText: 'Other interests or preferences',
+                      hintText:
+                          'For example, vegetarian food or gentle walks'))),
           if (!ready)
             const Padding(
                 padding: EdgeInsets.only(bottom: 8),
                 child: Text('Pick at least one, or let Lemon surprise you.',
-                    style: TextStyle(color: AppTheme.textSecondary))),
+                    style: TextStyle(
+                        fontFamily: AppTheme.chatFont,
+                        color: AppTheme.textSecondary))),
           ..._spaced([
             _primaryAction(
                 'Go with these interests',
@@ -527,8 +610,8 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
         return [
           _brief(),
           const SizedBox(height: 14),
-          _primaryAction('Generate my itinerary', Icons.route_rounded,
-              c.confirmTrip)
+          _primaryAction(
+              'Generate my itinerary', Icons.route_rounded, c.confirmTrip)
         ];
       default:
         return [
@@ -599,6 +682,36 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
 }
 
 /// Where / When / Who / Budget / Loves, filled up to the current guided step.
+/// Puts a chat typing box in the chat font, Lexend (DECISIONS 057): the
+/// typed text at 600 so it never looks slim, and its label, hint, helper and
+/// error text.
+class _ChatTyping extends StatelessWidget {
+  final Widget child;
+  const _ChatTyping({super.key, required this.child});
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    TextStyle? nunito(TextStyle? s) =>
+        (s ?? const TextStyle()).copyWith(fontFamily: AppTheme.chatFont);
+    final typed = nunito(theme.textTheme.bodyLarge)!
+        .copyWith(fontWeight: FontWeight.w600);
+    final input = theme.inputDecorationTheme;
+    return Theme(
+        data: theme.copyWith(
+            // TextField draws typed text in bodyLarge (Material 3) and its
+            // label and hint from the decoration theme.
+            textTheme:
+                theme.textTheme.copyWith(bodyLarge: typed, titleMedium: typed),
+            inputDecorationTheme: input.copyWith(
+                labelStyle: nunito(input.labelStyle),
+                floatingLabelStyle: nunito(input.floatingLabelStyle),
+                hintStyle: nunito(input.hintStyle),
+                helperStyle: nunito(input.helperStyle),
+                errorStyle: nunito(input.errorStyle))),
+        child: child);
+  }
+}
+
 class _StepProgress extends StatelessWidget {
   final String? field;
   const _StepProgress({required this.field});
@@ -635,21 +748,37 @@ class _StepProgress extends StatelessWidget {
                   height: 6,
                   decoration: BoxDecoration(
                       color: i < current
-                          ? AppTheme.primary
+                          ? AppTheme.accentLemon
                           : i == current
-                              ? AppTheme.cta
-                              : AppTheme.border,
+                              ? AppTheme.stepCurrent
+                              : AppTheme.stepTodo,
                       borderRadius: BorderRadius.circular(99))),
               const SizedBox(height: 5),
-              Text(_steps[i].$2,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: i <= current
-                          ? AppTheme.textPrimary
-                          : AppTheme.textSecondary)),
+              // Grey and sand sit close in lightness, so answered steps also
+              // carry a tick and the current one is bold.
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                if (i < current) ...[
+                  const Icon(Icons.check_rounded,
+                      size: 12, color: AppTheme.lemonDeep),
+                  const SizedBox(width: 2),
+                ],
+                Flexible(
+                    child: Text(_steps[i].$2,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: i == current
+                                ? FontWeight.w800
+                                : i < current
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                            color: i == current
+                                ? AppTheme.sandInk
+                                : i < current
+                                    ? AppTheme.textPrimary
+                                    : AppTheme.textSecondary))),
+              ]),
             ]),
           )),
         ],

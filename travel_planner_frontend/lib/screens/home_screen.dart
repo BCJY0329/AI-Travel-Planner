@@ -107,11 +107,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ? AppTheme.textPrimary
                                         : AppTheme.navBarText,
                                     textStyle: TextStyle(
+                                        fontFamily: AppTheme.tripBodyFont,
+                                        fontSize: 16,
                                         fontWeight: _tab == i
                                             ? FontWeight.w700
-                                            : FontWeight.w500)),
+                                            : FontWeight.w600)),
                                 onPressed: () => _select(i),
-                                icon: Icon(icons[i], size: 18),
+                                icon: Icon(icons[i], size: 20),
                                 label: Text(labels[i]))),
                     ]))),
           ],
@@ -182,12 +184,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               _visited.contains(2)
                                   ? TripTypography(
                                       child: HotelsView(
+                                          onOpenLemon: _openChat,
                                           photos: _photos,
                                           trip: _chat.latestTrip))
                                   : const SizedBox.shrink(),
                               _visited.contains(3)
                                   ? TripTypography(
                                       child: AttractionsView(
+                                          onOpenLemon: _openChat,
                                           photos: _photos,
                                           trip: _chat.latestTrip))
                                   : const SizedBox.shrink(),

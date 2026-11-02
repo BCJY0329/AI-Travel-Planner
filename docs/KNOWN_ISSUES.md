@@ -4,11 +4,36 @@
 
 Source-inspected on 2026-10-08 against the current working tree. The initial review made no application fixes; subsequent repairs are recorded below, and the dated sections are chronological (later entries supersede earlier ones).
 
-**Open as of 2026-10-31:** as 2026-10-24 below, plus KI-26 (accessibility audit findings, see the 2026-10-31 section; visual items fixed, screen-reader items deferred by the user), plus the unverified live behaviour of the provider timing changes (KI-27, below). The 2026-10-24 browser check of the trip-following tabs and airport chips was done by the user, who reported no problems.
+**Open as of 2026-11-02:** as 2026-11-01. A lesson from the chat polish (DECISIONS 057): when one rebuild both adds a widget above an unkeyed `TextField` and removes one below it in the same `Column`, Flutter can't match the field and re-creates it, so focus and in-progress input are lost. The "Other interests" field in the chat panel hit this when the first interest was picked. It is now keyed (`ValueKey('other-interests')`). Key any text field whose neighbours appear and disappear.
+
+**Superseded — open as of 2026-11-01:** as 2026-10-31. KI-28 (results banner overflow at large text) was found and fixed the same day. KI-29 (attraction chips): the 052 fix did not help, as the real cause was the mix Geoapify returns. Fixed again the same day with one search per chip (DECISIONS 053). The live spread across chips is still unseen (below).
+
+**Superseded — open as of 2026-10-31:** as 2026-10-24 below, plus KI-26 (accessibility audit findings, see the 2026-10-31 section; visual items fixed, screen-reader items deferred by the user), plus the unverified live behaviour of the provider timing changes (KI-27, below). The 2026-10-24 browser check of the trip-following tabs and airport chips was done by the user, who reported no problems.
 
 **Superseded — open as of 2026-10-24:** KI-07 (Python environment), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), Flutter Web emoji fallback, and pending local visual review. KI-09, KI-10, KI-11, KI-21 and KI-25 were resolved on 2026-10-24 (DECISIONS 037–039), as was the `test_chat_exhaustion_matches_explicit_mock` failure.
 
 **Superseded — open as of 2026-10-17:** KI-07 (Python environment), KI-09 (partial: chat roles/payload sizes and travel-search validation), KI-10 (travel route transport errors), KI-11 (backend exception detail in plan errors), KI-12 (CORS/auth), KI-14 (Gemini 404), KI-15 (provider quota/availability), KI-21 (search tabs ignore trip context), Flutter Web emoji fallback, and pending local visual review. All other numbered issues are resolved; see the status notes below. Findings below are source-derived unless explicitly marked as a command observation; runtime reproduction remains pending.
+
+## Attractions almost all "Sightseeing" (KI-29) — 2026-11-01
+
+**Update (DECISIONS 053):** the user still saw no variety after 052. Both servers were running the new code. The Paris response already in the backend cache (read back locally; no new Geoapify call) was the cause: 14 named places, 9 of them memorial plaques or monuments, none from `entertainment` and no museums. The backend now makes one Geoapify search per chip, nearest to the centre first, keeps up to 10 places from each and lists plaques last. The app's chips match those searches. Still unverified, with no new live calls made: how the four searches fill the chips for real cities, whether the multi-category Culture search is valid on Geoapify (an invalid category would fail that search alone, logged as a warning), and how the up to 40 places in the plan prompt affect provider latency. Restart the backend (or let `--reload` do it) to clear the 24 h cache.
+
+The original 052 entry follows.
+
+Fixed in code (DECISIONS 052): `/places/attractions` sent only the first Geoapify category, and the app classified from it, so most places fell into "Sightseeing" and the other chips were nearly empty. The full list is now returned and classified, and `heritage` places are requested too.
+
+Still unverified, because no live calls were made:
+
+- **Real Geoapify data:** the order, and which categories it actually returns. The fix doesn't depend on the order, but how evenly the chips fill for real cities hasn't been seen.
+- **How many places the `heritage` filter adds.** With `limit` still 20, heritage results may take slots that tourism or entertainment results had before.
+- **The 24 h cache:** a running backend keeps old responses, without `categories`, until it restarts or they expire. The app then classifies them from `category` alone, as before.
+- **Prompt length:** the extra lists make the plan prompt's attraction context longer. The effect on provider latency is unmeasured.
+
+## Results banner at large text (KI-28) — 2026-11-01
+
+**Resolved later on 2026-11-01 (DECISIONS 048):** the banner is now at least 150 px and grows with its text; `page_colours_test.dart` checks it at 2x text, and the large-text search page test no longer ignores it.
+
+Originally open, found by a widget test: `ResultsBanner` in `page_parts.dart` has a fixed 150 px height. With text at 1.6x it overflows by about 26 px (seen on Attractions at 800 px). The banner predates DECISIONS 044–047 and was not changed. The likely fix is a minimum height instead of a fixed one; it is left for the user to approve. `page_colours_test.dart` "Search rows hold with large text and no motion" ignores this one overflow so it can check the search rows.
 
 ## Provider timing (KI-27) — 2026-10-31
 

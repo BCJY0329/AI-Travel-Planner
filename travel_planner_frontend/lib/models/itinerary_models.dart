@@ -72,11 +72,15 @@ class ItineraryActivity {
     this.notes,
   });
 
-  factory ItineraryActivity.fromJson(Map<String, dynamic> json) => ItineraryActivity(
+  factory ItineraryActivity.fromJson(Map<String, dynamic> json) =>
+      ItineraryActivity(
         time: cleanAiText(json['time'] as String? ?? 'Anytime'),
         activity: cleanAiText(json['activity'] as String? ?? ''),
-        location: json['location'] != null ? cleanAiText(json['location'] as String) : null,
-        notes: json['notes'] != null ? cleanAiText(json['notes'] as String) : null,
+        location: json['location'] != null
+            ? cleanAiText(json['location'] as String)
+            : null,
+        notes:
+            json['notes'] != null ? cleanAiText(json['notes'] as String) : null,
       );
 }
 
@@ -109,10 +113,13 @@ class ItineraryResponse {
     required this.days,
   });
 
-  factory ItineraryResponse.fromJson(Map<String, dynamic> json) => ItineraryResponse(
+  factory ItineraryResponse.fromJson(Map<String, dynamic> json) =>
+      ItineraryResponse(
         destination: cleanAiText(json['destination'] as String? ?? 'Trip'),
         providerUsed: json['provider_used'] as String? ?? 'AI',
-        summary: json['summary'] != null ? cleanAiText(json['summary'] as String) : null,
+        summary: json['summary'] != null
+            ? cleanAiText(json['summary'] as String)
+            : null,
         days: (json['days'] as List? ?? [])
             .map((d) => ItineraryDay.fromJson(d as Map<String, dynamic>))
             .toList(),

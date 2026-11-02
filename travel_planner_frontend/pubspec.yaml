@@ -26,7 +26,7 @@ flutter:
     - assets/images/photos/
   # Bundled OFL fonts. Discover: Poppins headings, platform-default body.
   # Flights/Hotels/Attractions/Itinerary: Unbounded headings, Outfit body,
-  # Fredoka for Lemon's notes.
+  # Fredoka for Lemon's notes. Lemon.ai chat: Lexend for messages and typing.
   fonts:
     - family: Unbounded
       fonts:
@@ -66,3 +66,12 @@ flutter:
           weight: 700
         - asset: assets/fonts/Poppins-800.ttf
           weight: 800
+    # Lemon.ai chat: messages, hints and the typing box (DECISIONS 057).
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/Lexend-400.ttf
+          weight: 400
+        - asset: assets/fonts/Lexend-600.ttf
+          weight: 600
+        - asset: assets/fonts/Lexend-700.ttf
+          weight: 700

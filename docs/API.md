@@ -23,7 +23,12 @@ Routes currently have no authentication. JSON field names use snake_case. Reques
 Item fields:
 
 - `forecast[]`: `datetime` (upstream date-time string), `temp_c` (number), `condition`, `description` (strings). Fetches the current five-day/three-hour forecast; no trip-date query exists.
-- `attractions[]`: `name` (string), `category` (string or null), `lat`, `lon` (numbers). Requests up to 20 results and excludes features without a name.
+- `attractions[]`: `name` (string), `category` (string or null), `categories` (string array), `lat`, `lon` (numbers). At most 40 places; features without a name or numeric coordinates are excluded.
+  - `categories` (added 2026-11-01, DECISIONS 052) is every category string Geoapify gives the place. It is `[]` when Geoapify sends none or something other than a list, and non-string entries are dropped. `category` is unchanged for older clients: the first string of that list, or null.
+  - Since DECISIONS 053 (2026-11-01) the backend makes four Geoapify searches at once, one per app chip: `tourism.attraction`; `tourism.sights`; `heritage,entertainment.museum,entertainment.culture`; `entertainment`. Each asks for 20 places, nearest to the city centre first (`bias=proximity:lon,lat`). Up to 10 are kept per search, after places already listed by an earlier search. Memorials with no more specific tag (usually street plaques) come last within their search. The response lists the searches in that order. `radius_km` is unchanged.
+  - If some searches fail, the others are returned, and that partial result is not cached. If all fail, the first failure becomes the error (upstream status, 504 on timeout, else 502).
+  - The 24 h attractions cache is in-process; a backend restart (including a `--reload`) clears it.
+  - `/lemon/plan` passes this response as prompt context, so up to 40 places with their category lists reach the itinerary prompt (up to 20 before 053).
 - `hotels[]`: `name` (string), `address` (string or null), `lat`, `lon` (numbers). Requests up to 20 results and excludes unnamed hotels. No price, rating, or amenity fields.
 - `offers[]`: `price` (upstream amount string), `currency` (string), `duration` (upstream duration or null), `stops` (integer), `departure`, `departure_time`, `arrival`, `arrival_time`, `carrier` (strings), `arrival_city` (the arrival airport's `city_name`, string or null; added 2026-10-20 for banner photos).
 

@@ -150,6 +150,17 @@ class _LemonBrandState extends State<LemonBrand>
   }
 }
 
+/// The wordmark's lemon on its own, for small badges (decorative).
+class LemonMark extends StatelessWidget {
+  final double size;
+  const LemonMark({super.key, this.size = 20});
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+      child: CustomPaint(
+          size: Size.square(size),
+          painter: _LemonPainter(detailed: size >= 24)));
+}
+
 /// A plump tilted lemon with a shine and a green leaf, drawn on a 32-unit
 /// grid. Small sizes drop the leaf vein and use a bolder outline.
 class _LemonPainter extends CustomPainter {

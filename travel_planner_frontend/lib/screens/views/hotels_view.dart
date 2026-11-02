@@ -8,7 +8,11 @@ import '../../services/travel_api_service.dart';
 import '../../widgets/page_parts.dart';
 
 class HotelsView extends StatefulWidget {
-  const HotelsView({super.key, this.apiService, this.photos, this.trip});
+  const HotelsView(
+      {super.key, this.apiService, this.photos, this.trip, this.onOpenLemon});
+
+  /// Opens Lemon's chat from the "Plan with Lemon" band; null hides the band.
+  final VoidCallback? onOpenLemon;
   final TravelApiService? apiService;
 
   /// Country photos for cities without a bundled photo; null keeps them plain.
@@ -120,7 +124,8 @@ class _HotelsViewState extends State<HotelsView> {
                     'Browse hotel locations around your destination and open any of them in Maps.',
                 tip:
                     'A small radius keeps you close to the centre. Widen it to find quieter neighbourhoods.',
-                search: SearchCard(child: _buildSearchFields()),
+                // Two fields: a compact card, not a long bar (as Attractions).
+                search: SearchCard(maxWidth: 940, child: _buildSearchFields()),
               ),
               const SizedBox(height: 22),
               CityChips(
@@ -141,6 +146,15 @@ class _HotelsViewState extends State<HotelsView> {
               ]),
               const SizedBox(height: 40),
               _buildResultsSection(context, cityPhoto),
+              if (widget.onOpenLemon != null) ...[
+                const SizedBox(height: 40),
+                LemonPromptBand(
+                    title: 'Picked a neighbourhood?',
+                    text:
+                        "Lemon can plan your days around where you're staying.",
+                    action: 'Plan with Lemon',
+                    onPressed: widget.onOpenLemon!),
+              ],
               const SizedBox(height: 28),
               PhotoCredits(photos: [
                 DiscoverContent.stays,
@@ -170,7 +184,9 @@ class _HotelsViewState extends State<HotelsView> {
                 isDense: true,
                 isExpanded: true,
                 style: searchValueStyle.copyWith(
-                    fontSize: 18, fontWeight: FontWeight.w500),
+                    fontFamily: AppTheme.tripBodyFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600),
                 icon: const Icon(Icons.expand_more_rounded,
                     color: AppTheme.primary),
                 items: const [
@@ -191,10 +207,9 @@ class _HotelsViewState extends State<HotelsView> {
         label: const Text('Find Hotels'),
         style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)));
+            textStyle: AppTheme.buttonText(size: 16)));
     return LayoutBuilder(builder: (context, box) {
-      if (box.maxWidth >= 700) {
+      if (searchRowFits(context, box.maxWidth, 700)) {
         return Row(children: [
           Expanded(flex: 3, child: city),
           const SizedBox(width: 12),
@@ -302,10 +317,10 @@ class _HotelsViewState extends State<HotelsView> {
               Container(
                   width: 46,
                   height: 46,
+                  // Lemon icon tile, sky blue button, sand number
+                  // (DECISIONS 051).
                   decoration: BoxDecoration(
-                      color: AppTheme
-                          .softTones[(number - 1) % AppTheme.softTones.length]
-                          .$2,
+                      color: AppTheme.lemonAccent,
                       borderRadius: BorderRadius.circular(14)),
                   child: const Icon(Icons.bed_outlined,
                       color: AppTheme.textPrimary)),

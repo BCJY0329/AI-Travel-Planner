@@ -4,6 +4,34 @@
 
 Reconstructed on 2026-10-08 from current source. The initial task authorized documentation only. Subsequent repairs were separately authorized; unchecked work remains a proposed backlog. KI identifiers refer to `KNOWN_ISSUES.md`. Sections are chronological; items completed by later batches were ticked on 2026-10-17 with a pointer to the batch that did them.
 
+## Open work snapshot — 2026-11-02 (buttons and chat panel)
+
+- [x] **Reviewed and approved by the user in the running app (2026-11-02).** Next session: Lemon.ai feature improvements (see HANDOVER.md).
+
+- [x] Buttons (DECISIONS 056): one font for every button label (Outfit; 800 filled, 700 outlined/text/pill), including the chat panel and dialogs that used Roboto; a resting shadow on every filled button like Find Flights, a deeper edge and faint shadow on partner buttons; a few px more height. Frontend 89 of 89 (new `test/button_style_test.dart`); analyze clean. Approved by the user in the running app.
+- [x] Lemon.ai chat polish built in Flutter (DECISIONS 057): rise-in messages, typing dots, planning card, pill chat box, budget option pills, interest icon pills; Lexend for Lemon's words (user's pick from six fonts on the canvas). Also: hover card without its pill, with new wording and fonts; search cards centred; "Explore places" filled with its outline colour ("Sign in" kept white). Frontend 98 of 98; analyze clean; web build passes. Approved by the user in the running app.
+- [x] Deleted the unused Nunito font files (user's request). The four formatter-only files from earlier still need the user's `git checkout`.
+- [ ] Next (user): Lemon.ai feature improvements, after the UI items.
+
+## Open work snapshot — 2026-11-01 (page colours and chat panel)
+
+- [x] Mocked on the canvas and approved by the user: one colour per page (Flights sky blue, Hotels peach, Attractions lilac, pre-plan Itinerary sand), with search buttons in the page colour and warm sand "Plan with Lemon" buttons (DECISIONS 044). Also approved: the chat panel from halo options A + C with coloured progress and two-colour bubbles (DECISIONS 045), and the Discover hero wording and buttons on the Flutter hero layout.
+- [x] Built in Flutter: `PagePalette` and `PageTone`, page-coloured banner, search card, fields, steps and tiles; peach "Find Hotels" and lilac "Discover Attractions"; "Plan with Lemon" bands on Hotels and Attractions; the new pre-plan itinerary page; the Discover hero and "Ready when you are" changes; the chat header, progress bar and bubbles. Frontend 68 of 68 (new `test/page_colours_test.dart`).
+- [ ] Look at all of it in the running app (the user has seen the mocks, not the Flutter build), especially the chat bubbles' contrast, the badge position on Lemon's avatar and the pre-plan page on a phone.
+- [x] Follow-up after the user saw the build (DECISIONS 046): Hotels and Attractions back to sky blue (sand "Plan with Lemon" bands and the sand pre-plan itinerary kept); Outfit on the search buttons, Flights and Hotels search values, "Copy itinerary" and the nav tabs; tip names shuffled per day. Frontend 69 of 69.
+- [x] Second follow-up (DECISIONS 047): only sky blue, lemon and sand on pages; the mock's rounded sky search button on Flights, Hotels and Attractions; Outfit in the Discover hero. Frontend 73 of 73.
+- [x] Fourth follow-up (DECISIONS 049): attraction tiles rotate all three colours; the Attractions search card is compact; nav tabs are larger. Frontend 77 of 77.
+- [x] Chat panel font: the user chose Nunito (DECISIONS 050), now used for message bubbles and the three typing boxes. Frontend 78 of 78; web build passes.
+- [x] Fifth follow-up (DECISIONS 051): sky blue flight carriers, lemon "Direct" and sand stops; lemon icon tiles on Hotels and Attractions; Lemon's hover card restyled to match the chat panel. Frontend 79 of 79.
+- [x] Attraction chips (KI-29, DECISIONS 052): backend returns the full Geoapify `categories` list and requests `heritage`; the app classifies from the whole list. Backend 83 of 83, frontend 87 of 87, offline.
+- [x] KI-29 again (DECISIONS 053): one Geoapify search per chip, nearest first, plaques last; chips match the searches (museums to Culture & Heritage). Lemon's bubbles white with a lemon edge; full avatar back in the hover card; Hotels (940) and Flights (1080) search cards compact. Backend 89 of 89, frontend 87 of 87, offline.
+- [x] Flights search button moved beside the fields: one row on wide screens, beside Departure and Travelers on medium, stacked on phones (DECISIONS 054). Frontend 87 of 87.
+- [x] Lemon's chat bubbles plain white with a warm hairline, no yellow outline or stripe; slate Nunito 400 text (DECISIONS 055). Frontend 87 of 87; analyze clean. Not yet seen in the running app.
+- [ ] KI-29 live check (needs authorization for live Geoapify calls): see how the four searches fill the chips for a few cities, and confirm the Culture search's categories are accepted. The backend reload clears the 24 h cache.
+- [ ] More bold changes only when the user names them.
+- [x] Third follow-up (DECISIONS 048): the three-colour rule covers the search pages only, so the itinerary and Discover pills have their old colours back; Hotels and Attractions use the earlier pill search button again; chat bubbles swapped (Lemon lemon → sand, traveller sky → lilac); KI-28 fixed. Frontend 75 of 75.
+- [ ] Still queued: tidy the button icons (deferred by the user); KI-26 screen-reader items; the live long-plan check (KI-27).
+
 ## Open work snapshot — 2026-10-31 (provider timing)
 
 - [x] Step 1: cooldown by failure kind: hard failures 5 min, 429 honours Retry-After (1 s–1 h), timeouts and invalid output 30 s, budget-only timeouts none (DECISIONS 042).

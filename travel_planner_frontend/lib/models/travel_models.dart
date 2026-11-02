@@ -83,6 +83,7 @@ class HotelItem {
       final text = value?.toString().trim() ?? '';
       return text.isEmpty ? fallback : text;
     }
+
     return HotelItem(
       name: availableText(json['name'], 'Unnamed hotel'),
       address: availableText(json['address'], 'Address unavailable'),
@@ -94,7 +95,13 @@ class HotelItem {
 
 class AttractionItem {
   final String name;
+
+  /// The chip this place belongs to: one of [classify]'s labels.
   final String category;
+
+  /// Every Geoapify category string for the place, e.g.
+  /// `["tourism", "tourism.sights", "tourism.sights.viewpoint"]`.
+  final List<String> categories;
   final double? lat;
   final double? lon;
   final String description;
@@ -102,25 +109,46 @@ class AttractionItem {
   AttractionItem({
     required this.name,
     required this.category,
+    this.categories = const [],
     this.lat,
     this.lon,
     this.description = 'Description unavailable.',
   });
 
-  factory AttractionItem.fromJson(Map<String, dynamic> json) {
-    final rawCat = json['category']?.toString() ?? 'Sight';
-    var cleanCat = 'Sightseeing';
-    if (rawCat.contains('entertainment')) {
-      cleanCat = 'Entertainment';
-    } else if (rawCat.contains('sights') || rawCat.contains('attraction')) {
-      cleanCat = 'Landmark & Sights';
-    } else if (rawCat.contains('culture') || rawCat.contains('heritage')) {
-      cleanCat = 'Culture & Heritage';
+  /// The chip for a place from its whole Geoapify category list (DECISIONS
+  /// 052, 053), matching the backend's four search groups. Geoapify's order
+  /// does not matter, as every entry is checked:
+  /// heritage sites, museums and culture → Culture & Heritage; other
+  /// entertainment (zoos, theme parks, cinemas) → Entertainment;
+  /// `tourism.sights` (monuments, towers, ruins) → Landmark & Sights;
+  /// everything else, such as `tourism.attraction` artworks, viewpoints and
+  /// fountains → Sightseeing.
+  static String classify(List<String> categories) {
+    bool any(bool Function(String) test) => categories.any(test);
+    if (any((c) =>
+        c.startsWith('heritage') ||
+        c.startsWith('entertainment.museum') ||
+        c.contains('culture'))) {
+      return 'Culture & Heritage';
     }
+    if (any((c) => c.startsWith('entertainment'))) return 'Entertainment';
+    if (any((c) => c.startsWith('tourism.sights'))) return 'Landmark & Sights';
+    return 'Sightseeing';
+  }
 
+  factory AttractionItem.fromJson(Map<String, dynamic> json) {
+    // Older responses carry only the first category; treat it as the list.
+    final raw = json['categories'];
+    final categories = raw is List
+        ? [
+            for (final c in raw)
+              if (c is String) c
+          ]
+        : [if (json['category'] is String) json['category'] as String];
     return AttractionItem(
       name: json['name']?.toString() ?? 'Historical Landmark',
-      category: cleanCat,
+      category: classify(categories),
+      categories: categories,
       lat: (json['lat'] as num?)?.toDouble(),
       lon: (json['lon'] as num?)?.toDouble(),
     );

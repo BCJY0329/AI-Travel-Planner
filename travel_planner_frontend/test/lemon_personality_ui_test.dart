@@ -34,17 +34,14 @@ void main() {
     await mouse.addPointer(location: Offset.zero);
     await mouse.moveTo(tester.getCenter(find.byType(LemonBubble)));
     await tester.pumpAndSettle();
-    expect(
-        find.text('Turn your dream travel plan into an itinerary!'),
-        findsOneWidget);
+    expect(find.text(LemonBubble.invitations[0]), findsOneWidget);
     expect(opened, 0);
     expect(tester.takeException(), isNull);
     await mouse.moveTo(Offset.zero);
     await tester.pumpAndSettle();
     await mouse.moveTo(tester.getCenter(find.byType(LemonBubble)));
     await tester.pumpAndSettle();
-    expect(find.text('Your next adventure called. Shall we make a plan?'),
-        findsOneWidget);
+    expect(find.text(LemonBubble.invitations[1]), findsOneWidget);
     await tester.tap(find.byType(LemonBubble));
     expect(opened, 1);
     await mouse.removePointer();
@@ -56,9 +53,7 @@ void main() {
     await tester.pumpWidget(launcher(() => opened++, reduced: true));
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pumpAndSettle();
-    expect(
-        find.text('Turn your dream travel plan into an itinerary!'),
-        findsOneWidget);
+    expect(find.text(LemonBubble.invitations[0]), findsOneWidget);
     expect(find.byType(AnimatedSize), findsNothing);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();

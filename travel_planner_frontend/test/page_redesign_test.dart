@@ -131,9 +131,9 @@ void main() {
                 .first)
             .color)!;
     expect({for (var d = 1; d <= 4; d++) header(d)}.length, 4);
-    final label = tester.widget<Text>(find.text('A little tip from Lemon').first);
+    final label = tester.widget<Text>(find.text(tipLabelFor(1, 1)).first);
     expect(label.style!.fontSize, greaterThanOrEqualTo(15));
-    await tester.tap(find.text('A little tip from Lemon').first);
+    await tester.tap(find.text(tipLabelFor(1, 1)).first);
     await tester.pumpAndSettle();
     expect(find.text('Tip for day 1'), findsOneWidget);
     expect(find.text('Hide Lemon’s tip'), findsOneWidget);

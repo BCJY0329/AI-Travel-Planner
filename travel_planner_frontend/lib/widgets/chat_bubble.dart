@@ -86,15 +86,13 @@ class ChatBubbleWidget extends StatelessWidget {
                       backgroundColor:
                           isPlanIt ? AppTheme.cta : AppTheme.surface,
                       side: BorderSide(
-                        color:
-                            isPlanIt ? AppTheme.cta : AppTheme.skyBlue,
+                        color: isPlanIt ? AppTheme.cta : AppTheme.skyBlue,
                         width: 1.2,
                       ),
                       label: Text(
                         opt,
                         style: TextStyle(
-                          color:
-                              isPlanIt ? AppTheme.ctaInk : AppTheme.primary,
+                          color: isPlanIt ? AppTheme.ctaInk : AppTheme.primary,
                           fontWeight: FontWeight.w600,
                           fontSize: 12.5,
                         ),
@@ -165,35 +163,49 @@ class ChatBubbleWidget extends StatelessWidget {
   }
 
   Widget _textBubble(String text, bool isBot, {bool italic = false}) {
+    final radius = BorderRadius.only(
+      topLeft: Radius.circular(isBot ? 4 : 18),
+      topRight: const Radius.circular(18),
+      bottomLeft: const Radius.circular(18),
+      bottomRight: Radius.circular(isBot ? 18 : 4),
+    );
+    // Lemon's bubble is plain white with a warm hairline edge, so emoji keep
+    // their own colours and her yellow stays on her avatar (DECISIONS 055);
+    // the traveller's fades sky blue into lilac (DECISIONS 048).
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
-        color: isBot ? AppTheme.surface : AppTheme.skyBlue,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(isBot ? 4 : 18),
-          topRight: const Radius.circular(18),
-          bottomLeft: const Radius.circular(18),
-          bottomRight: Radius.circular(isBot ? 18 : 4),
-        ),
-        border: isBot ? Border.all(color: AppTheme.lavenderTint) : null,
+        color: isBot ? AppTheme.surface : null,
+        gradient: isBot ? null : AppTheme.travellerBubble,
+        borderRadius: radius,
+        border: isBot ? Border.all(color: AppTheme.lemonBubbleEdge) : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isBot ? 0.05 : 0.07),
+            color: isBot
+                ? AppTheme.bubbleShadow.withValues(alpha: 0.08)
+                : AppTheme.primary.withValues(alpha: 0.12),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: AppTheme.chatText,
-          fontSize: 14.5,
-          height: 1.5,
-          letterSpacing: 0.1,
-          fontWeight: isBot ? FontWeight.w400 : FontWeight.w500,
-          fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-        ),
+      child: _bubbleText(text, isBot, italic),
+    );
+  }
+
+  Widget _bubbleText(String text, bool isBot, bool italic) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: isBot ? AppTheme.chatText : AppTheme.ctaInk,
+        fontFamily: AppTheme.chatFont,
+        fontSize: 14.5,
+        height: 1.5,
+        letterSpacing: 0.1,
+        // Regular body copy reads lighter; the traveller's short replies
+        // keep a little weight on the coloured fade.
+        fontWeight: isBot ? FontWeight.w400 : FontWeight.w600,
+        fontStyle: italic ? FontStyle.italic : FontStyle.normal,
       ),
     );
   }
