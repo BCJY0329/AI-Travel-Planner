@@ -138,6 +138,11 @@ class ChatBubbleWidget extends StatelessWidget {
 
       case ChatMessageType.itinerary:
         return _itineraryCard(context, message.itinerary!);
+
+      // The chat panel draws these with their buttons; this is the text alone.
+      case ChatMessageType.spots:
+      case ChatMessageType.editPreview:
+        return _row(true, _textBubble(message.text ?? '', true));
     }
   }
 

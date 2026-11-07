@@ -386,7 +386,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    final c = LemonChatController(api: FakeLemonApi())
+    final c = LemonChatController(mode: ChatMode.guided, api: FakeLemonApi())
       ..nextField = 'budget_level';
     addTearDown(c.dispose);
     await tester.pumpWidget(wrap(SizedBox(
@@ -397,7 +397,7 @@ void main() {
 
   testWidgets('Chat header shows the lemon badge and step states',
       (tester) async {
-    final c = LemonChatController(api: FakeLemonApi())
+    final c = LemonChatController(mode: ChatMode.guided, api: FakeLemonApi())
       ..nextField = 'budget_level';
     addTearDown(c.dispose);
     final semantics = tester.ensureSemantics();
@@ -417,7 +417,7 @@ void main() {
   testWidgets('Chat messages and typing boxes use Lexend (DECISIONS 057)',
       (tester) async {
     Future<LemonChatController> pump(String field) async {
-      final c = LemonChatController(api: FakeLemonApi())
+      final c = LemonChatController(mode: ChatMode.guided, api: FakeLemonApi())
         ..nextField = field
         ..messages.addAll([
           ChatMessage.text(ChatSender.bot, 'Where shall we go?'),

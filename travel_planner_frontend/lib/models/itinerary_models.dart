@@ -29,6 +29,122 @@ String cleanAiText(String? input) {
   return text.trim();
 }
 
+/// A place the traveller wants in the plan (DECISIONS 069): tapped from
+/// Lemon's popular spots, typed in chat, or picked by Lemon on "surprise me".
+class MustVisitPlace {
+  final String name;
+
+  /// 'verified' (checked on the map), 'unverified' (the check couldn't run)
+  /// or 'not_found' (never kept; Lemon says so).
+  final String status;
+  final String? placeId;
+  final double? lat;
+  final double? lon;
+
+  /// True for Lemon's own picks, shown with a "Lemon's pick" tag.
+  final bool byLemon;
+
+  /// The map's own name for the place found (DECISIONS 071), so the itinerary
+  /// can show what a typed name was matched to.
+  final String? matchedName;
+
+  const MustVisitPlace(
+      {required this.name,
+      this.status = 'unverified',
+      this.placeId,
+      this.lat,
+      this.lon,
+      this.byLemon = false,
+      this.matchedName});
+
+  factory MustVisitPlace.fromJson(Map<String, dynamic> json) => MustVisitPlace(
+        name: (json['name'] as String? ?? '').trim(),
+        status: json['status'] as String? ?? 'unverified',
+        placeId: json['place_id'] as String?,
+        lat: (json['lat'] as num?)?.toDouble(),
+        lon: (json['lon'] as num?)?.toDouble(),
+        matchedName: (json['matched_name'] as String?)?.trim(),
+      );
+
+  factory MustVisitPlace.fromSpot(PopularSpot spot, {bool byLemon = false}) =>
+      MustVisitPlace(
+          name: spot.name,
+          status: 'verified',
+          placeId: spot.placeId,
+          lat: spot.lat,
+          lon: spot.lon,
+          byLemon: byLemon);
+
+  /// Same place: the same map id, or the same name ignoring case.
+  bool sameAs(String otherName, [String? otherId]) =>
+      (placeId != null && placeId == otherId) ||
+      name.toLowerCase() == otherName.trim().toLowerCase();
+
+  /// What TripRequest.must_visit takes (travel_backend/models/itinerary.py).
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        if (placeId != null) 'place_id': placeId,
+        if (lat != null) 'lat': lat,
+        if (lon != null) 'lon': lon,
+        if (matchedName != null) 'matched_name': matchedName,
+      };
+}
+
+/// One of Lemon's popular spots (GET /lemon/spots), most popular first.
+class PopularSpot {
+  final String name;
+  final String? placeId;
+  final double? lat;
+  final double? lon;
+  final int popularity;
+  final String kind;
+
+  const PopularSpot(
+      {required this.name,
+      this.placeId,
+      this.lat,
+      this.lon,
+      this.popularity = 0,
+      this.kind = 'sight'});
+
+  factory PopularSpot.fromJson(Map<String, dynamic> json) => PopularSpot(
+        name: (json['name'] as String? ?? '').trim(),
+        placeId: json['place_id'] as String?,
+        lat: (json['lat'] as num?)?.toDouble(),
+        lon: (json['lon'] as num?)?.toDouble(),
+        popularity: (json['popularity'] as num?)?.toInt() ?? 0,
+        kind: json['kind'] as String? ?? 'sight',
+      );
+}
+
+/// GET /lemon/spots. status: 'ready', 'none', 'too_broad' (a whole country)
+/// or 'unavailable'.
+class SpotsResult {
+  final String status;
+  final String destination;
+  final List<PopularSpot> spots;
+
+  /// Lemon's choice for "surprise me", suited to the interests sent.
+  final List<String> picks;
+
+  const SpotsResult(
+      {required this.status,
+      required this.destination,
+      this.spots = const [],
+      this.picks = const []});
+
+  factory SpotsResult.fromJson(Map<String, dynamic> json) => SpotsResult(
+        status: json['status'] as String? ?? 'unavailable',
+        destination: json['destination'] as String? ?? '',
+        spots: (json['spots'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(PopularSpot.fromJson)
+            .where((s) => s.name.isNotEmpty)
+            .toList(),
+        picks: (json['picks'] as List? ?? []).map((e) => e.toString()).toList(),
+      );
+}
+
 class TripRequest {
   final String destination;
   final String startDate;
@@ -38,6 +154,10 @@ class TripRequest {
   final List<String> interests;
   final String provider;
 
+  /// 'relaxed', 'balanced' or 'packed' (DECISIONS 069).
+  final String pace;
+  final List<MustVisitPlace> mustVisit;
+
   TripRequest({
     required this.destination,
     required this.startDate,
@@ -46,6 +166,8 @@ class TripRequest {
     required this.budgetLevel,
     required this.interests,
     required this.provider,
+    this.pace = 'balanced',
+    this.mustVisit = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -55,6 +177,8 @@ class TripRequest {
         'travelers': travelers,
         'budget_level': budgetLevel,
         'interests': interests,
+        'pace': pace,
+        'must_visit': [for (final place in mustVisit) place.toJson()],
         'provider': provider,
       };
 }
@@ -65,11 +189,28 @@ class ItineraryActivity {
   final String? location;
   final String? notes;
 
+  /// Grounding (DECISIONS 069), set by the server: 'verified' (a real place,
+  /// with [placeId] and coordinates), 'unverified' (named but not matched),
+  /// or null (no specific place, or not checked).
+  final String? placeId;
+  final double? lat;
+  final double? lon;
+  final String? placeStatus;
+
+  /// The map's name for the place a verified stop was matched to (DECISIONS
+  /// 071); shown when it differs from [location].
+  final String? placeName;
+
   ItineraryActivity({
     required this.time,
     required this.activity,
     this.location,
     this.notes,
+    this.placeId,
+    this.lat,
+    this.lon,
+    this.placeStatus,
+    this.placeName,
   });
 
   factory ItineraryActivity.fromJson(Map<String, dynamic> json) =>
@@ -81,7 +222,28 @@ class ItineraryActivity {
             : null,
         notes:
             json['notes'] != null ? cleanAiText(json['notes'] as String) : null,
+        placeId: json['place_id'] as String?,
+        lat: (json['lat'] as num?)?.toDouble(),
+        lon: (json['lon'] as num?)?.toDouble(),
+        placeStatus: switch (json['place_status']) {
+          'verified' => 'verified',
+          'unverified' => 'unverified',
+          _ => null,
+        },
+        placeName: json['place_name'] as String?,
       );
+
+  Map<String, dynamic> toJson() => {
+        'time': time,
+        'activity': activity,
+        'location': location,
+        'notes': notes,
+        'place_id': placeId,
+        'lat': lat,
+        'lon': lon,
+        'place_status': placeStatus,
+        'place_name': placeName,
+      };
 }
 
 class ItineraryDay {
@@ -98,6 +260,12 @@ class ItineraryDay {
             .map((a) => ItineraryActivity.fromJson(a as Map<String, dynamic>))
             .toList(),
       );
+
+  Map<String, dynamic> toJson() => {
+        'day': day,
+        'date': date,
+        'activities': [for (final a in activities) a.toJson()],
+      };
 }
 
 class ItineraryResponse {
@@ -106,11 +274,16 @@ class ItineraryResponse {
   final String? summary;
   final List<ItineraryDay> days;
 
+  /// Must-visits no planner fitted in (DECISIONS 070). When none of the
+  /// traveller's must-visits made it, the app asks before showing the plan.
+  final List<String> missingMustVisits;
+
   ItineraryResponse({
     required this.destination,
     required this.providerUsed,
     this.summary,
     required this.days,
+    this.missingMustVisits = const [],
   });
 
   factory ItineraryResponse.fromJson(Map<String, dynamic> json) =>
@@ -122,6 +295,69 @@ class ItineraryResponse {
             : null,
         days: (json['days'] as List? ?? [])
             .map((d) => ItineraryDay.fromJson(d as Map<String, dynamic>))
+            .toList(),
+        missingMustVisits: (json['missing_must_visits'] as List? ?? [])
+            .map((e) => e.toString())
+            .toList(),
+      );
+
+  /// The same plan with one day replaced (an accepted edit, DECISIONS 069).
+  ItineraryResponse withDay(ItineraryDay replacement) => ItineraryResponse(
+      destination: destination,
+      providerUsed: providerUsed,
+      summary: summary,
+      missingMustVisits: missingMustVisits,
+      days: [
+        for (final day in days) day.day == replacement.day ? replacement : day
+      ]);
+}
+
+/// One change to the existing plan (DECISIONS 069): 'regenerate_day',
+/// 'swap_activity' ([stop], 1-based) or 'adjust_day' ([instruction]).
+class PlanEdit {
+  final String action;
+  final int day;
+  final int? stop;
+  final String? instruction;
+
+  const PlanEdit(
+      {required this.action, required this.day, this.stop, this.instruction});
+
+  static PlanEdit? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final action = json['action'];
+    final day = (json['day'] as num?)?.toInt();
+    if (day == null ||
+        !const ['regenerate_day', 'swap_activity', 'adjust_day']
+            .contains(action)) {
+      return null;
+    }
+    return PlanEdit(
+        action: action as String,
+        day: day,
+        stop: (json['stop'] as num?)?.toInt(),
+        instruction: json['instruction'] as String?);
+  }
+}
+
+/// POST /lemon/edit: the new day, to preview before it replaces the old one.
+class PlanEditResult {
+  final ItineraryDay day;
+  final String providerUsed;
+
+  /// Must-visits the new day no longer has (DECISIONS 070); the preview says so.
+  final List<String> missingMustVisits;
+
+  const PlanEditResult(
+      {required this.day,
+      required this.providerUsed,
+      this.missingMustVisits = const []});
+
+  factory PlanEditResult.fromJson(Map<String, dynamic> json) => PlanEditResult(
+        day: ItineraryDay.fromJson(json['day'] as Map<String, dynamic>),
+        providerUsed: json['provider_used'] as String? ?? 'AI',
+        missingMustVisits: (json['missing_must_visits'] as List? ?? [])
+            .map((e) => e.toString())
             .toList(),
       );
 }

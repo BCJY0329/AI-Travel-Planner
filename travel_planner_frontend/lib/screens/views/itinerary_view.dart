@@ -30,6 +30,10 @@ class ItineraryView extends StatefulWidget {
   final ItineraryResponse? itinerary;
   final VoidCallback onOpenLemon;
 
+  /// Change one day (DECISIONS 069). Null hides the edit buttons; a demo
+  /// plan never shows them, since real and demo days are never mixed.
+  final ValueChanged<PlanEdit>? onEdit;
+
   /// Country photos for destinations without a bundled photo.
   /// Null (as in most tests) keeps the plain banner.
   final PlacePhotoSource? photos;
@@ -37,6 +41,7 @@ class ItineraryView extends StatefulWidget {
       {super.key,
       required this.itinerary,
       required this.onOpenLemon,
+      this.onEdit,
       this.photos});
   @override
   State<ItineraryView> createState() => _ItineraryViewState();
@@ -198,7 +203,9 @@ class _ItineraryViewState extends State<ItineraryView> {
                                 child: GentleReveal(
                                     delay: Duration(
                                         milliseconds: 90 * (i < 6 ? i : 6)),
-                                    child: _dayCard(days[i]))),
+                                    child: _dayCard(days[i],
+                                        editable: !demo &&
+                                            widget.onEdit != null))),
                         ]);
                       }),
                       const SizedBox(height: 28),
@@ -206,7 +213,17 @@ class _ItineraryViewState extends State<ItineraryView> {
                     ]))));
   }
 
-  Widget _dayCard(ItineraryDay day) {
+  /// "Adjust day": what to change, in the traveller's words.
+  Future<void> _adjust(ItineraryDay day) async {
+    final instruction = await showDialog<String>(
+        context: context, builder: (_) => _AdjustDialog(day: day.day));
+    final text = instruction?.trim() ?? '';
+    if (!mounted || text.isEmpty) return;
+    widget.onEdit?.call(
+        PlanEdit(action: 'adjust_day', day: day.day, instruction: text));
+  }
+
+  Widget _dayCard(ItineraryDay day, {bool editable = false}) {
     final (tint, accent) = _dayTones[(day.day - 1).abs() % _dayTones.length];
     final count = day.activities.length;
     return Container(
@@ -260,6 +277,20 @@ class _ItineraryViewState extends State<ItineraryView> {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (editable)
+                    Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 6, 22, 4),
+                        child: Wrap(spacing: 10, runSpacing: 8, children: [
+                          _EditButton(
+                              label: 'Regenerate day',
+                              icon: Icons.refresh_rounded,
+                              onPressed: () => widget.onEdit!(PlanEdit(
+                                  action: 'regenerate_day', day: day.day))),
+                          _EditButton(
+                              label: 'Adjust day',
+                              icon: Icons.tune_rounded,
+                              onPressed: () => _adjust(day)),
+                        ])),
                   if (day.activities.isEmpty)
                     const Padding(
                         padding: EdgeInsets.all(22),
@@ -271,7 +302,13 @@ class _ItineraryViewState extends State<ItineraryView> {
                         number: i + 1,
                         tint: tint,
                         accent: accent,
-                        last: i == day.activities.length - 1),
+                        last: i == day.activities.length - 1,
+                        onSwap: editable
+                            ? () => widget.onEdit!(PlanEdit(
+                                action: 'swap_activity',
+                                day: day.day,
+                                stop: i + 1))
+                            : null),
                 ])),
       ]),
     );
@@ -528,6 +565,20 @@ final List<List<String>> _tipOrders = () {
 }();
 
 /// The tip label for stop [number] (1-based) on day [day].
+/// The map place a verified stop was matched to, when its name is not just
+/// the stop's own name (DECISIONS 071), so a wrong match is easy to spot.
+String? matchedPlaceLabel(ItineraryActivity activity) {
+  final matched = activity.placeName?.trim() ?? '';
+  if (activity.placeStatus != 'verified' || matched.isEmpty) return null;
+  String fold(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), '');
+  final a = fold(activity.location ?? ''), b = fold(matched);
+  if (b.isEmpty || a.contains(b) || (a.isNotEmpty && b.contains(a))) {
+    return null;
+  }
+  return 'Matched: $matched';
+}
+
 String tipLabelFor(int day, int number) {
   final order = _tipOrders[(day - 1) % _tipOrders.length];
   return order[(number - 1) % order.length];
@@ -539,13 +590,17 @@ class _Stop extends StatefulWidget {
   final int day, number;
   final Color tint, accent;
   final bool last;
+
+  /// "Swap": replace this one stop (DECISIONS 069).
+  final VoidCallback? onSwap;
   const _Stop(
       {required this.activity,
       required this.day,
       required this.number,
       required this.tint,
       required this.accent,
-      required this.last});
+      required this.last,
+      this.onSwap});
   @override
   State<_Stop> createState() => _StopState();
 }
@@ -615,6 +670,13 @@ class _StopState extends State<_Stop> {
                                     letterSpacing: 1,
                                     fontWeight: FontWeight.w700,
                                     color: AppTheme.textSecondary)),
+                            if (widget.onSwap != null)
+                              _EditButton(
+                                  label: 'Swap',
+                                  icon: Icons.swap_horiz_rounded,
+                                  compact: true,
+                                  tooltip: 'Swap stop ${widget.number} for something else',
+                                  onPressed: widget.onSwap!),
                           ]),
                       const SizedBox(height: 6),
                       Text(activity.activity,
@@ -629,18 +691,36 @@ class _StopState extends State<_Stop> {
                             child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Padding(
-                                      padding: EdgeInsets.only(top: 2),
-                                      child: Icon(Icons.place_outlined,
-                                          size: 16, color: AppTheme.primary)),
+                                  Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: _placeIcon(activity.placeStatus)),
                                   const SizedBox(width: 5),
                                   Expanded(
-                                      child: Text(activity.location!,
-                                          style: const TextStyle(
-                                              color: AppTheme.textSecondary,
-                                              fontSize: 14,
-                                              height: 1.4))),
+                                      child: Wrap(
+                                          spacing: 8,
+                                          runSpacing: 4,
+                                          crossAxisAlignment:
+                                              WrapCrossAlignment.center,
+                                          children: [
+                                        Text(activity.location!,
+                                            style: const TextStyle(
+                                                color: AppTheme.textSecondary,
+                                                fontSize: 14,
+                                                height: 1.4)),
+                                        if (activity.placeStatus ==
+                                            'unverified')
+                                          const _UnverifiedTag(),
+                                      ])),
                                 ])),
+                      if (matchedPlaceLabel(activity) case final matched?)
+                        Padding(
+                            padding: const EdgeInsets.only(top: 2, left: 21),
+                            child: Text(matched,
+                                style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 12.5,
+                                    fontStyle: FontStyle.italic,
+                                    height: 1.4))),
                       if (hasTip) ...[
                         const SizedBox(height: 10),
                         _tipToggle(),
@@ -671,6 +751,20 @@ class _StopState extends State<_Stop> {
               ]),
             ])));
   }
+
+  /// A filled pin for a place checked on the map; the plain outline
+  /// otherwise (DECISIONS 069).
+  Widget _placeIcon(String? status) => switch (status) {
+        'verified' => const Tooltip(
+            message: 'Checked on the map',
+            child: Icon(Icons.place_rounded,
+                size: 16,
+                color: AppTheme.primary,
+                semanticLabel: 'Checked on the map')),
+        'unverified' => const Icon(Icons.place_outlined,
+            size: 16, color: AppTheme.textSecondary),
+        _ => const Icon(Icons.place_outlined, size: 16, color: AppTheme.primary),
+      };
 
   Widget _tipToggle() => Semantics(
       button: true,
@@ -710,6 +804,98 @@ class _StopState extends State<_Stop> {
                   ]))),
         ),
       )));
+}
+
+/// "Adjust day": the traveller's words for what to change. It owns its text
+/// controller, so the field outlives the closing animation.
+class _AdjustDialog extends StatefulWidget {
+  final int day;
+  const _AdjustDialog({required this.day});
+  @override
+  State<_AdjustDialog> createState() => _AdjustDialogState();
+}
+
+class _AdjustDialogState extends State<_AdjustDialog> {
+  final _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text('Adjust day ${widget.day}',
+            style: tripHeading.copyWith(fontSize: 19)),
+        content: TextField(
+            controller: _text,
+            autofocus: true,
+            maxLength: 300,
+            minLines: 1,
+            maxLines: 3,
+            onSubmitted: (v) => Navigator.pop(context, v),
+            decoration: const InputDecoration(
+                labelText: 'What should Lemon change?',
+                hintText: 'For example, more food stops, or a slower morning')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, _text.text),
+              child: const Text('Ask Lemon')),
+        ],
+      );
+}
+
+/// "Unverified": Lemon named this place but couldn't match it on the map.
+class _UnverifiedTag extends StatelessWidget {
+  const _UnverifiedTag();
+  @override
+  Widget build(BuildContext context) => Tooltip(
+      message: "Lemon couldn't confirm this place on the map. Worth double-checking.",
+      child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          decoration: BoxDecoration(
+              color: const Color(0xFFF1F2F4),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: const Color(0xFFD5D8DE))),
+          child: const Text('Unverified',
+              style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF5B6270)))));
+}
+
+/// The day and stop edit buttons: solid, in the sky family (DECISIONS 056).
+class _EditButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool compact;
+  final String? tooltip;
+  const _EditButton(
+      {required this.label,
+      required this.icon,
+      required this.onPressed,
+      this.compact = false,
+      this.tooltip});
+  @override
+  Widget build(BuildContext context) {
+    final button = OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: compact ? 16 : 18),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+            visualDensity: compact ? VisualDensity.compact : null,
+            minimumSize: Size(compact ? 44 : 48, compact ? 34 : 42),
+            padding: EdgeInsets.symmetric(
+                horizontal: compact ? 10 : 16, vertical: compact ? 4 : 10),
+            textStyle: AppTheme.buttonText(
+                size: compact ? 12.5 : 14, weight: FontWeight.w700)));
+    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
+  }
 }
 
 /// The itinerary page before a plan exists: the sand page (DECISIONS 044).

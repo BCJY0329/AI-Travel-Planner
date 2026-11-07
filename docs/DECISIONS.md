@@ -368,3 +368,276 @@ Built from the canvas page "Chat panel polish" (https://claude.ai/artifact/L5nqa
 - **"Explore places"** (Discover hero) was white. It is now filled with its own outline colour (`ctaEdge`) and has the filled-button shadow (3, 6 on hover). The user kept "Sign in" white.
 
 **Approved:** the user reviewed the running app on 2026-11-02 and approved this round, including 056's buttons ("i like it now").
+
+## 058 - Lemon.ai feature roadmap: smarter intake, grounded plans, photo/link/video place detection (2026-11-02)
+
+Status: **accepted direction, not implemented.** Agreed in discussion with the user. No code was changed. Each phase still needs its own go-ahead, and dependency changes and live provider calls need separate authorization (AGENTS.md). The user referenced Paths-style planners, where the traveller gives simple details and the AI does the rest.
+
+**Principle:** "fully reliable" comes from checking the model's output, not from trusting it. Every phase adds a check around the model: schema validation, geocoding, the user's confirmation, or labelled fallbacks.
+
+**Phase order (agreed):**
+
+1. **Smart intake and a garbage gate.**
+   - **One-shot extraction:** one free-text message fills as many fields as it can. Example: "4 days in Tokyo with my wife next month, we love ramen, mid budget".
+   - **Visible inference:** "me and my wife" → 2 travelers, "long weekend" → 3 days, "honeymoon" → pace and budget, "with kids" → family-friendly. Each inferred value shows as an editable chip ("I assumed 2 travelers"), never a silent guess.
+   - **A layered gate:**
+     - a free local pre-filter for empty text, keyboard-mash, repeated characters, spam links and obvious prompt-injection phrases;
+     - an `intent` from the model (trip request / small talk / off-topic / gibberish / unsafe), each with its own reply;
+     - a destination that must resolve through the shared geocoder (Geoapify since 039). Unresolvable places are refused, not planned.
+   - **Ambiguous places** ("Paris", "Georgia") ask which one is meant. This picks up KI-25 option 2.
+   - The local heuristic parser stays as the mock/offline fallback, with simpler versions of the same rules.
+   - **Modes:** the user wants **free-text mode and guided-controls mode as two separate modes the traveller can choose**. How they're split will be designed when phase 1 starts.
+2. **A grounded itinerary.**
+   - Activities can carry an optional Geoapify `place_id` and coordinates. Model-named places that can't be matched are flagged as unverified.
+   - A `must_visit` list on `TripRequest` (from chat, Attractions, or media detection), which the validator checks is in the plan.
+   - Nearby places grouped on the same day; weather-aware placement (outdoor activities on dry days).
+   - A pace setting (relaxed / balanced / packed) replaces the fixed "3–5 activities". It changes how full a day is, not how detailed it is (042's rule against shortening content stands).
+   - Regenerate one day / swap one activity / adjust a day, reusing the per-window generation.
+   - The mock label stays honest and visible.
+3. **Photo detection and link previews (cheap, works with any provider).**
+   - **Uploads:** photos/screenshots → a vision model returns candidates: name, city, country, confidence and *evidence* (visible signage, distinctive landmark).
+   - **Links:** read the post's public preview data (oEmbed / Open Graph: caption, author, thumbnail). Never download or scrape the video itself. The caption is often enough on its own (text extraction). If it isn't, the thumbnail goes through photo detection. If that fails, Lemon asks for an upload or screenshot. Private or blocked posts are not worked around.
+   - **Every candidate** is checked against Geoapify, and **the user confirms** before it joins `must_visit`. Nothing is added automatically.
+   - **A place in another city** is offered as a day trip, or Lemon asks. Several places in one post → a list. Nothing recognisable → said plainly.
+4. **Video detection, frames first.**
+   - The app pulls 4–6 still frames and sends them as images (about 1–2k tokens instead of about 8–10k for a 30-second clip as raw video). Images work on more providers (Groq `llama-4-scout` takes images), so the existing auto chain shares the load instead of draining Gemini's free tier.
+   - Raw video only as a last resort, through Gemini at low resolution, capped at about 60 s.
+   - Results cached by file fingerprint, and a daily cap per device on media analysis.
+   - Uploaded media is not kept (deleted from provider file storage after analysis), and the UI says so.
+5. **Extras:** saved trips (device storage first, since there's no database), a map of each day, export/share (PDF, .ics, link), and follow-up questions after the plan exists.
+
+**Fallback agreed by the user:** if phases 3–4 turn out to need paid tiers, phase 5 goes before them. The current assessment is that they don't, provided frames and link previews come first. The hard part is pulling frames from video in Flutter web, which is engineering effort, not a tier limit.
+
+**Research notes (2026-11-02 web search, not verified against official pages; confirm before building):**
+- Gemini counts video at about 258 tokens per frame at 1 fps, plus audio. Google no longer publishes free-tier quotas as fixed numbers; they show per project in AI Studio.
+- A Meta developer blog post (2026-06-15) says Instagram/Facebook oEmbed can be called without an access token; Meta's older oEmbed docs still say a token is needed.
+- TikTok's public oEmbed endpoint is believed to need no auth, but the search didn't confirm it.
+- Gemini can take public YouTube URLs directly, but that spends video tokens.
+- Groq documents `meta-llama/llama-4-scout-17b-16e-instruct` for image input; free-tier limits weren't found from an official source.
+
+**Known prerequisites and risks:**
+- `google-genai==0.3.0` is old and likely needs an upgrade for file uploads (a dependency change).
+- KI-14 (Gemini 404) must be resolved before relying on Gemini for media.
+- Flutter needs a file-picker package (a dependency change); frame extraction on web needs work in the browser (HTML video + canvas) or a package.
+- Server-side frame extraction would need ffmpeg (a new tool).
+- KI-07 (broken venv) slows backend work.
+- New request/response fields must stay aligned between `travel_backend/models/` and `lib/models/`.
+
+## 059 - Lemon.ai phase 1: free-text mode by default, guided mode on request, garbage gate (2026-11-04)
+
+Status: **implemented, offline-tested; not yet seen in the running app or with live providers.** Phase 1 of 058. Design agreed with the user before building.
+
+**The user's choices:**
+- **Free text is the default mode.** Guided controls are the second mode.
+- **Fallback asks first.** When free text struggles, Lemon offers "Switch to guided" / "Keep typing" and switches only on a yes. This also covers the AI being down.
+- **Left-out details:** travelers, budget and interests are optional. Lemon says which ones were left out and what it will use (1 traveler, Comfortable/medium budget, surprise-me interests); the brief tags them "Default" so they can be changed before generating. Guesses from wording are tagged "Assumed".
+- **Switching:** a ⚙ gear in the chat header opens a settings menu (Chat mode: Free text / Guided), built so more settings can join later. Plain words ("switch to guided", "use the buttons", "let me type") also switch.
+- **Remembered:** the mode is saved on the device with `shared_preferences` (dependency added with the user's authorization).
+
+**Backend (`/lemon/chat`):**
+1. `prefilter` on the latest user message: empty or punctuation-only, repeated characters, keyboard-mash, links (phase 3 will read link previews; for now Lemon asks for the place in words), prompt-injection phrases. A flagged message never reaches a provider. Digits pass ("2", "2026-12-01").
+2. One-shot extraction prompt: every field at once, `intent`, `inferred`, no questions about optional fields, vague dates ("next month") left null and asked about, destination kept as written (no added country, so the ambiguity check sees what the traveller said).
+3. `_finalize` checks whatever the extractor returned: dates (valid, from today, ordered, at most 30 days), travelers 1–20, budget normalised to lowercase, interests bounded like `TripRequest`, `next_field` recomputed, `ready` only with all required fields and no problem. A problem replaces the reply with a fixed question.
+4. `services/place_check.py`: the destination goes through the shared `_geoapify_search` (lazy import, 24 h cache, 8 s limit). No results → refused. The same exact name in several country/state groups → `ambiguous` with up to 4 labels. A name with a comma is taken as already specific. Lookup failure → `unverified`, and the chat goes on (the plan step geocodes again). Explicit `mock` skips the check so it stays offline.
+5. The local parser (mock and auto's fallback) got the same rules in simpler form: month names, ranges ("Dec 3-7", "3 to 7 December", across a year end), lengths (days, nights, weeks, weekend, long weekend), "this/next weekend", "tomorrow"; travelers from "me and my wife", "solo", "family of 4", "with 2 friends", "honeymoon"; budget synonyms ("mid-range", "backpacking", "luxury"); interests by keyword onto the app's eight labels, plus "Family-friendly" (kids) and "Romantic spots" (honeymoon); intents by phrase; corrections ("actually", "make it") win; a place picked from the options ("Paris, France") replaces the earlier name.
+6. New response fields: `intent`, `inferred`, `destination_status`, `destination_options`, `fallback_used`. Models cannot set the last three.
+
+**Frontend:**
+- `LemonChatController` takes a `ChatMode` and a `ChatSettingsStore`. With no mode given it starts in free text and applies the saved mode if it arrives before the traveller speaks.
+- Free text merges non-null fields (a value the model drops is kept), drops rejected turns (gibberish, unsafe, off-topic) from the history, shows the brief once destination and dates are known, and plans on a typed "yes" only when the brief was already up.
+- Offers to switch: the backend's local parser answered (once per session after "Keep typing"), the traveller sounds unhappy, or two turns stuck on the same required detail. Never an automatic switch.
+- Switching keeps every detail and continues from the next missing one. Guided mode is unchanged apart from not-found and which-one handling for the destination.
+- Panel: gear menu, free-mode chat box always visible while chatting, place option buttons, the offer's two buttons, brief tags, "Keep it as is" to close an opened brief item, and a progress bar that ticks whatever is known in free mode.
+
+**Not done (later phases or follow-ups):** live checks of extraction quality and of Geoapify's same-name results; pace setting and `must_visit` (phase 2); link previews (phase 3).
+
+## 060 - One provider writes the whole plan; a failure restarts it from day 1 (2026-11-04)
+
+At the user's request. A plan came back with demo days 1–3 ("Placeholder demo activity") and real days 4+ from a different provider. Cause: each 3-day window ran its own Groq → Gemini → OpenRouter chain, so one window could exhaust every provider and fall to the demo while its neighbour succeeded, and the two were stitched together. The user wanted the earlier behaviour back: if a provider can't finish, start over with the next one instead of carrying on where it was cut off. Supersedes the per-window auto fallback of 015 and the "any mock window labels the whole plan mock" rule; the timing values of 042 stay, but apply per provider turn.
+
+1. **One provider at a time** (`itinerary_builder._whole_plan_with_fallback`). With `auto`, Groq gets every window first, still 3-day windows, 3 at a time. Each window is one call through the new `auto_provider.attempt_provider`, which keeps the same streaming limits, validation, failure kinds and cooldowns as before. `AutoProvider.generate_json` now uses the same helper, so chat is unchanged.
+2. **Any failed window ends that provider's turn.** Its other windows are cancelled at once, its cooldown is recorded (`record_failure`), everything it wrote is dropped, and the plan restarts from day 1 with the next provider. **No retry within a provider** (the user's choice over one corrective retry). Providers already cooling down are skipped.
+3. **Fresh budget per provider** (the user's choice over one shared budget). Each turn gets the full 75 s per wave of windows (`generation_budget_seconds`) again. The frontend wait becomes 25 s + 75 s × waves × 3 for `auto` (250/475/700/925 s for 1–9/10–18/19–27/28–30 days); a single named provider keeps one turn (100/175/250/325 s), in `LemonApiService.planTimeoutFor`.
+4. **All-or-nothing demo.** If every provider fails, the whole plan is the demo itinerary (`provider_used: "mock"`), never a mix. Direct providers (`groq`, `gemini`, `openrouter`) keep one corrective retry per window, and any window that still fails fails the request (502) as before.
+
+Consequences: a plan is now always from a single provider. A provider that finishes 8 of 9 windows and fails the last throws all of its work away, and spends quota for it. Worst-case waits are three times longer (about 4 minutes for a trip of up to 9 days, about 15 minutes for 30 days), reached only when providers fail slowly; fast failures (no key, 429, quick bad output) restart at once. The app shows the same planning card throughout and can't say which provider is writing. Live behaviour is not verified (KI-27).
+
+## 061 - A rate-limited window waits and retries; 503 is a short bench (2026-11-05)
+
+At the user's request, after the first live run of DECISIONS 060 gave a whole demo plan. Backend log: Groq `429 rate_limit` after 0.7 s (Retry-After 33 s), Gemini `503 unavailable` after 4.7 s (benched 5 min), OpenRouter (`openrouter/free`) used its full 75 s window without finishing (`failure=budget`). Groq's free tier limits tokens per minute, and three windows sent at once push it over, so one window gets a 429 while the others would succeed. Under 060 that single 429 threw away all of Groq's work. The same pattern most likely produced the original mixed plan (days 1–3 demo, 4+ real).
+
+1. **Rate limit inside a provider's turn** (`itinerary_builder._whole_plan_with_fallback`, the user's choice over sending windows one at a time). A window that gets a 429 waits the Retry-After time and asks the same provider again; its sibling windows carry on. It only waits if at least 15 s of the window's 75 s budget would be left afterwards (`RATE_LIMIT_MIN_LEFT_SECONDS`), and it may wait more than once while that holds. No cooldown is recorded while waiting. A 429 without Retry-After (treated as 5 minutes), a wait that doesn't fit, or any other failure ends the turn as in 060. Broken output still restarts at once (060's "no retry").
+2. **503 "unavailable" cools down for 30 s** (`auto_provider._classify_failure`, kind `unavailable`), like a timeout, instead of 5 minutes. Supersedes 503 in 042's hard-failure list; 401/403, 404, a missing key, construction and other call errors keep 5 minutes. This also applies to chat.
+
+Consequences: a rate-limited window adds its wait (about 33 s on Groq's free tier in the log) to the plan time, still inside the existing budgets, so the frontend wait is unchanged. Gemini returns 30 s after an overload instead of sitting out the next 5 minutes. Not addressed: `openrouter/free` routing to models too slow for a 75 s window (KNOWN_ISSUES 2026-11-05).
+
+## 062 - Plan reliability: diagnosis and fix order agreed, decisions pending (2026-11-05)
+
+Status: **all five steps done on 2026-11-05: step 1 as DECISIONS 063, steps 2–5 as 064–066; follow-up retry as 067.** The user asked for the changes so far and the causes to be written down, to go through the fixes one step at a time next session.
+
+**What changed since commit `ed0f4d3` on the plan path (all uncommitted):**
+1. DECISIONS 060: with `auto`, one provider writes the whole plan; any failed window restarts the plan from day 1 with the next provider; all failing gives a whole demo plan; the frontend waits 25 s + 3 × 75 s × waves. **This is what turned the earlier half-real plan into an all-demo one**: before it, each window ran its own Groq → Gemini → OpenRouter chain, so Groq's lucky window survived beside a demo window.
+2. DECISIONS 061: a 429'd window waits Retry-After and retries the same provider (confirmed working in the user's third log: waits of 38 s, then 2 s, then accepted); 503 benches for 30 s instead of 5 min.
+3. Diagnostics only (no behaviour change): `error_details` logs mid-stream `code`/`type` labels as `provider_code`/`provider_type`; a failed plan window logs its first day and prompt sizes.
+Phase 1 (DECISIONS 059, chat) does not touch plan generation.
+
+**Diagnosis from the user's third live log (Busan, 4 days, 2 windows):**
+- **Groq:** `429 rate_limit_exceeded` (`provider_type: tokens`) twice, then `APIError` `json_validate_failed` (`invalid_request_error`) at 7.5 s, classified `hard` (5 min) because it has no HTTP status. Each window's prompt is 12,875 + 3,022 characters (roughly 4–5k tokens); Groq's free tier for `gpt-oss-120b` is reportedly about 8k tokens per minute, so two windows at once exceed it before any answer. After the waits, Groq's JSON mode rejected the model's output mid-stream.
+- **Gemini** (`gemini-3.6-flash`): `503 unavailable` on three plans in a row, so not a passing blip: the model is persistently busy or limited for this key.
+- **OpenRouter** (`openrouter/free`): out of the 75 s window budget on three plans in a row.
+The provider failures existed before 060; 060 removed the partial result that hid them.
+
+**Agreed order for next session, one step at a time, each needing the user's decision:**
+1. Keep "one provider for the whole plan" (060), go back to per-window fallback, or a middle way (real providers may share windows; demo only for the whole plan, and only if a window can't be written at all).
+2. Treat Groq's `json_validate_failed` as bad output (30 s bench), not a hard 5-minute failure.
+3. Groq's tokens-per-minute limit (the main fix). Options: Groq windows one at a time, less context per window (conflicts with 042's no-prompt-trimming rule, so the user's call), or a paid Groq tier.
+4. Gemini: find why it is always 503 (model name or key limits); needs one live check (quota).
+5. OpenRouter: pin a specific faster free model in `.env` instead of `openrouter/free` (the user's `.env`; the agent doesn't read it).
+
+## 063 - Each plan window falls back on its own; demo only for the whole plan (2026-11-05)
+
+Step 1 of 062, the user's choice of the middle way (option c) over keeping 060 or going back to plain per-window fallback. Supersedes 060's "one provider writes the whole plan" and "restart from day 1"; keeps 060's all-or-nothing demo and 061's rate-limit wait.
+
+1. **Per-window chain** (`itinerary_builder._window_with_fallback`). With `auto`, every 3-day window tries Groq → Gemini → OpenRouter on its own, still 3 at a time, skipping providers that are cooling down. A failure on one provider (other than a 429 wait that fits, per 061) moves that window straight to the next provider; there is still no corrective retry within a provider.
+2. **Running siblings finish** (the user's choice over moving them all over). A failed window records its provider's cooldown (`record_failure`), so windows that start later skip it, but windows already running on that provider carry on and their days are kept. A sibling's later success does not lift a bench recorded during the same plan.
+3. **Fresh 75 s per provider per window** (the user's choice over one 75 s shared across providers). The overall cap for `auto` is one plan budget per provider in the chain (3 × 75 s × waves), so the frontend wait of 25 s + 3 × 75 s × waves (060) is unchanged.
+4. **All-or-nothing demo.** If any window fails on every provider, its other windows are cancelled and the whole plan is the demo itinerary (`provider_used: "mock"`). Real and placeholder days are never mixed.
+5. **Labels.** `provider_used` is the provider's name when one provider wrote every window, and `"auto"` when several did; the summary comes from the first window. Named providers, `mock` and chat are unchanged.
+
+Consequences: a plan can now be written by two or three different models, so style may differ between windows. One bad window no longer throws away the other windows' work, and Groq's per-minute token limit (step 3) costs only the windows it hits. Not verified live (KI-27, KI-32).
+
+## 064 - Groq's `json_validate_failed` counts as bad output (2026-11-05)
+
+Step 2 of 062; the user authorized steps 2–5 without asking each. A mid-stream OpenAI-compatible error with `code == "json_validate_failed"` (no HTTP status) is now kind `invalid_output` with the 30 s bench, not `hard` with 5 minutes (`auto_provider._BAD_OUTPUT_CODES`). Other unlabelled call errors stay hard. Applies to chat as well. The live cause of this error turned out to be the reasoning budget (066).
+
+## 065 - Groq and Gemini take one plan window at a time (2026-11-05)
+
+Step 3 of 062. Under `auto`, `itinerary_builder.PROVIDER_MAX_CONCURRENT_WINDOWS = {"groq": 1, "gemini": 1}`: windows queue for that provider (one semaphore per plan), and each window's 75 s starts when it gets the provider, not while it queues. A window that was queued re-checks the cooldown and skips the provider if it was benched meanwhile. OpenRouter keeps three at once. Chosen over trimming context (forbidden by 042) and a paid tier (the user's cost).
+
+- **Groq:** its free tier counts tokens per minute, and one window (12,880 + 3,022 characters) uses most of a minute's allowance. One at a time, later windows still get a 429, but 061's wait handles it: live, a 9-day plan waited 33 s and 45 s and finished with Groq in 92 s.
+- **Gemini** (step 4): the live check showed the key and `gemini-3.6-flash` work (minimal call and a real 3-day window both succeeded, the window in 25 s). In a two-window plan, the window sent alongside got `503 unavailable`, the error from all of the user's earlier plans. So Gemini also goes one at a time. One observation only; it could also be Google-side load.
+
+The plan cap (3 × 75 s × waves) and the app's wait are unchanged. Serial windows make long Groq plans slower: about 30–45 s per window after the first under the free tier, so roughly 7 minutes for 30 days, inside the 900 s cap.
+
+## 066 - Groq gets low reasoning effort; no OpenRouter model pinned (2026-11-05)
+
+Steps 2 and 5 of 062, from live probes.
+
+1. **Groq reasoning effort.** The live probe showed `json_validate_failed` was not malformed JSON: `openai/gpt-oss-120b` (a reasoning model) spent its whole output allowance on hidden reasoning and finished with `finish_reason: "length"` and 0 characters of answer, with or without JSON mode. With `reasoning_effort: "low"` it wrote a complete, valid 3-day window in 3.6 s (`finish_reason: "stop"`). New setting `GROQ_REASONING_EFFORT` (default `low`, blank to send nothing, for models that don't take it) in `config.py` and `.env.example`, sent through `extra_body` because the pinned openai SDK 1.54 rejects the keyword. Only the model's hidden thinking is cut; the itinerary prompt, windows and output are unchanged, so 042 holds. Chat uses the same setting.
+2. **OpenRouter: no model pinned.** Of the 12 `:free` models in OpenRouter's public list, the 6 with JSON mode were each tried with one real 3-day window: `google/gemma-4-26b-a4b-it` and `google/gemma-4-31b-it` returned 429 twice each, `xingchen-agi/xing4.0-29b-a4b` 429, `nvidia/nemotron-3.5-super-vl` an incomplete plan after 35 s, `recursive/flint-v1.0` ran out of the 75 s budget, and `dots-studio/dots-3-note-preview` finished in 73 s, too close to the limit to rely on. `openrouter/free` stays (the user's `.env` was not read or changed). OpenRouter is now a last resort behind a working Groq.
+
+## 067 - One retry on the same provider after bad output (2026-11-05)
+
+At the user's request, after their first plan with 063–066 still came back fully demo. Their log: Groq `json_validate_failed` after 3.45 s (benched 30 s as per 064, with low reasoning effort sent), Gemini `503` after 2.4 s on a **single** window, OpenRouter an incomplete plan after 56 s. Supersedes 060's "no retry within a provider" (the user's earlier choice, revisited with them) for bad output only.
+
+**Evidence (live probes by the agent, low reasoning effort, labels only).** Groq loose JSON mode: 12 valid windows, 1 `json_validate_failed` (the user's), 1 reply that parsed but failed the day/date check. Groq strict mode (`json_schema`, `strict: true`, non-streaming; documented as never failing): 4 valid, 2 `json_validate_failed`. So Groq misses about one try in six or seven at random, in either mode; strict mode is not used.
+
+1. **Retry** (`itinerary_builder._window_with_fallback`). A window whose attempt fails as `invalid_output` (rejected JSON, invalid JSON or a failed check) asks the same provider once more, with the corrective note that direct providers already use (`CORRECTIVE_NOTE`), if at least 15 s of its budget is left (`RATE_LIMIT_MIN_LEFT_SECONDS`). A recovered retry records no cooldown. A second bad output, or no time left, benches the provider and moves on as in 063. Timeouts, stalls, 503s, 429s (061's wait still applies) and hard failures are not retried.
+2. **Correction to 065:** Gemini's 503 is not only from two windows at once; the user's log shows it on a single window, so it is most likely load on Google's side. Gemini stays one window at a time (harmless), but it isn't a fix for 503.
+
+Consequences: a Groq miss now usually costs 3–5 s plus a possible per-minute wait (25–45 s), instead of the window falling to Gemini and OpenRouter, which are both unreliable on their free tiers right now. A provider that always returns bad output costs one extra call per window.
+
+## 068 - Same-name places: go ahead when obvious, show the exact place, "Not this one?" (2026-11-05)
+
+At the user's request, after the KI-30 live check (20 chat cases through `auto` plus Geoapify). Supersedes 059's "the same name in several countries or states always offers choices". Closes phase 1.
+
+**Found live:** Lemon asked "which one?" for Paris, Rome and Lisbon; "Santorini" was not found (Geoapify files islands as `amenity`, which the shared search dropped); "Georgia" found only the US state (Geoapify returns the country only for a country-only search); the offline parser missed "Bali" in "me and my two kids, Bali, sometime in March" and didn't count "me and my two kids" as 3.
+
+1. **Go ahead when obvious** (the user's choice over always asking). `place_check.classify` ranks same-name places by Geoapify `rank.importance`. If the top one is ahead by `IMPORTANCE_GAP = 0.15` or more, it is `verified` and the others become `alternatives`. If either score is missing (US states have none) or the gap is smaller, it is `ambiguous` as before. Measured gaps: Paris .37, Bali .37, Rome .33, Lisbon .30, Valencia .18 go ahead; Portland .11, Cambridge .03, Springfield .00 and Georgia (no score for the state) ask.
+2. **The exact place is shown and used** (the user's request). New chat response fields `destination_label` (every verified place, e.g. "Paris, France", "Kyoto, Japan"; a name the traveller already qualified with a comma keeps their words) and `destination_alternatives` (only when Lemon picked one of several). Both are server-owned. The app's brief shows the label; the plan request and the search tabs use it (`LemonChatController.placeName`), so the plan never geocodes a different Paris. Without a label (check unavailable, mock), the name as typed is used.
+3. **"Not this one?"** (the user's request: a pop-up only when the name is shared). Under the brief's destination, only when `destination_alternatives` is non-empty. It opens a dialog: "Which Paris, France did you mean?", one option per alternative, then "Somewhere else…". An alternative replaces the place at once with no backend call; "Somewhere else…" works like the edit button (Lemon asks for a new place, which goes through the usual checks, including not-found).
+4. **"London"**: Geoapify's top result is "Greater London", which the exact-name match missed (only London, Ontario matched). The top result now counts when its name contains the word, and its label uses the traveller's word: "London, United Kingdom", with "London, Canada" as an alternative.
+5. **Islands** (`services/geo_results.keep_destinations`, used by the shared geocoder): when no city, region or country is left after dropping streets/buildings/amenities/postcodes, an `amenity` whose name matches the search exactly is kept. Santorini is now found in the chat, and plans get its weather and attractions. A café named "Santorini Cafe" is never kept.
+6. **Countries** (`place_check._default_lookup`): an ordinary search and a country-only search run together; a country is added only when its name matches exactly, and a failed country search keeps the ordinary results. A country's label is "Georgia (country)"; the geocoder (`routers/weather._lookup_geoapify`) strips that suffix and searches countries only, so a plan for it goes to GE. This adds one Geoapify call per new destination (cached 24 h).
+7. **Offline parser**: a capitalised place standing between commas is read as the destination (`_comma_place`), and "me/I and (my) N kids/children/friends/…" counts as N + 1, marked as assumed.
+
+Consequences: fewer questions for famous cities, and a wrong guess is visible on the brief and one tap to change. Two Geoapify calls per new destination instead of one. Live after the fix: Paris→France, Rome→Italy, Lisbon→Portugal, London→United Kingdom, Bali→Indonesia, Valencia→Spain go ahead with alternatives; Portland, Cambridge, Georgia ask; Santorini is found; "Georgia (country)" geocodes to GE. Not yet seen in the running app.
+
+
+## 069 - Lemon.ai phase 2: grounded plans, popular spots, pace and day edits (2026-11-05)
+
+Status: **accepted and implemented.** Every design choice below was the user's, settled in questions before the build (their rule), then approved as one plan ("go ahead and complete phase 2"). Scope from 058's phase 2. Live checks, dependency-free: Wikidata needs no key or package (httpx was already there).
+
+**Choices the user made:**
+1. **Grounding: hybrid.** The prompt lists known places with refs (`P1`…): must-visits, popular spots, nearby attractions (at most 40). The model sets `place_ref` for a stop at one of them; any other named place is looked up in Geoapify near the destination afterwards. Unmatched places are flagged.
+2. **Unverified look:** a small grey "Unverified" tag beside the location; verified stops get a filled pin ("Checked on the map"). Meals and free time get neither.
+3. **Pace:** a brief item like budget (default "Balanced", tagged Default; free text picks it up from words like "chill" or "pack it in"; guided mode gets a three-pill step). Relaxed 2–3, balanced 3–5, packed 5–7 activities a day; each stays as detailed as before (042).
+4. **Must-visits** come from chat and from **popular spots**, which Lemon recommends in her chat bubble as buttons (the user's design: Lemon asks either way, her bubble carries the buttons, a tap adds the spot to the brief). She recommends without being asked, once per destination, until the traveller says "up to you" / "surprise me"; then she picks on her own (3–4 spots tagged **"Lemon's pick"**, removable) and stops recommending, also for a later destination.
+5. **Popularity: Wikidata**, over the whole destination (the user: "not by distance from the centre, popular spots in that place", at least 10). A live check found Geoapify returns places inside a city in no useful order (no Eiffel Tower, Louvre or Sensō-ji among 200), while Wikidata's sitelink count ranks them well. The User-Agent carries the user's repo URL (`WIKIDATA_CONTACT`), as Wikimedia's bot policy requires; the user chose the repo.
+6. **A whole country is too broad** (the user's wording): Lemon says so and asks for a city or area there; no spots are searched.
+7. **Regenerate a day: only that day**, as a one-day window through the same provider chain; other days are untouched and listed in the prompt to avoid repeats.
+8. **All three edits** (regenerate, swap one activity, adjust a day by text), also **through chat** ("make day 2 more relaxed"), so Lemon works as an assistant and a planner.
+9. **Chat edits preview, then confirm** ("Use this" / "Keep old"). Button edits use the same preview.
+10. **Questions about the trip** are not answered yet: Lemon replies cheerfully that the feature is coming soon (fixed text, with emojis), and offers edits.
+11. **Built all at once**, not in two parts.
+
+**How it works** (details in API.md, ARCHITECTURE.md):
+- `services/popular_spots.py`: Geoapify geocode (country → `too_broad`) → Wikidata search for the destination's item (first hit within 60 km) → one SPARQL query for visitor classes (attraction, landmark, museum, monument, place of worship, park, garden, zoo, palace, castle, tower, archaeological site, square, bridge; skyscrapers only with 40+ sitelinks) located anywhere inside it with ≥ 8 sitelinks, minus demolished (P576), national parks and office buildings, most sitelinks first, at most 5 of a kind before the rest → each of 25 confirmed with Geoapify within 1.5 km (unconfirmed dropped) → at most 20. Cached 24 h. `/lemon/chat` prefetches it whenever it verifies a destination; `/lemon/spots` waits up to 60 s. `picks` = the most popular, up to half swapped for spots suiting the interests.
+- `services/poi_lookup.py`: one-place Geoapify lookups (1 credit each), a shared 5-per-second limiter (free plan limit), 24 h cache including "no match", name matching across languages ("Louvre Museum" ~ "Musée du Louvre"), area results never count.
+- Chat: new fields `pace`, `must_visit` (each checked near the destination: verified / not_found / unverified), `spots_to_lemon`, `edit`; new intents `edit_plan`, `plan_question`; request `plan_summary` and `plan_days`. Replies for edits and questions are fixed server-side, so Lemon never claims a change she hasn't made. The offline parser reads pace words, "surprise me", "must see X", and "regenerate day N" / "swap stop N on day M" / "make day N more …".
+- Plan: `TripRequest.pace`, `must_visit` (≤ 10). Must-visits are assigned to days first (outdoor ones off rainy forecast days, then within 3 km of another on the same day, else the emptiest day); each window must include its own (validation → one corrective retry → next provider). Weather is summarised per day. Grounding after assembly sets `place_id`, `lat`, `lon`, `place_status` (≤ 100 lookups, 20 s); a check that couldn't run leaves no tag.
+- `/lemon/edit`: regenerate / swap / adjust one day; a swap returns one different activity, put in the stop's place with its time; never a demo day for a real plan (502 and the plan stays).
+- App: spot pills in Lemon's bubble (labels shrink on phones), must-visit chips with remove and tags, pace line and step, a must-visit guided step ("Continue" / "Skip for now" / "Surprise me"), the chat box stays open after the plan, preview cards, Regenerate / Adjust buttons on each day card and Swap on each stop (hidden on demo plans), a "Keep my plan as it is" choice after a failed edit.
+
+**Interpretations I made, stated in the plan:** spots are recommended once per destination (not on every message); a new destination clears the old must-visits; at most 10 must-visits; a must-visit missing from a window is treated like bad output (it can, in the worst case, end in a demo plan if every provider keeps leaving it out; see KI-34); trip-detail changes after a plan go through "Edit trip details" (Lemon says so) rather than silently changing the brief.
+
+**Live checks (agent, user-authorized, 2026-11-05):** Wikidata ranking for Paris, Tokyo, Lisbon, Kuala Lumpur (before and after the class and variety fixes); a full flow in one process through `auto`: chat → Lisbon verified, pace relaxed, Belém Tower verified; 20 spots; a 3-day plan by Groq in 4.9 s, 3 stops a day, all 9 verified, Belém Tower in, Belém sights on one day; "swap stop 2 on day 1" read as an edit; a trip question got the coming-soon reply; the swap replaced only stop 2. Roughly 115 Geoapify credits after the build and about 170 in all with the design checks (a places search costs 1 credit per 20 results, so the 200-place boundary searches cost 10 each), well under the 3,000-a-day free plan.
+
+Consequences: about 25 Geoapify credits and 3 Wikidata requests per new destination for spots, plus up to 100 credits per plan for places outside the known list (in the live run, none were needed). Plans start with must-visits placed, and stops show whether they were checked. Not yet seen in the running app by the user.
+
+## 070 - A must-visit no planner fits never turns the plan into a demo; Lemon asks (2026-11-06)
+
+At the user's request, fixing KI-34. Supersedes 069's "a must-visit missing from a window is treated like bad output" for the last step only.
+
+- **Backend:** each window remembers its latest output that was fine apart from missing must-visits. The corrective retry and the provider chain run as before; if every provider still leaves them out, that output is used instead of failing the window (so no demo plan for this reason). `ItineraryResponse.missing_must_visits` lists the must-visits that aren't anywhere in the plan (a place moved to another day counts as in). Same for `/lemon/edit`: a regenerated or adjusted day that lost a must-visit is returned with `missing_must_visits` instead of a 502. A window that fails for any other reason on every provider still makes the plan demo (063).
+- **When none of the must-visits fit** (the user's choice): Lemon doesn't show the plan; she says "I couldn't fit … into your plan, even after trying all my planners. Would you like to see the plan without them?" with **Yes, show my plan** / **No, stop here** (typed yes/no work too; anything else asks again). Yes shows the plan already written (the user's choice: no second generation). No: Lemon stops, says so, and the brief stays so the traveller can change the must-visits or try again. Editing the brief also drops the held plan.
+- **When some fit** (the user's choice): the plan shows without asking. Lemon's "your plan is ready" message names the ones that didn't fit, so it isn't hidden (my addition, stated to the user).
+- **Day edits** (the user's choice): the preview says "I couldn't keep … on it. Shall I use it anyway?" and the card notes "Not on this day any more: …"; "Use this" / "Keep old" decides.
+
+Offline: backend 202 of 202, frontend 153 of 153. Not run live (it needs a provider that keeps leaving a must-visit out, which the live run didn't produce).
+
+## 071 - "Plan it" never skips a question or a changed brief (2026-11-07)
+
+Status: **built 2026-11-07** (the user said "go ahead and build 071", with the additions below). Fixes KI-35 and KI-36. Offline-tested only; not yet re-run by the user in the app.
+
+**What happened (the user's app test, Script 5):** with a brief already showing in the same chat (most likely Script 4's Lisbon trip), the user sent one message that switched to Kyoto, named three must-visits and ended "Go ahead and plan it". Lemon replied "Let me create the itinerary", said "I couldn't find Menya Yoshi Kitayama near Kyoto, Japan on the map… Could you check the spelling?", then planned at once without waiting for an answer or showing the new brief. Cause (source-inspected): `_applyFree` in `lemon_chat_controller.dart` (around line 1053) starts the plan when `result.ready` and the brief was showing before the message (`before == 'confirm'`); it doesn't check whether the message changed the trip or raised a not-found must-visit. The not-found message (around line 1046) never holds the plan. The AI's "let me create it" reply is shown as is.
+
+**The user's choices:**
+1. **Ask first, then plan; no assuming.** When a message says "plan it" but Lemon has something to ask, she says "Sure thing! But before that, I have a question:" (or "some questions:") and asks, one at a time.
+2. **A must-visit not found:** Lemon tells the traveller, then asks whether to **swap it** for another place or **continue without it** (buttons; typing works too).
+3. **Swap:** the city's popular-spot buttons, and the traveller can type a corrected or different name; a typed name is checked on the map as before (asks again if still not found).
+4. **After the questions are answered:** Lemon shows the updated brief and **waits for confirmation** (Generate or "go ahead"). No automatic plan.
+5. **"Plan it" in a message that changed the trip (e.g. Lisbon → Kyoto) with nothing to ask:** Lemon shows the new brief and **waits** for confirmation.
+
+**Plan presented to the user (to build next session, frontend only; no backend or API change):**
+- Rule: in free text, "plan it" starts the plan only when the brief was showing **and** the message changed nothing **and** nothing is waiting to be asked. Otherwise Lemon asks or shows the brief, then waits.
+- `lemon_chat_controller.dart`: snapshot the brief before applying a reply and compare after; a queue of not-found must-visits worked through one at a time ("Swap it" / "Continue without it"; typed "skip it" / "continue without it" = continue, anything else = the replacement name); when the plan is held, Lemon's own text replaces the AI's "let me create it" reply; once the queue is empty she says "All set! 🎯 Here's your updated brief. Have a look, then tap Generate or say go ahead." A changed trip with nothing to ask: "Sure thing! I've updated your trip. 🎯 Here's the new brief. Have a look first, then tap Generate or say go ahead."
+- The same Swap / Continue question also appears for a not-found must-visit in a message without "plan it" (my addition, stated in the plan: one behaviour everywhere).
+- Unchanged: brief showing + a plain "go ahead" (or Generate) plans at once; guided mode (must-visits there come from buttons).
+- `lemon_chat_panel.dart`: a new `unfound` control (two buttons; the spot pills plus "or type a name" on Swap).
+- Tests (`lemon_phase2_test.dart`): changed destination + "plan it" → no plan request, brief shown again; not-found + "plan it" → no plan request, question and buttons, Continue → brief without planning; Swap → spot tap → brief; Swap → typed name not found → asked again; two not-found places asked in turn; brief + "go ahead" still plans. Then full frontend suite, analyze, web build.
+
+**Also to check (raised with the user):** "Hanamiya Kissa" from the same message was not reported as missing, so the map matched it to something; whether that match was right is unknown. If wrong, place matching (`poi_lookup` / `place_check`) needs a separate fix.
+
+
+**Second app run (Script 5 in a fresh chat, 2026-11-07, screenshots from the user):** KI-35 reproduced without any earlier trip in the chat. It also showed three more problems, added to 071 with the user's agreement: (a) Lemon's first reply said "Shall I go ahead and plan it?" and the next bubble asked for a spelling; (b) the popular-spots list arrived after the second message, just before the plan started (Wikidata is slow, KI-33, and the app offered spots whenever they arrived); (c) "I assumed a trip until 2026-12-12" printed the raw date.
+
+**"Hanamiya Kissa" (live lookup on the user's authorization, 2 Geoapify credits):** near Kyoto (35.0116, 135.7681, 40 km), Geoapify's only result for "Hanamiya Kissa" was **Kissa Gobo Gobo**, a real café on Matsuyamachi street, Kamigyō Ward (35.0175, 135.7484), and `same_place` accepted it because both names contain "kissa" (Japanese for café). "Menya Yoshi Kitayama" had no result. Recorded as KI-36.
+
+**Added to 071 (the user's choices):**
+- **Stricter place matching** (`services/poi_lookup.py`, `same_place`): one name inside the other still counts; otherwise kind words are set aside and *every* remaining word of the asked name must be in the found one (it used to need one shared word). Shop and food words were added to the kind words, in English (cafe, tea, house, shop, restaurant, bar, bakery, noodle, hotel, ...) and Japanese (kissa, kissaten, menya, ramen, sushi, izakaya, udon, soba, jinja, taisha, jingu, dera, tera). A first try that also accepted the reverse direction (found ⊆ asked) let "Arashiyama Station" match "Arashiyama Monkey Park", so only asked ⊆ found is used.
+- **"Matched: ..." under a stop** (the user chose to include it, "for better testing and easier correction"): the server now returns the map's name for each verified stop (`place_name` on activities) and for each found must-visit (`matched_name` in chat, carried back in `TripRequest.must_visit`). The itinerary shows "Matched: <name>" in small italics when that name isn't just the stop's own name (neither contains the other, ignoring case and punctuation).
+- (a) whenever Lemon holds a plan or asks about a place, her own words replace the model's reply; (b) spots are never offered during a chat turn, while a question waits, or when a plan is about to start; they are offered after the turn or once the questions are answered; (c) dates in Lemon's sentences read "12 December".
+
+**As built (frontend `lemon_chat_controller.dart`, `lemon_chat_panel.dart`, `itinerary_view.dart`, models; backend `poi_lookup.py`, `itinerary_builder.py`, `chat_parser.py`, models):**
+- New control `unfound` with **Swap it** / **Continue without it**. Typed answers: "skip it", "continue without it", "no", "never mind" … continue; "swap it" opens the swap. While swapping, typed text is the new name, sent to `/lemon/chat` as "Instead of X, we must visit Y." and checked on the map like any must-visit (not found → "I couldn't find Y near … either"; no place name read → asked again). A spot tap while swapping adds that spot. Any other message is an ordinary chat turn; Lemon then asks the same question again. Generate is blocked while she waits.
+- Several not-found places are asked one at a time ("Next one!"). After the last answer: "All set! 🎯 Here's your updated brief…" (or the first brief's own announcement, which waits for the answers). Never an automatic plan.
+- A changed brief + "plan it": Lemon shows the new brief once. A second "go ahead" plans even if the model re-reads a value differently, so the traveller can't get stuck in a loop.
+- A first message with "plan it" (no brief yet): "Sure thing! Let me show you your trip brief first. 🎯", then the brief.
+
+**Fixes after the user's third run (2026-11-07, screenshots):**
+- Typing a place while Lemon asks, without tapping Swap ("fushimi castle"), was added to the trip but the question was asked again. Now a found place typed while she asks counts as the swap ("Got it! I've added Fushimi Castle instead of sensen cafe."). This was a bug against choice 2 ("typing works too").
+- In a new chat, after "Seoul" Lemon asked for the dates and the spots list landed right under the question. Following rule (b), in free text the list now waits until the brief is ready (destination and dates known); a "too broad" country message still shows at once, because it is itself the question.
+- **Fourth run:** a made-up place typed without Swap ("Hanamiya Tea House") was queued as a new question and the same question was repeated; typing it again did nothing new, because a not-found name was only ever reported once. Now, while Lemon asks, a typed place the map doesn't know gets "I couldn't find … either" and opens the swap (spot buttons); and a place reported before is reported again whenever the latest message names it (not while it is the question being asked). So a skipped place named again in a later message is asked about again (the user's Test 3, sent in the same trip after "Edit trip details"); skipped places not named again stay skipped.
+- **Fifth run (user's choice, 2026-11-07):** the spot list now comes once, after every not-found place is cleared up, right before the brief: "All set! 🎯", the list, then the brief (or "Here's your updated brief…"). Swap keeps its spot buttons (the user's choice), but they no longer count as the list. A first brief in free text also gets the list just before it when the spots are ready; if they are still loading, the brief comes first and the list follows, as before.
+- Seen and working as designed: a must-visit typed as a normal message ("sensen cafe") raised the question; Swap → typed "Kyoto Tower" was added and the brief shown without planning.

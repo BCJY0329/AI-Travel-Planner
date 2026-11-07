@@ -19,6 +19,25 @@ import 'package:travel_planner_frontend/screens/views/itinerary_view.dart';
 import 'package:travel_planner_frontend/main.dart';
 
 class FakeLemonApi extends LemonApiService {
+  // Phase 2 calls (DECISIONS 069), offline.
+  SpotsResult spots = const SpotsResult(status: 'none', destination: '');
+  final List<PlanEdit> edits = [];
+  PlanEditResult? editResult;
+  @override
+  Future<SpotsResult> getPopularSpots(String destination,
+          {List<String> interests = const []}) async =>
+      spots;
+
+  @override
+  Future<PlanEditResult> editPlan(
+      {required TripRequest trip,
+      required List<ItineraryDay> days,
+      required PlanEdit edit}) async {
+    edits.add(edit);
+    final result = editResult;
+    if (result == null) throw Exception('offline');
+    return result;
+  }
   int chats = 0, plans = 0;
   bool failChat = false, failPlan = false;
   Completer<LemonChatResult>? pending;
@@ -26,7 +45,10 @@ class FakeLemonApi extends LemonApiService {
   List<ChatTurn> lastHistory = [];
   @override
   Future<LemonChatResult> sendChatTurn(
-      {required List<ChatTurn> messages, required String provider}) async {
+      {required List<ChatTurn> messages,
+      required String provider,
+      String? planSummary,
+      int? planDays}) async {
     chats++;
     lastHistory = List.of(messages);
     if (failChat) throw Exception('offline');
@@ -60,13 +82,15 @@ Future<void> fill(LemonChatController c) async {
   c.setTravelers(2);
   c.setBudget('medium');
   c.setInterests(['Food', 'Gentle walks']);
+  c.setPace('relaxed');
+  c.confirmSpots();
 }
 
 void main() {
   test('Greetings rotate and noise preserves the current step and trip',
       () async {
     final api = FakeLemonApi();
-    final c = LemonChatController(api: api);
+    final c = LemonChatController(mode: ChatMode.guided, api: api);
     addTearDown(c.dispose);
     for (final greeting in ['hi', 'hello!', 'good morning']) {
       await c.handleUserInput(greeting);
@@ -94,7 +118,7 @@ void main() {
   testWidgets('Physical Enter sends once and busy Enter preserves draft',
       (tester) async {
     final api = FakeLemonApi()..pending = Completer<LemonChatResult>();
-    final c = LemonChatController(api: api);
+    final c = LemonChatController(mode: ChatMode.guided, api: api);
     addTearDown(c.dispose);
     c.startIfNeeded();
     await tester.pumpWidget(MaterialApp(
@@ -195,7 +219,7 @@ void main() {
   testWidgets(
       'Traveler entry rejects invalid values and accepts a whole number',
       (tester) async {
-    final c = LemonChatController(api: FakeLemonApi())..nextField = 'travelers';
+    final c = LemonChatController(mode: ChatMode.guided, api: FakeLemonApi())..nextField = 'travelers';
     addTearDown(c.dispose);
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(body: LemonChatPanel(controller: c, onClose: () {}))));
@@ -251,7 +275,7 @@ void main() {
   test('Guided choices reach plan unchanged and require explicit confirmation',
       () async {
     final api = FakeLemonApi();
-    final c = LemonChatController(api: api);
+    final c = LemonChatController(mode: ChatMode.guided, api: api);
     addTearDown(c.dispose);
     await fill(c);
     expect(c.nextField, 'confirm');
@@ -261,6 +285,8 @@ void main() {
     expect(api.request!.interests, ['Food', 'Gentle walks']);
     expect(api.request!.travelers, 2);
     expect(api.request!.budgetLevel, 'medium');
+    expect(api.request!.pace, 'relaxed');
+    expect(api.request!.mustVisit, isEmpty);
     expect(c.phase, ChatPhase.done);
     // The search tabs follow this trip.
     expect(c.latestTrip!.destination, 'Kyoto');
@@ -270,7 +296,7 @@ void main() {
   test('Chat retry preserves the failed user turn without duplication',
       () async {
     final api = FakeLemonApi()..failChat = true;
-    final c = LemonChatController(api: api);
+    final c = LemonChatController(mode: ChatMode.guided, api: api);
     addTearDown(c.dispose);
     c.startIfNeeded();
     await c.handleUserInput('Kyoto');
@@ -284,7 +310,7 @@ void main() {
   test('Generation retry preserves fields and repeats only the plan call',
       () async {
     final api = FakeLemonApi()..failPlan = true;
-    final c = LemonChatController(api: api);
+    final c = LemonChatController(mode: ChatMode.guided, api: api);
     addTearDown(c.dispose);
     await fill(c);
     await c.confirmTrip();
@@ -299,7 +325,7 @@ void main() {
   });
   test('Invalid structured fields cannot advance or generate', () async {
     final api = FakeLemonApi();
-    final c = LemonChatController(api: api);
+    final c = LemonChatController(mode: ChatMode.guided, api: api);
     addTearDown(c.dispose);
     await c.handleUserInput('Kyoto');
     final start =
@@ -316,7 +342,7 @@ void main() {
   testWidgets('Busy Enter retains draft and panel closure preserves it',
       (tester) async {
     final api = FakeLemonApi()..pending = Completer<LemonChatResult>();
-    final c = LemonChatController(api: api);
+    final c = LemonChatController(mode: ChatMode.guided, api: api);
     addTearDown(c.dispose);
     c.startIfNeeded();
     Widget panel() => MaterialApp(
@@ -344,7 +370,7 @@ void main() {
   });
   testWidgets('Interests support multiple chips, Other and explicit continue',
       (tester) async {
-    final c = LemonChatController(api: FakeLemonApi());
+    final c = LemonChatController(mode: ChatMode.guided, api: FakeLemonApi());
     addTearDown(c.dispose);
     c.nextField = 'interests';
     await tester.pumpWidget(MaterialApp(

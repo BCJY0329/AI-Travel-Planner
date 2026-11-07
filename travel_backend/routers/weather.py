@@ -9,6 +9,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from config import settings
 from services.ttl_cache import TTLCache, normalize
+from services.geo_results import keep_destinations, split_country_label
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,6 @@ router = APIRouter(prefix="/weather", tags=["weather"])
 _geocode_cache = TTLCache(ttl_seconds=24 * 3600, max_entries=1000)
 _forecast_cache = TTLCache(ttl_seconds=30 * 60)
 
-# Geoapify results that are a spot, not a destination ("Bali Street").
-_NOT_A_DESTINATION = {"street", "building", "amenity", "postcode"}
 _REGIONS = {"county", "state", "country"}
 
 
@@ -45,11 +44,16 @@ async def _lookup_city(city: str) -> dict:
         if e.status_code == 404:
             raise
         logger.warning("Geoapify geocoding failed (%s); using OpenWeatherMap", e.status_code)
-        return await _lookup_openweather(city)
+        return await _lookup_openweather(split_country_label(city)[0])
 
 
 async def _lookup_geoapify(city: str) -> dict:
-    results = await _geoapify_search(city)
+    # "Georgia (country)" is a choice Lemon offered for a name that is also a
+    # US state: search countries only (DECISIONS 068).
+    name, country_only = split_country_label(city)
+    if country_only:
+        city = name
+    results = await _geoapify_search(city, **({"type": "country"} if country_only else {}))
     if not results:
         raise HTTPException(status_code=404, detail=f"City '{city}' not found")
     # Geoapify orders by relevance. When that is a region ("Osaka Prefecture"),
@@ -98,9 +102,8 @@ async def _geoapify_search(text: str, **extra) -> list[dict]:
     except (httpx.RequestError, ValueError):
         raise HTTPException(status_code=502, detail="Place lookup is unavailable right now.")
 
-    return [r for r in _items(data, "results") if isinstance(r, dict)
-            and isinstance(r.get("lat"), (int, float)) and isinstance(r.get("lon"), (int, float))
-            and r.get("result_type") not in _NOT_A_DESTINATION]
+    # Streets and buildings dropped; an island filed as "amenity" kept (DECISIONS 068).
+    return keep_destinations(_items(data, "results"), text)
 
 
 async def _lookup_openweather(city: str) -> dict:

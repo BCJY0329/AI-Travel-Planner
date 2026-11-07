@@ -70,6 +70,8 @@ def _simplify(feature) -> dict | None:
             "categories": categories,
             "lat": lat,
             "lon": lon,
+            # Lets a plan activity at this place carry its id (DECISIONS 069).
+            "place_id": feature["properties"].get("place_id"),
         }
     except (KeyError, IndexError, TypeError, AttributeError, ValueError):
         return None  # Skip an incomplete place rather than failing the search.

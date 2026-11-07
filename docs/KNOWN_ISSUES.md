@@ -4,7 +4,85 @@
 
 Source-inspected on 2026-10-08 against the current working tree. The initial review made no application fixes; subsequent repairs are recorded below, and the dated sections are chronological (later entries supersede earlier ones).
 
-**Open as of 2026-11-02:** as 2026-11-01. A lesson from the chat polish (DECISIONS 057): when one rebuild both adds a widget above an unkeyed `TextField` and removes one below it in the same `Column`, Flutter can't match the field and re-creates it, so focus and in-progress input are lost. The "Other interests" field in the chat panel hit this when the first interest was picked. It is now keyed (`ValueKey('other-interests')`). Key any text field whose neighbours appear and disappear.
+**Open as of 2026-11-07 (after DECISIONS 071 was built):** as below. KI-35 and KI-36 are fixed in code and pass offline tests; both wait for the user's re-run of Script 5. Lesson: a long Python edit script passed inline to the Bash tool as a heredoc failed with "unexpected EOF"; writing it to a scratchpad file and running that works.
+
+**Superseded — open as of 2026-11-07:** as below, plus KI-35 (fix agreed in DECISIONS 071, not built).
+
+## A made-up place matched a real café (KI-36) — 2026-11-07
+
+**Fixed in code 2026-11-07 (DECISIONS 071); offline-tested, not re-run live.** In Script 5, "Hanamiya Kissa" (a name invented for the test) showed a "Checked on the map" pin. A live lookup showed Geoapify returned **Kissa Gobo Gobo**, a real café in Kamigyō Ward, and `poi_lookup.same_place` accepted it because one shared word ("kissa", Japanese for café) was enough. Matching now needs every distinctive word of the asked name, and common shop, food and Japanese place-type words don't count. The itinerary also shows "Matched: <map name>" under a stop when the two differ, so a wrong match is visible. Remaining risk: a stricter rule leaves more real places "Unverified" when the map spells them very differently; and Geoapify can still return a same-named but different place within 40 km.
+
+## "Plan it" skips Lemon's question and the changed brief (KI-35) — 2026-11-07
+
+**Fixed in code 2026-11-07 (DECISIONS 071); offline-tested, waiting for the user's re-run.** A second run in a fresh chat reproduced it too (so leftover state was not the cause), and showed Lemon's "Shall I plan it?" next to a spelling question, spots arriving late, and a raw date; all four are fixed. Original note: **Open; fix agreed (DECISIONS 071), not built.** Found by the user in the running app (Script 5). With a brief already showing in the chat, one message switched the trip to Kyoto, named must-visits and said "Go ahead and plan it". Lemon said she couldn't find "Menya Yoshi Kitayama" and asked for the spelling, then planned straight away: the traveller had no chance to answer and never saw the new Kyoto brief. Cause (source-inspected): `_applyFree` in `travel_planner_frontend/lib/chat/lemon_chat_controller.dart` (around line 1053) plans whenever `result.ready` and the brief was showing before the message, without checking that the message changed nothing or raised a not-found must-visit. Also unconfirmed: "Hanamiya Kissa" from the same message was matched on the map to something; whether correctly is not known yet.
+
+**Superseded — open as of 2026-11-06:** as below, plus KI-33; KI-34 resolved (DECISIONS 070). Lesson: in `testWidgets`, `pumpEventQueue()` hangs (its timers never fire without a pump); await `Future.value()` a few times instead.
+
+**Superseded — open as of 2026-11-05 (phase 2 built):** as below, plus KI-33 and KI-34. Lesson: with the real geocoder loaded by other suites, new lookups reach the network in tests unless their network edges are patched. `test_auto_provider` now replaces `popular_spots._search_destination` / `_wikidata`, `poi_lookup._geocode` / `destination_centre`, the builder's context hooks and the chat's spot finder for every suite (the first full run tried real requests, which failed with request errors before the patch).
+
+## Popular spots depend on Wikidata (KI-33) — 2026-11-05
+
+**Open, by design.** Lemon's spots come from Wikidata's public query service (keyless). The query takes 1.5–33 s per new destination (Paris 27–33 s), so it runs in the background and is cached 24 h. Wikidata can time out (its limit is 60 s; a big region or state may hit it) or refuse a request; Lemon then says she couldn't load spots and the traveller can type places. The ranking is "number of language Wikipedias", which is good for landmarks but has noise: a famous office tower (Tokyo's Cocoon Tower, 83 sitelinks) passes the skyscraper rule, and some lists lean on one kind (capped at 5 of a kind before others). The destination's Wikidata item is the first search hit within 60 km of Geoapify's point, which could pick a wrong item for an unusual name. Wikimedia asks for contact details in the User-Agent (`WIKIDATA_CONTACT`, the repo URL).
+
+## A must-visit can push a plan to demo (KI-34) — 2026-11-05
+
+**Resolved 2026-11-06 (DECISIONS 070):** the plan is kept and Lemon asks the traveller when none of the must-visits fit; offline-tested only. Original note: Each window must include its assigned must-visits (DECISIONS 069). A model that leaves one out gets one corrective retry, then the next provider; if every provider keeps leaving it out, that window fails and the whole plan is demo (063's all-or-nothing rule). Not seen live (Groq included Belém Tower first time). Grounding has smaller limits: at most 100 place lookups and 20 s per plan, beyond which stops get no tag rather than a wrong one.
+
+**Superseded — open as of 2026-11-05 (end of session):** as below, minus KI-30 (resolved, DECISIONS 068). Lessons: offline suites must patch `place_check._default_lookup` (other suites leave the real geocoder loaded, pointed at `geo.invalid`, so a chat test otherwise tries a DNS lookup; `test_auto_provider.AutoTests` now does); `lemon_redesign_test.dart` prints an old, harmless "tap() ... would not hit test" warning for "Day 5".
+
+**Superseded — open as of 2026-11-05 (later):** as 2026-11-04 below. KI-32 is mitigated (DECISIONS 063–067): the user confirmed a real itinerary from the running app. Still open within it: Gemini 503 (Google-side load), no reliable free OpenRouter model, Groq free-tier per-minute waits (about 25–45 s per window after the first). The user plans to revisit providers later. KI-07 looks fixed: `travel_backend/venv` runs (Python 3.11.9) and passes the backend suite.
+
+**Superseded — open as of 2026-11-05:** as 2026-11-04 below, plus **KI-32 (plans always demo: no provider reliable, top priority)**.
+
+**Superseded — open as of 2026-11-04:** as 2026-11-02, plus KI-30 (free-text intake unverified live) and KI-31 (Windows Developer Mode for plugins), below. Fixed the same day: plans mixing demo days with real days from another provider (DECISIONS 060). The new restart path is offline-tested only; it joins KI-27's live check, and its worst-case waits are long (about 4 minutes for up to 9 days, about 15 minutes for 30 days, when providers fail slowly).
+
+## Plans always demo: no provider reliable (KI-32) — 2026-11-05
+
+**Open, top priority.** Three live `auto` plans in a row came back fully demo. The third log (with the new diagnostics) names each cause:
+
+- **Groq:** `429 rate_limit_exceeded` / `tokens` twice (the 061 waits of 38 s and 2 s worked), then `APIError` `json_validate_failed` mid-stream at 7.5 s, logged as `hard` with a 5-minute bench because it has no HTTP status. A window prompt is 12,875 characters plus the 3,022-character system prompt (roughly 4–5k tokens). Groq's free tier for `gpt-oss-120b` is reportedly about 8k tokens per minute (third-party sources; check console.groq.com), so a multi-window plan exceeds it before any answer.
+- **Gemini** `gemini-3.6-flash`: `503 unavailable` on all three plans. Possibly the model name or the key's limits; unverified.
+- **OpenRouter** `openrouter/free`: used the full 75 s window budget unfinished on all three plans.
+
+These failures predate DECISIONS 060. Before it, Groq's successful window survived beside a demo window (the user's first screenshot). 060 made the result all-or-nothing, so the failures now show as a whole demo plan. The fix order agreed with the user is in DECISIONS 062. **Step 1 done (2026-11-05, DECISIONS 063):** each window now falls back on its own, so one failed window no longer discards other windows' real days; demo is still whole-plan only. Offline-tested only. Steps 2–5 (the provider failures themselves) are still open, so plans can still go fully demo.
+
+**Update, later on 2026-11-05: mitigated (DECISIONS 064–066), with live runs by the agent on the user's authorization.**
+- **Groq: fixed.** `json_validate_failed` was the reasoning model using up its whole output allowance (`finish_reason: length`, empty answer). Low reasoning effort fixes it (3–4 s per window). The per-minute token limit remains, but one window at a time plus the 061 wait handles it: a live 9-day plan finished fully real from Groq in 92 s, after waits of 33 s and 45 s.
+- **Gemini: works, one window at a time.** The minimal call and a single real window succeeded (25 s); of two windows sent at once, one got 503. One observation only.
+- **OpenRouter: still unreliable.** Every free model with JSON mode either returned 429, gave an incomplete plan, ran out of time or finished in 73 s (DECISIONS 066). `openrouter/free` is kept.
+- **Later the same day, the user's first plan in the app still went fully demo:** Groq `json_validate_failed` (a random miss: about one try in six or seven, in both JSON modes), Gemini `503` on a single window (so Google-side load, not concurrency), OpenRouter an incomplete plan. Fix: one retry on the same provider after bad output (DECISIONS 067). A live 6-day `auto` plan afterwards was fully Groq in 37 s; that run had no miss, so the retry is offline-tested only.
+- **Still to check:** a plan from the running app, and a long trip (10+ days) through Groq, where the serial waits add up (an estimated 7 minutes for 30 days, inside the 900 s cap).
+
+## Live plan after DECISIONS 060 (2026-11-05)
+
+The user's backend log for one `auto` plan: Groq `429 rate_limit` at 0.7 s (Retry-After 33 s), Gemini `503 unavailable` at 4.7 s, OpenRouter `failure=budget` at 74.98 s → whole demo plan. Groq's 429 comes from three windows at once on the free tier's tokens-per-minute limit; it is now waited out (DECISIONS 061). Gemini's 503 is Google overload and now benches for 30 s only. **Still open:** `OPENROUTER_MODEL=openrouter/free` (the `.env.example` default) routes to whichever free model is available, often a slow reasoning model, which can't write a 3-day window in 75 s. A pinned, faster free model is the user's choice in `.env`; the agent hasn't read it. Whether Groq reliably finishes after waiting is unverified until the next live plan.
+
+**Second live plan (same day, Busan, 4 days):** Groq 429 (waited 32 s as designed), then its retry failed after 7.8 s with a bare `APIError` (an error event inside the stream, so no HTTP status) → `hard`, 5 min; Gemini 503 again; OpenRouter out of budget again → demo. The log only kept the error type, so the cause is unknown. Third-party summaries list Groq's free tier for `gpt-oss-120b` at about 8,000 tokens per minute and 200,000 per day (check console.groq.com for the account's real limits). One window (system prompt about 3,000 characters, plus weather and up to 40 attractions, plus the answer and the model's reasoning tokens) may come close to that alone. Diagnostics added the same day: mid-stream errors now log the provider's `code`/`type` labels (identifier-like strings only, never the message), and a failed plan window logs its first day and the prompt's character counts. The next live plan's log should name the cause before anything else changes.
+
+## Free-text intake not verified live (KI-30) — 2026-11-04
+
+**Resolved 2026-11-05 (live check by the agent, on the user's authorization; DECISIONS 068).** 20 chat cases through `auto` plus Geoapify:
+- **Right:** Paris and Portland offered choices; Kyoto verified; mash, links and injection caught by the pre-filter with no provider call; off-topic, small talk and unhappy labelled correctly; past dates, over-30-day trips and 25 travelers refused with the right replies; "actually make it Osaka" kept the dates; "next weekend" read as Nov 14–15; 2 travelers inferred from "my wife" and "honeymoon"; "luxury" read as high budget.
+- **Wrong, fixed in 068:** Paris/Rome/Lisbon asked "which one?" when the famous one was obvious; Santorini not found (islands are `amenity` in Geoapify); Georgia only the US state; the offline parser missed "Bali" between commas and "me and my two kids".
+- **Not a bug:** "Atlantis" offered real towns named Atlantis (Florida, South Africa, France).
+- **Still a limit:** the offline parser reads any three short comma-separated parts as a "Paris, France" style answer, so "we want, something warm, in March" becomes a destination (an older rule, offline fallback only; the place check then refuses or questions it).
+- **Provider note from the same run:** Groq hit a long per-minute wait (310 s) after the day's probes, Gemini answered several turns, and two turns fell back to the local parser when Gemini and OpenRouter both took over 9 s. Chat uses the same free tiers as plans.
+
+Original notes (2026-11-04):
+
+DECISIONS 059 is tested offline only. Unverified, because no live calls were made:
+
+- **Real-model extraction and intent:** how well Groq/Gemini/OpenRouter follow the new prompt (one-shot fields, `inferred`, intent labels, vague dates left null, destination kept as written). The output checks catch bad dates, bounds and unknown places, but not, for example, a wrong traveler count.
+- **Geoapify same-name results:** whether "Paris", "Georgia" or "Portland" actually return the other countries or states in the top 5, and whether well-known places (London, Kyoto) prompt a "which one?" more often than wanted. The check only compares exact names, but how often it asks for real cities is unknown.
+- **Latency:** free text adds one Geoapify lookup per new destination (cached 24 h, 8 s limit) on top of the 30 s chat budget; the app waits 45 s.
+- **Local parser limits:** the fallback reads common date and traveler shapes only. Anything else is asked again, and after two misses Lemon offers the guided controls.
+- **Server date:** past dates are judged by the backend machine's date, the calendar by the browser's. These are the same machine in development.
+
+## Windows Developer Mode for Flutter plugins (KI-31) — 2026-11-04
+
+`shared_preferences` is a plugin. `flutter pub add` resolved it but printed "Building with plugins requires symlink support. Please enable Developer Mode in your system settings." `flutter test` and `flutter build web` passed without it. Windows desktop builds (and possibly some `pub get` runs) need Developer Mode: Settings → System → For developers → Developer Mode, or run `start ms-settings:developers`. On web the mode is stored in the browser's local storage; in a private window or with blocked site data it falls back to free text each visit.
+
+**Superseded — open as of 2026-11-02:** as 2026-11-01. A lesson from the chat polish (DECISIONS 057): when one rebuild both adds a widget above an unkeyed `TextField` and removes one below it in the same `Column`, Flutter can't match the field and re-creates it, so focus and in-progress input are lost. The "Other interests" field in the chat panel hit this when the first interest was picked. It is now keyed (`ValueKey('other-interests')`). Key any text field whose neighbours appear and disappear.
 
 **Superseded — open as of 2026-11-01:** as 2026-10-31. KI-28 (results banner overflow at large text) was found and fixed the same day. KI-29 (attraction chips): the 052 fix did not help, as the real cause was the mix Geoapify returns. Fixed again the same day with one search per chip (DECISIONS 053). The live spread across chips is still unseen (below).
 
@@ -127,7 +205,7 @@ Frontend paths below are relative to `travel_planner_frontend/lib/`.
 | KI-04 | Resolved 2026-10-08: hotel models/cards use only name and location; fabricated prices, ratings, amenities and View Deal removed. | Three offline service/widget tests pass. Live hotel API not tested. |
 | KI-05 | Resolved 2026-10-08: no fictional flight, hotel, or attraction lists are substituted. | Empty results stay empty; failures show Retry. This does not certify upstream flight data as live. |
 | KI-06 | Resolved 2026-10-08: secret-free `travel_backend/.env.example` added with all declared settings. | Static key/default parity verified; fresh environment setup remains unverified (KI-07). |
-| KI-07 | Python absent from PATH; existing backend venv version command reports its base interpreter missing. | Runtime verification/setup blocked on this machine. Repair environment before backend execution. Command observation. |
+| KI-07 | Python absent from PATH; existing backend venv version command reports its base interpreter missing. **2026-11-05: the venv has been rebuilt on Python 3.11.9 (old one kept as untracked `venv_old/`); `venv\Scripts\python.exe` runs the backend suite and the live tools.** | Looks fixed (command observation). Python is still not on PATH. |
 | KI-08 | Resolved 2026-10-08: builder passes radius_km=5 explicitly. | Offline regression checks the numeric argument and context reaching the prompt. |
 | KI-09 | Partially resolved 2026-10-16: `/lemon/plan` validates ISO dates, ordered 1–30-day ranges, budget enum, and bounded destination/interests. Chat roles and payload sizes remain unconstrained strings. | Add chat and travel-search validation with focused tests. |
 | KI-10 | Weather, places, hotels, and flights do not uniformly catch transport failures after geocoding. | Timeouts or malformed provider payloads can produce raw server failures. Standardize error handling. |

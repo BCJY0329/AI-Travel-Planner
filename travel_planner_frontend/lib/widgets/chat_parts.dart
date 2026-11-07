@@ -505,16 +505,20 @@ class _InterestPillState extends State<InterestPill> {
                                           ? AppTheme.ctaInk
                                           : AppTheme.primary)),
                               const SizedBox(width: 7),
-                              Text(widget.label,
-                                  style: AppTheme.buttonText(
-                                          size: 14,
-                                          weight: on
-                                              ? FontWeight.w700
-                                              : FontWeight.w600)
-                                      .copyWith(
-                                          color: on
-                                              ? AppTheme.ctaInk
-                                              : AppTheme.textPrimary)),
+                              // Spot names can be long (DECISIONS 069): the
+                              // label shrinks rather than overflow a phone.
+                              Flexible(
+                                  child: Text(widget.label,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTheme.buttonText(
+                                              size: 14,
+                                              weight: on
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w600)
+                                          .copyWith(
+                                              color: on
+                                                  ? AppTheme.ctaInk
+                                                  : AppTheme.textPrimary))),
                             ])))))));
   }
 }

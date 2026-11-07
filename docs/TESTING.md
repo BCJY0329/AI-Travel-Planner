@@ -1,10 +1,94 @@
 # Testing and verification
 
-## Current status — 2026-11-02
+## Current status — 2026-11-07 (DECISIONS 071 built)
+
+- Backend: **204 passed, 0 failed** (offline, `.\venv\Scripts\python.exe -m unittest discover -s tests`). New: one shared word is no longer a match (Hanamiya Kissa / Kissa Gobo Gobo, Bob's Cafe / Cafe Nero, Menya Yoshi Kitayama / Menya Inoichi, Arashiyama Monkey Park / Arashiyama Station) while real matches still pass (Fushimi Inari, Kinkaku-ji, Belém Tower, Sagrada Família, Nishiki Market); a grounded stop carries the map's `place_name` and a model can't set it; a must-visit stop shows its `matched_name`; the chat's must-visit check returns `matched_name`.
+- Frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` **167 passed, 0 failed**; `flutter build web --no-pub` passes. New in `test/lemon_phase2_test.dart` (14): changed trip + "plan it" shows the brief and waits, then "go ahead" plans; the hold happens only once; unchanged brief + "go ahead" plans at once; not-found + "plan it" asks first, Generate blocked, Continue shows the brief without planning; a message that doesn't answer gets the question again (and the first brief waits); Swap → spot tap replaces it (and spots wait while she asks); Swap → typed name not found → asked again → found name added; two not-found places asked in turn; a first "plan it" shows the brief first; dates in words; Swap it / Continue without it buttons at 360, 800 and 1440 px; "Matched: …" rule, JSON both ways, and on the itinerary at 360, 800 and 1440 px.
+- Update after the user's fifth run: frontend **173 passed, 0 failed**, analyze clean (2 new tests: spots wait for every question then come right before the brief; a first brief shows the list before it). Offline only; web build not re-run.
+- Update after the user's fourth run: frontend **171 passed, 0 failed**, analyze clean (2 new tests: an unknown place typed without Swap gets "either" each time and isn't queued; a skipped place named again is asked again). Offline only.
+- Update after the user's third run: frontend **169 passed, 0 failed**, analyze clean (2 new tests: a place typed without Swap counts as the answer; spots wait while Lemon asks for the dates). The user's run, in the app: Swap → typed "Kyoto Tower" passed; the question for a typed unknown place passed; typing a place without Swap and spots under the dates question failed and are fixed (offline-tested only).
+- **Live, by the agent on the user's authorization:** one Geoapify lookup each for "Hanamiya Kissa" (matched Kissa Gobo Gobo under the old rule) and "Menya Yoshi Kitayama" (no result) near Kyoto. Not re-run after the fix.
+- Not run: the running app (the user's re-run of Script 5 is next); a live plan with the new matching.
+
+## Earlier status — 2026-11-07 (the user's app test of phase 2, first finding)
+
+- **The user's run, in the running app** (backend and app restarted): Script 5 (Kyoto with three must-visits, "go ahead and plan it" in one message, sent in a chat that already had a brief) **failed**: Lemon named a not-found must-visit and asked for the spelling, then planned without waiting and without showing the new brief. Recorded as KI-35; fix agreed in DECISIONS 071, not built. The agent diagnosed the cause by reading the source only; it did not run the app.
+- Not reported yet: Scripts 1–4 and 6–9.
+- No code changed, so the offline results below still stand (backend 202 of 202, frontend 153 of 153); nothing was re-run.
+
+## Earlier status — 2026-11-06 (must-visits that don't fit, DECISIONS 070)
+
+- Backend: **202 passed, 0 failed** (offline). Frontend: analyze clean; **153 passed, 0 failed**; `flutter build web --no-pub` passes.
+- New backend tests (6): a must-visit left out on every try keeps the plan and names it (not demo); auto keeps the near miss after every provider; partly missing ones are listed; a complete plan lists none; an edit that drops a must-visit is previewed with it named (direct and auto).
+- New frontend tests (6): none fit → Lemon asks, "Yes" shows the plan already made; "No" stops and keeps the brief; typed yes / no / unclear; some fit → shown at once with the missing ones named; the yes/no buttons at 360, 800 and 1440 px; the edit preview's note.
+- Not run: live (needs a provider that keeps leaving a must-visit out); the running app.
+
+## Earlier status — 2026-11-05 (phase 2, DECISIONS 069)
+
+- Backend: **196 passed, 0 failed** (offline, venv). Frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` **147 passed, 0 failed**; `flutter build web --no-pub` passes.
+- Passed, backend (offline), new `tests/test_grounded_plan.py` (36): known places order, refs and cap; weather by day and "rain likely"; must-visit assignment (outdoor off rainy days, nearby together, overflow spreads); name matching across languages; pace in the prompt; a missing must-visit gets one corrective retry; grounding verified / unverified / generic / check failure / demo skipped; `place_ref` never returned; edits (regenerate keeps must-visits and lists other days, swap keeps time and other stops, same activity rejected, adjust passes the request as data, auto failing everywhere raises, mock edit, request validation); chat (pace, must-visits, surprise and edit commands in the offline parser, coming-soon reply, edit replies by day and stop, a model can't set an edit outside edit intent, must-visit checks near the destination, no checks for an unchecked destination, prompt fields); spots (SPARQL rows parsed, unlabelled dropped, office towers out and variety cap, country too broad, whole flow keeps only confirmed spots, picks); lookups (areas and other names ignored, cache, exact-coordinate match); routes (`/lemon/spots` unavailable and picks, `/lemon/edit` 502 text). `test_auto_provider` now patches the new network edges for every suite.
+- Passed, frontend: 147. New `test/lemon_phase2_test.dart` (20): spots offered once; tapping adds/removes and reaches the plan request; typed must-visits merge, not-found named once, removed stay removed; a new destination clears must-visits; "surprise me" picks; too-broad country; spot pills and brief chips at 360, 800 and 1440 px; pace from chat and editing it; guided pace and must-visit steps; guided surprise; chat after the plan sends the numbered plan; chat edit → preview → "Use this" replaces only that day; "Keep old"; failed edit retry; demo plan never edited; the preview card; itinerary pin and Unverified tag; day and stop buttons (including the Adjust dialog) at 360, 800 and 1440 px; no edit buttons on a demo plan; JSON contracts and edit timeouts. Updated for the new flow: guided tests pass through pace and must-visit; the free-mode brief has 4 "Default" tags and names the pace; the two API fakes cover spots and edits.
+- **Live, by the agent on the user's authorization:** Geoapify place data for 4 cities (radius and whole-boundary searches); Wikidata ranking for Paris, Tokyo, Lisbon, Kuala Lumpur; `popular_spots` for Paris (20 spots, 27 s), Kuala Lumpur (before and after the skyscraper and variety fix), Japan (too broad); one end-to-end run through `auto` (chat, spots, a 3-day Lisbon plan by Groq in 4.9 s with all 9 stops verified and the must-visit included, chat edit and question intents, a swap edit). Results in DECISIONS 069.
+- Not run: the running app (the user's look); a long trip with must-visits; Gemini/OpenRouter writing edits.
+
+## Earlier status — 2026-11-05 (phase 1)
+
+- Backend: 160 passed, 0 failed (offline, `travel_backend/venv/Scripts/python.exe`). Frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 127 passed, 0 failed; `flutter build web --no-pub` passes.
+- 2026-11-05 (same-name places, DECISIONS 068):
+  - **Live, by the agent on the user's authorization (KI-30):** 20 chat cases through `auto` + Geoapify (results in KNOWN_ISSUES KI-30); raw Geoapify results and importance scores for Paris, Lisbon, Rome, Portland, London, Bali, Springfield, Valencia, Cambridge, Kyoto, Santorini, Georgia; after the fix, `check_destination` for 12 names and the geocoder for "Georgia (country)", "Georgia, United States", "Santorini", "Santorini, Greece", "London, United Kingdom" all as intended (DECISIONS 068).
+  - Passed, backend (offline): 160. New in `test_chat_intake.py`: famous place goes ahead with alternatives; close choices ask; the 0.15 boundary; unscored places ask; single place labelled with its country; Greater London counts as London; Georgia country and state ask; comma names keep the traveller's words; the lookup adds only an exact country and survives a failed country search; `_finalize` sends label and alternatives, and none for unverified/ambiguous; models can't set the new fields; island kept only when nothing else is; the "(country)" label round trip; the offline parser's comma place and "me and my N". `test_auto_provider.AutoTests` now patches the place lookup offline (it was trying a DNS lookup for `geo.invalid` when run with the other suites).
+  - Passed, frontend: 127. New `test/lemon_place_label_test.dart` (11): JSON fields; the plan and search tabs use the label; no label → the typed name; picking an alternative needs no call and ignores unoffered names; editing or starting over clears it; guided mode keeps it; no "Not this one?" without alternatives; the pop-up picks another place at 360, 800 and 1440 px; "Somewhere else…" asks for a new place.
+  - Not run: the pop-up in the running app.
+- 2026-11-05 (user check of phase 1): see below.
+
+## Earlier status — 2026-11-04
 
 - 2026-11-02 (user review): the user looked at the running app after DECISIONS 056 and 057 and approved it. This was the user's own visual check; the agent did not run the app.
 
 Latest recorded results (details in the dated entries below; entries are chronological and later ones supersede earlier ones):
+
+- 2026-11-05 (user check of phase 1): the user tested phase 1 in the running app and found no issues. The user's check; the agent did not run the app.
+- 2026-11-05 (user check after 067): the user ran a plan in the app and confirmed a real itinerary. Log: one Groq per-minute 429 (32 s), `POST /lemon/plan` 200, no demo fallback. The user's run.
+- 2026-11-05 (bad-output retry, DECISIONS 067):
+  - The user's plan from the app went demo; they shared the log (Groq `json_validate_failed`, Gemini 503, OpenRouter invalid output). The user's run.
+  - Live, by the agent (labels only): 7 more loose-mode Groq probes, one a minute: 6 valid, 1 per-minute 429. Strict `json_schema` probes with interests: 4 valid, 2 `json_validate_failed`. Loose with interests: 3 valid replies, 1 of them failed the day/date check. A 6-day `auto` plan afterwards: fully Groq, 36.7 s, one 25 s per-minute wait, no bad output.
+  - Passed, backend (offline, venv): 142 passed, 0 failed. New: bad output retries the same provider once with the corrective note and no bench; no retry under 15 s left; 503 and other errors aren't retried. Four 063/065 tests now count the extra retry call; the cap test uses a 4 s budget to stay off the retry margin.
+  - Not run: frontend tests (no frontend change), the running app.
+- 2026-11-05 (Groq/Gemini fixes, DECISIONS 064–066):
+  - Passed, backend (offline, now with `travel_backend/venv/Scripts/python.exe`, Python 3.11.9): 139 passed, 0 failed. New: `json_validate_failed` gets 30 s while other unlabelled errors keep 5 minutes; Groq takes one window at a time with each budget starting when it gets Groq; OpenRouter still takes three at once; Gemini is limited too; a window queued for Groq skips it once benched; Groq sends `reasoning_effort` (and OpenRouter doesn't); a blank setting sends nothing.
+  - **Live, run by the agent on the user's authorization** (results printed as labels only, no content or keys):
+    - `tools/diagnose_gemini_models.py`: model listing 501, metadata lookup OK, minimal generation OK.
+    - A 3-day plan with `provider=gemini`: real, 25.0 s.
+    - A 6-day `auto` plan (before the Groq fix and the Gemini limit): Groq `json_validate_failed` → Gemini wrote one window, but the window sent alongside got 503 → OpenRouter out of budget → whole demo, 96 s.
+    - Groq probe of one window: JSON mode and plain mode both ended `finish_reason: length` with 0 answer characters; with `reasoning_effort: low`, valid JSON, `stop`, 3.6 s.
+    - OpenRouter, one 3-day window per model: the two Gemma models 429 (twice each), xing4.0 429, nemotron-3.5-super-vl incomplete after 35.6 s, flint-v1.0 out of budget at 75 s, dots-3-note-preview real in 73.1 s.
+    - A 9-day `auto` plan with all fixes: **fully real from Groq, 92 s**; windows 4 and 7 each got a token 429 and waited 33 s / 45 s.
+  - Not run: frontend tests (no frontend change), the running app, trips over 9 days live.
+- 2026-11-05 (per-window fallback, DECISIONS 063):
+  - Passed, backend (offline, same interpreter): 133 passed, 0 failed. Replaced the 060 restart tests in `tests/test_auto_provider.py`: a failed window moves to the next provider while the first provider's other days are kept (`provider_used: "auto"`); windows still running on a benched provider finish; a window starting later skips a provider benched in the same plan, and siblings' successes don't lift that bench; a window failing on every provider cancels the rest for a whole demo plan; window 1 failing on both providers makes the plan demo even though window 4 succeeded; the `auto` cap allows one turn per provider. Two 061 tests renamed (rate-limit wait that doesn't fit, broken output after a wait: both now move the window to the next provider).
+  - Not run: frontend tests (no frontend change), live providers, the running app.
+- 2026-11-05 (diagnostics after the second live plan): backend 130 passed, 0 failed (offline). New: mid-stream `APIError` labels (`code`/`type`) are logged as `provider_code`/`provider_type`, while free text, capitals, spaces and over-long values are dropped. A failed plan window now logs its first day and prompt sizes; this was seen in the test output. Not run: live providers.
+- 2026-11-05 (rate-limit wait and 503 bench, DECISIONS 061):
+  - The user ran a live plan after DECISIONS 060 and shared the backend log (Groq 429, Gemini 503, OpenRouter out of window budget → whole demo plan). That was the user's run; the agent made no live calls.
+  - Passed, backend (offline, same interpreter): 129 passed, 0 failed. New (4): a rate-limited window waits and asks the same provider again while the others carry on, and the plan stays with it with no cooldown recorded; a wait that doesn't fit the window budget ends the turn at once and records the Retry-After cooldown; broken output after a rate-limit retry still restarts with the next provider; a 503 (both `status_code` and genai-style `code`) cools down for 30 s. `test_hard_failures_keep_five_minute_cooldown` no longer lists 503.
+  - Not run: frontend tests (no frontend change), live providers, the running app.
+
+- 2026-11-04 (one provider writes the whole plan, DECISIONS 060):
+  - Passed, backend (offline, same interpreter): 125 passed, 0 failed. New in `tests/test_auto_provider.py` (5): the reported case (first provider fails days 1–3 but manages 4–6, so the second provider writes all six days, its windows start on days 1 and 4, and the first is cooled down); a failed window cancels that provider's other windows at once; each provider gets a fresh budget (a shared one would starve the second); a cooling provider is skipped; when each provider fails a different window, the whole plan is demo with no real days. Three budget tests now spy on `attempt_provider` instead of mocking `AutoProvider.generate_json`, which plans no longer call.
+  - Passed, frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 116 passed, 0 failed. `test/lemon_plan_timeout_test.dart` now expects 25 s + 3 × 75 s × waves for `auto` (250/475/700/925 s) and one turn for a named provider (new test).
+  - Not run: live providers (the real restart path and its timing), the running app, and `flutter build web` (no UI change).
+
+- 2026-11-04 (Lemon.ai phase 1: free-text mode, guided on request, garbage gate, DECISIONS 059):
+  - Passed, backend (offline, external interpreter as recorded below, venv site-packages appended): 120 passed, 0 failed. New `tests/test_chat_intake.py` (31) covers:
+    - the pre-filter (noise, injection, links caught; digits, non-Latin names and real messages pass), and that a flagged message never reaches a provider;
+    - one-message extraction, date shapes (ranges, year end, nights, weeks, this/next weekend), vague timing, traveler inference, kids/honeymoon interests, month names and greetings not taken as places, bare answers, corrections, picked options, confirmation only after the summary, intents;
+    - `_finalize`: past, reversed and over-30-day dates, the 30-day edge, traveler bounds, budget normalisation, not-found and ambiguous places (with options), named regions, lookup failure staying unverified, the 24 h cache, `inferred` filtering;
+    - AI output checked with server-owned fields ignored, auto exhaustion reporting `fallback_used`, explicit mock skipping the place check.
+  - Updated: `test_chat_exhaustion_matches_explicit_mock` now uses dates relative to today (fixed November 2026 dates are in the past, and past dates are refused).
+  - Passed, frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 115 passed, 0 failed; `flutter build web --no-pub` succeeded. New `test/lemon_free_mode_test.dart` (17) covers the default mode and its greeting, restoring a saved mode, one-message briefs with defaults used in the plan, merging turns, a typed yes, rejected messages kept out of the history, plain-words and model-flagged switches, the offline/unhappy/stuck offers with "Keep typing", ambiguous places in both modes, the gear menu saving the mode, brief tags and editing one item, and the offer and choices at 360, 800 and 1440 px.
+  - Updated: guided-flow tests in `lemon_redesign_test.dart`, `chat_polish_test.dart` and `page_colours_test.dart` now ask for `ChatMode.guided`, since free text is the default.
+  - `flutter pub add shared_preferences` resolved and updated `pubspec.yaml`/`pubspec.lock`, then reported "Building with plugins requires symlink support" (Windows Developer Mode off). Tests and the web build passed regardless.
+  - Not run: live provider calls, live Geoapify lookups, and a visual check in the running app.
 
 - 2026-11-02 (chat polish, Lexend, hover card, centred search, DECISIONS 057):
   - Passed, frontend: `flutter analyze --no-pub` clean; `flutter test --no-pub` 98 passed, 0 failed; `flutter build web --no-pub` succeeded with the Lexend assets. New `test/chat_polish_test.dart` (9) covers:

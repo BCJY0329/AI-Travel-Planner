@@ -26,7 +26,7 @@ class _SlowPlanApi extends FakeLemonApi {
 void main() {
   Future<LemonChatController> panel(WidgetTester tester,
       {FakeLemonApi? api, String? field, bool reduced = false}) async {
-    final c = LemonChatController(api: api ?? FakeLemonApi());
+    final c = LemonChatController(mode: ChatMode.guided, api: api ?? FakeLemonApi());
     addTearDown(c.dispose);
     c.startIfNeeded();
     if (field != null) c.nextField = field;
@@ -95,7 +95,9 @@ void main() {
       ..endDate = '2026-11-16'
       ..travelers = 2
       ..budgetLevel = 'medium'
-      ..setInterests(['Food']);
+      ..setInterests(['Food'])
+      ..setPace('balanced')
+      ..confirmSpots();
     unawaited(c.confirmTrip());
     await tester.pumpAndSettle();
     expect(find.byType(PlanningCard), findsOneWidget);

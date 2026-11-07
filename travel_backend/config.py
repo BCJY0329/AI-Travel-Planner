@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
     GROQ_MODEL: str = "openai/gpt-oss-120b"  # check console.groq.com for current free-tier models
+    # Sent as reasoning_effort (low/medium/high) for reasoning models like gpt-oss.
+    # Leave blank for a model that doesn't take it (DECISIONS 066).
+    GROQ_REASONING_EFFORT: str = "low"
 
     # Google Gemini — free tier via AI Studio.
     # Sign up: https://aistudio.google.com/apikey
@@ -52,6 +55,11 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_MODEL: str = "openrouter/free"  # auto-routes to a currently-free model; avoids hardcoding an ID that can get retired (like deepseek's just did)
+
+    # Wikidata (keyless) ranks Lemon's popular spots (DECISIONS 069). Wikimedia's
+    # bot policy requires contact details in the User-Agent; this is the project
+    # repo, not a traveller's data. https://w.wiki/4wJS
+    WIKIDATA_CONTACT: str = "https://github.com/BCJY0329/AI-Travel-Planner"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

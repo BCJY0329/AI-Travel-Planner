@@ -29,7 +29,14 @@ class GroqProvider(LLMProvider):
     async def stream_text(self, system_prompt: str, user_prompt: str):
         if not settings.GROQ_API_KEY:
             raise ValueError("Groq provider selected but GROQ_API_KEY is not set in .env")
-        async for part in stream_chat_json(self._client, settings.GROQ_MODEL, system_prompt, user_prompt):
+        # gpt-oss is a reasoning model: at its default effort it can spend the whole
+        # output allowance thinking and return no answer at all (finish_reason
+        # "length", reported by JSON mode as json_validate_failed). Low effort cuts
+        # only the hidden thinking, not the itinerary (DECISIONS 066).
+        effort = settings.GROQ_REASONING_EFFORT.strip()
+        extra = {"reasoning_effort": effort} if effort else None
+        async for part in stream_chat_json(self._client, settings.GROQ_MODEL, system_prompt, user_prompt,
+                                           extra_body=extra):
             yield part
 
     async def generate_json(self, system_prompt: str, user_prompt: str) -> str:

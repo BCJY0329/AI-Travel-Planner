@@ -199,6 +199,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child: ItineraryView(
                                       itinerary: _chat.latestItinerary,
                                       onOpenLemon: _openChat,
+                                      // Day edits run in the chat, which
+                                      // shows the preview (DECISIONS 069).
+                                      onEdit: (edit) {
+                                        _openChat();
+                                        _chat.requestEdit(edit,
+                                            fromButton: true);
+                                      },
                                       photos: _photos)),
                             ]))),
                     if (!_open)

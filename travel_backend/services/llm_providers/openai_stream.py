@@ -7,7 +7,9 @@ what the non-streaming `message.content` used to return.
 """
 
 
-async def stream_chat_json(client, model: str, system_prompt: str, user_prompt: str):
+async def stream_chat_json(client, model: str, system_prompt: str, user_prompt: str, extra_body=None):
+    # extra_body carries provider-specific fields the pinned openai SDK (1.54)
+    # doesn't know, such as Groq's reasoning_effort.
     stream = await client.chat.completions.create(
         model=model,
         messages=[
@@ -16,6 +18,7 @@ async def stream_chat_json(client, model: str, system_prompt: str, user_prompt: 
         ],
         response_format={"type": "json_object"},
         stream=True,
+        **({"extra_body": extra_body} if extra_body else {}),
     )
     try:
         async for chunk in stream:

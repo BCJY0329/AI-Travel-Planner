@@ -4,6 +4,98 @@
 
 Reconstructed on 2026-10-08 from current source. The initial task authorized documentation only. Subsequent repairs were separately authorized; unchecked work remains a proposed backlog. KI identifiers refer to `KNOWN_ISSUES.md`. Sections are chronological; items completed by later batches were ticked on 2026-10-17 with a pointer to the batch that did them.
 
+## Open work snapshot — 2026-11-07 (071 built) — next up: the user re-runs Script 5
+
+- [x] Second Script 5 run (fresh chat) reproduced KI-35 and found three more problems; a live lookup showed "Hanamiya Kissa" matched **Kissa Gobo Gobo** (KI-36). All added to DECISIONS 071 with the user.
+- [x] **DECISIONS 071 built** (the user said go ahead): Swap it / Continue without it, "plan it" waits, Lemon's own words while holding, spots wait, dates in words, stricter place matching, "Matched: …" under stops. Backend 204 of 204, frontend 167 of 167, analyze clean, web build passes. Not run in the app.
+- [x] The user's third run found two problems (a place typed without Swap didn't count; spots landed under the dates question); both fixed, frontend 169 of 169.
+- [x] Fourth run: made-up names typed while Lemon asks, and skipped places named again, fixed; frontend 171 of 171.
+- [x] Fifth run: spot list moved to right before the brief, after the not-found questions; Swap keeps its buttons; frontend 173 of 173.
+- [ ] **The user re-runs Script 5** (restart the backend and hot-restart the app first): expect Lemon to ask about Menya Yoshi Kitayama and Hanamiya Kissa (now not found) with Swap it / Continue without it, and to wait before planning.
+- [ ] Then the scripts not yet reported (1–4, 6–9), then phase 3.
+
+## Superseded — open work snapshot — 2026-11-07 — next up: build DECISIONS 071, then continue the user's app test
+
+- [x] The user started testing phase 2 in the running app with test scripts from the agent (nine scripts: Paris normal path, Rome surprise me, Japan / Paris / Springfield destination checks, Lisbon wrong-city must-visit, Kyoto must-visits that may not fit, Barcelona → Madrid clears must-visits, noise and injection, guided mode, a 9-day London trip). Script 5 found KI-35.
+- [ ] **Build DECISIONS 071** (fix KI-35): "plan it" never skips Lemon's question or a changed brief; Swap it / Continue without it for a must-visit not found; brief shown and confirmation awaited. Design settled and plan presented; the user said to record it and build next session (they did not yet say "go ahead" on the plan, so confirm before building).
+- [ ] Check what "Hanamiya Kissa" matched to on the map in the Script 5 Kyoto plan (ask the user); fix place matching if wrong.
+- [ ] Continue the user's app test: Script 5 again after the fix, then the scripts not yet reported (1–4, 6–9).
+- [ ] Then phase 3 (below).
+
+## Superseded — open work snapshot — 2026-11-06
+
+- [x] **KI-34 fixed (DECISIONS 070):** a must-visit no planner fits no longer turns the plan into a demo; when none fit Lemon asks ("Yes, show my plan" / "No, stop here"); when some fit the plan shows and she names the missing ones; day edits preview with a note. Backend 202 of 202, frontend 153 of 153, web build passes; not run live.
+- [ ] The user's look at phase 2 (and this) in the running app, then phase 3 (below).
+
+## Superseded — open work snapshot — 2026-11-05 (phase 2 built) — next up: the user's look, then phase 3
+
+- [x] **Phase 2 — grounded itinerary (DECISIONS 069):** design settled with the user, plan approved, built in one go. Popular spots (Wikidata + Geoapify) as buttons in Lemon's bubble, typed must-visits, "surprise me" picks, pace, known places and grounding (pin / Unverified), must-visits placed by distance and weather, day edits (regenerate / swap / adjust) from buttons and chat with a preview, "coming soon" for trip questions. Backend 196 of 196 offline, frontend 147 of 147, analyze clean, web build passes; live end-to-end check passed (TESTING 2026-11-05).
+- [ ] **The user's look at phase 2 in the running app** (restart the backend: new routes `/lemon/edit`, `/lemon/spots`; hot-restart the app). Try a city, tap spots, say "surprise me", plan, then "make day 2 more relaxed", the day buttons, and a country like "Japan".
+- [ ] Phase 3 — photos and links (HANDOVER queue). Phase 4 — videos. Phase 5 — extras (answering trip questions is now promised as "coming soon" in Lemon's reply).
+- [ ] Providers, parked by the user (unchanged).
+- [ ] Commit (only when the user asks): nothing since `ed0f4d3` is committed.
+
+## Superseded — open work snapshot — 2026-11-05 (end of session) — next up: phase 2
+
+Start a fresh session from `docs/HANDOVER.md`. Order agreed with the user:
+
+- [x] Phase 1 done (DECISIONS 059, 068): tested by the user in the app, KI-30 live check done and its findings fixed.
+- [x] Plan reliability (DECISIONS 060–067): the user confirmed real itineraries from the app.
+- [ ] **Next: Phase 2 — grounded itinerary** (scope in DECISIONS 058; design questions listed in HANDOVER.md; settle them with the user and present a full plan before building).
+- [ ] Phase 3 — photos and links; Phase 4 — videos; Phase 5 — extras (or 5 before 3–4 if those need paid tiers).
+- [ ] Providers, parked by the user: paid Groq tier or other upgrades, Gemini 503, an OpenRouter model, a 10+ day live check.
+- [ ] The user's look at "Not this one?" in the running app (restart the backend first).
+- [ ] Commit (only when the user asks): nothing since `ed0f4d3` is committed.
+
+## Open work snapshot — 2026-11-05 (plan reliability, KI-32)
+
+Agreed with the user to go through these one at a time next session (DECISIONS 062). Each needs the user's decision before code changes.
+
+- [x] Diagnosed from the user's third live log: Groq over its free per-minute token limit, then `json_validate_failed`; Gemini 503 every time; OpenRouter too slow every time. Recorded in DECISIONS 062 and KI-32.
+- [x] **Step 1 (2026-11-05, DECISIONS 063):** the user chose the middle way: each window falls back on its own, a provider's running windows finish after it is benched, a fresh 75 s per provider per window, demo only for the whole plan. Backend 133 of 133 offline; not run live.
+- [x] **Step 2 (DECISIONS 064, 066):** `json_validate_failed` is bad output (30 s). Its cause, found live, was gpt-oss reasoning until out of output; `GROQ_REASONING_EFFORT=low` fixes it.
+- [x] **Step 3 (DECISIONS 065):** Groq takes one window at a time; 061's wait handles the remaining 429s. Live 9-day plan: fully Groq, 92 s.
+- [x] **Step 4 (DECISIONS 065):** live check: key and model fine; 503 seen on the second of two windows at once, so Gemini takes one at a time too.
+- [x] **Step 5 (DECISIONS 066):** tried the 6 free JSON-capable models live; none reliable, so `openrouter/free` stays and `.env` is untouched.
+- [x] Follow-up (DECISIONS 067): the user's app plan still went demo (random Groq miss + Gemini 503 + OpenRouter bad output). One retry on the same provider after bad output, the user's choice. Backend 142 of 142 offline; live 6-day plan fully Groq in 37 s (no miss, so the retry wasn't exercised live).
+- [x] **The user confirmed a real itinerary from the running app (2026-11-05)** after 067; the log showed one Groq per-minute 429 (32 s wait) and no demo fallback.
+- [ ] Later (the user will return to it): change or upgrade providers (paid Groq tier, Gemini, a reliable OpenRouter model). A 10+ day trip through Groq is still unchecked live.
+
+## Open work snapshot — 2026-11-05 (rate limits during a plan)
+
+- [x] One Groq 429 no longer throws away Groq's plan (DECISIONS 061): the limited window waits Retry-After and retries the same provider if 15 s of budget would remain. 503 now benches a provider for 30 s, not 5 min. Backend 129 of 129 offline.
+- [x] The user's next live plan: the wait works (38 s, then 2 s, then accepted), but the plan still went to demo for other reasons. Moved to the KI-32 steps above.
+- [ ] OpenRouter model choice: now step 5 above.
+
+## Open work snapshot — 2026-11-04 (plan restarts with the next provider)
+
+- [x] Mixed demo and real days fixed (DECISIONS 060): with `auto`, one provider writes every window; any failed window cancels the rest and restarts the plan from day 1 with the next provider, with a fresh budget and no retry within a provider. All providers failing gives a whole demo plan. Frontend wait now 25 s + 3 × 75 s × waves for `auto`. Backend 125 of 125, frontend 116 of 116 offline.
+- [ ] Live check of a plan through `auto` where the first provider fails (needs the user's go-ahead; spends quota). Folded into KI-27.
+
+## Open work snapshot — 2026-11-02 (Lemon.ai feature roadmap)
+
+Agreed with the user in discussion; nothing implemented yet. The full plan and reasoning are in DECISIONS 058. Each phase needs the user's go-ahead before code changes; dependency changes and live provider calls need separate authorization.
+
+- [x] Discussed and agreed the roadmap and phase order (DECISIONS 058). Docs only; no code changed.
+- [x] **Phase 1 — Smart intake and garbage gate** (2026-11-04, DECISIONS 059). Offline-tested; not yet seen in the running app.
+  - [x] Modes agreed with the user: free text by default; guided controls offered (ask first) or chosen from the ⚙ settings menu or by plain words; mode saved with `shared_preferences`.
+  - [x] One-shot extraction of every field from free text.
+  - [x] Left-out details explained and shown as "Default" on the brief; guesses shown as "Assumed"; each editable before generating.
+  - [x] Local pre-filter (empty, keyboard-mash, repeated characters, links, prompt-injection phrases).
+  - [x] Model `intent` classification with a reply per kind.
+  - [x] Destination must resolve through Geoapify; ambiguous names offer choices (KI-25 option 2), in both modes.
+  - [x] Local parser with the same rules in simpler form; backend 120 of 120 and frontend 115 of 115 offline.
+  - [x] **Live check (2026-11-05, user-authorized):** 20 chat cases; results in KI-30. Its findings fixed in DECISIONS 068.
+  - [x] **Same-name places (DECISIONS 068, the user's design):** famous place goes ahead (importance gap 0.15), the brief shows the exact place, "Not this one?" pop-up only when the name is shared, plus "Somewhere else…"; islands found; Georgia the country offered; offline parser reads a place between commas and "me and my N kids". Backend 160 of 160, frontend 127 of 127, web build passes; live place checks match. Not yet seen in the running app.
+  - **Phase 1 is complete.** Next: phase 2 in a fresh session (HANDOVER.md).
+  - [x] **The user's look at the running app** (2026-11-05): tested by the user, no phase 1 issues found; the only problems were the provider/plan ones (KI-32, now fixed).
+- [ ] **Phase 2 — Grounded itinerary:** optional `place_id`/coordinates per activity with unverified places flagged; `must_visit` on `TripRequest` checked by the validator; group nearby places; weather-aware placement; pace setting (relaxed/balanced/packed, not shorter content); regenerate one day / swap one activity; visible mock label.
+- [ ] **Phase 3 — Photo detection and link previews:** photo/screenshot upload → candidates with evidence → Geoapify check → user confirms → `must_visit`. Links read through oEmbed / Open Graph only (caption first, then thumbnail, then ask for upload); private posts are not worked around. Before starting: confirm the Meta tokenless oEmbed and TikTok oEmbed details against official docs.
+- [ ] **Phase 4 — Video detection:** 4–6 still frames pulled in the app, sent as images through the auto chain; raw video through Gemini only as a last resort (low resolution, about 60 s cap); cache by file fingerprint; daily cap per device; media not kept.
+- [ ] **Phase 5 — Extras:** saved trips (device storage), a map of each day, export/share (PDF, .ics, link), follow-up questions after a plan.
+- [ ] If phases 3–4 turn out to need paid AI tiers, do phase 5 first (the user's call).
+- [ ] Prerequisites to raise with the user when their phase comes: `google-genai` upgrade, KI-14 (Gemini 404), a Flutter file-picker package, frame extraction on Flutter web, KI-07 (broken venv).
+
 ## Open work snapshot — 2026-11-02 (buttons and chat panel)
 
 - [x] **Reviewed and approved by the user in the running app (2026-11-02).** Next session: Lemon.ai feature improvements (see HANDOVER.md).

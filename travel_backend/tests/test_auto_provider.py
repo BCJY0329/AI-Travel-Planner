@@ -33,6 +33,19 @@ for module_name, function_name in [('weather', 'get_forecast'), ('places', 'get_
 
 from services.llm_providers import auto_provider as auto
 from services.llm_providers.factory import get_provider
+
+# DECISIONS 069 lookups (popular spots, destination centre, place checks) go
+# through the real geocoder when another suite has loaded it, so they are
+# replaced here for every suite: no test may reach Geoapify or Wikidata.
+from services import itinerary_builder as _builder, popular_spots as _spots, chat_parser as _chat, \
+    poi_lookup as _poi
+async def _offline_lookup(*args, **kwargs):
+    raise RuntimeError('offline')
+_builder._spots_for = _builder._centre_for = _builder._find_place = _offline_lookup
+_chat._default_spot_finder = _offline_lookup
+# The network edges themselves, for code that reaches them another way.
+_spots._search_destination = _spots._wikidata = _offline_lookup
+_poi._geocode = _poi.destination_centre = _offline_lookup
 from services.chat_parser import parse_chat
 from services.itinerary_builder import build_itinerary
 from models.chat import LemonChatRequest
@@ -65,6 +78,35 @@ def window_reply(prompt):
     pairs = re.findall(r'(\d+): (\d{4}-\d{2}-\d{2})', prompt.split('Generate ONLY')[1])
     return json.dumps({'days': [{'day': int(number), 'date': day,
         'activities': [{'time': '09:00', 'activity': 'Explore'}]} for number, day in pairs]})
+
+
+def window_provider(name, fail_from_day=()):
+    """Fake provider that answers every window, except windows starting on a day
+    in `fail_from_day`, which come back with no days (invalid output)."""
+    import re
+    class Windows:
+        first_days = []
+        async def generate_json(self, system, prompt):
+            first = int(re.findall(r'(\d+): \d{4}-', prompt.split('Generate ONLY')[1])[0])
+            Windows.first_days.append(first)
+            if first in fail_from_day:
+                return '{"days": []}'
+            reply = json.loads(window_reply(prompt))
+            for day in reply['days']:
+                day['activities'][0]['activity'] = f'Explore with {name}'
+            return json.dumps(reply)
+    Windows.name = name
+    Windows.first_days = []
+    return Windows
+
+
+def attempt_spy(calls):
+    """Wraps auto.attempt_provider, recording the keyword limits of each call."""
+    original = auto.attempt_provider
+    async def spy(cls, system, prompt, **kwargs):
+        calls.append(kwargs)
+        return await original(cls, system, prompt, **kwargs)
+    return spy
 
 
 def streamer(name, pieces, gap=0, stall_after=None, first_delay=0, error=None, on_close=None):
@@ -135,7 +177,7 @@ def load_real_adapter(module_name):
     fake_config = types.ModuleType('config')
     fake_config.settings = types.SimpleNamespace(**{key: 'test' for key in [
         'GROQ_API_KEY', 'GROQ_BASE_URL', 'GROQ_MODEL', 'OPENROUTER_API_KEY', 'OPENROUTER_BASE_URL',
-        'OPENROUTER_MODEL', 'GEMINI_API_KEY', 'GEMINI_MODEL']})
+        'OPENROUTER_MODEL', 'GEMINI_API_KEY', 'GEMINI_MODEL']}, GROQ_REASONING_EFFORT='low')
     fake_types = types.ModuleType('google.genai.types')
     fake_types.GenerateContentConfig = lambda **kwargs: kwargs
     fake_genai = types.ModuleType('google.genai')
@@ -163,6 +205,15 @@ def status_error(status, headers=None, attr='status_code'):
 class AutoTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         auto._cooldown_until.clear()
+        # Other suites load the real geocoder (pointed at geo.invalid), so a chat
+        # test here would otherwise try a DNS lookup. Keep the place check offline.
+        from services import place_check
+        place_check._cache._entries.clear()
+        async def offline(text):
+            raise RuntimeError('offline')
+        patcher = patch.object(place_check, '_default_lookup', offline)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         auto._cooldown_until.clear()
@@ -339,15 +390,14 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(time.monotonic() - started, .5)
 
     async def test_itinerary_auto_uses_total_budget(self):
-        from services import itinerary_builder as builder
-        from unittest.mock import AsyncMock
-        engine = auto.AutoProvider()
-        engine.generate_json = AsyncMock(return_value=complete_plan())
-        with patch.object(builder, 'get_provider', return_value=engine):
+        calls = []
+        with patch.object(auto, '_FALLBACK_ORDER', [window_provider('good')]), \
+                patch.object(auto, 'attempt_provider', attempt_spy(calls)):
             await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-02', provider='auto'))
-        self.assertLessEqual(engine.generate_json.call_args.kwargs['total_timeout'], 75.0)
-        self.assertGreater(engine.generate_json.call_args.kwargs['total_timeout'], 74.0)
-        kwargs = engine.generate_json.call_args.kwargs
+        self.assertEqual(len(calls), 1)
+        kwargs = calls[0]
+        self.assertLessEqual(kwargs['remaining'], 75.0)
+        self.assertGreater(kwargs['remaining'], 74.0)
         self.assertIsNone(kwargs.get('attempt_timeout'))
         self.assertEqual(kwargs['idle_timeout'], 10.0)
         self.assertEqual(kwargs['first_chunk_timeout'], 25.0)
@@ -360,13 +410,11 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(generation_budget_seconds(days), budget)
 
     async def test_every_window_of_long_trip_gets_full_wave_budget(self):
-        from services import itinerary_builder as builder
-        from unittest.mock import AsyncMock
-        engine = auto.AutoProvider()
-        engine.generate_json = AsyncMock(side_effect=lambda system, prompt, **kw: window_reply(prompt))
-        with patch.object(builder, 'get_provider', return_value=engine):
+        calls = []
+        with patch.object(auto, '_FALLBACK_ORDER', [window_provider('good')]), \
+                patch.object(auto, 'attempt_provider', attempt_spy(calls)):
             result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-30', provider='auto'))
-        budgets = [call.kwargs['total_timeout'] for call in engine.generate_json.call_args_list]
+        budgets = [kwargs['remaining'] for kwargs in calls]
         self.assertEqual(len(budgets), 10)
         self.assertTrue(all(74.0 < value <= 75.0 for value in budgets), budgets)
         self.assertEqual(len(result.days), 30)
@@ -387,12 +435,282 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_overall_plan_cap_still_bounds_each_window(self):
         from services import itinerary_builder as builder
-        from unittest.mock import AsyncMock
-        engine = auto.AutoProvider()
-        engine.generate_json = AsyncMock(side_effect=lambda system, prompt, **kw: window_reply(prompt))
-        with patch.object(builder, 'get_provider', return_value=engine), patch.object(builder, 'generation_budget_seconds', return_value=5.0):
+        calls = []
+        with patch.object(auto, '_FALLBACK_ORDER', [window_provider('good')]), \
+                patch.object(auto, 'attempt_provider', attempt_spy(calls)), \
+                patch.object(builder, 'generation_budget_seconds', return_value=5.0):
             await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-12', provider='auto'))
-        self.assertTrue(all(call.kwargs['total_timeout'] <= 5.0 for call in engine.generate_json.call_args_list))
+        self.assertEqual(len(calls), 4)
+        self.assertTrue(all(kwargs['remaining'] <= 5.0 for kwargs in calls))
+
+    # Each window falls back on its own; demo only for the whole plan (DECISIONS 063).
+    async def test_failed_window_moves_to_next_provider_and_keeps_other_days(self):
+        # The first provider fails days 1-3 but writes 4-6: those days are kept.
+        first = window_provider('first', fail_from_day={1})
+        second = window_provider('second')
+        with patch.object(auto, '_FALLBACK_ORDER', [first, second]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-06', provider='auto'))
+        self.assertEqual(result.provider_used, 'auto')  # written by more than one provider
+        self.assertEqual([d.day for d in result.days], [1, 2, 3, 4, 5, 6])
+        self.assertEqual([d.activities[0].activity for d in result.days],
+                         ['Explore with second'] * 3 + ['Explore with first'] * 3)
+        self.assertEqual(second.first_days, [1])
+        self.assertEqual(sorted(first.first_days), [1, 1, 4])  # one retry after bad output (067)
+        self.assertGreater(auto._cooldown_until['first'], time.monotonic())  # invalid output: 30 s
+
+    async def test_running_windows_finish_after_their_provider_is_benched(self):
+        class FailsFirstWindow:
+            name = 'flaky'
+            async def generate_json(self, system, prompt):
+                if '1: 2026-11-01' in prompt:
+                    raise RuntimeError('offline')
+                await asyncio.sleep(.05)  # Still running when window 1 fails.
+                return window_reply(prompt)
+        with patch.object(auto, '_FALLBACK_ORDER', [FailsFirstWindow, window_provider('good')]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-09', provider='auto'))
+        self.assertEqual(result.provider_used, 'auto')
+        self.assertEqual([d.day for d in result.days], list(range(1, 10)))
+        self.assertEqual([d.activities[0].activity for d in result.days],
+                         ['Explore with good'] * 3 + ['Explore'] * 6)
+
+    async def test_later_window_skips_provider_benched_in_this_plan(self):
+        # 12 days = 4 windows, 3 at a time: window 10 starts only after window 1
+        # has failed on `first`, so it goes straight to `second`.
+        class First:
+            name = 'first'
+            first_days = []
+            async def generate_json(self, system, prompt):
+                day = json.loads(window_reply(prompt))['days'][0]['day']
+                First.first_days.append(day)
+                if day == 1:
+                    return '{"days": []}'
+                await asyncio.sleep(.05)
+                return window_reply(prompt)
+        second = window_provider('second')
+        with patch.object(auto, '_FALLBACK_ORDER', [First, second]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-12', provider='auto'))
+        self.assertEqual([d.day for d in result.days], list(range(1, 13)))
+        self.assertEqual(sorted(First.first_days), [1, 1, 4, 7])  # window 1 retried once
+        self.assertEqual(sorted(second.first_days), [1, 10])
+        # Windows 4 and 7 succeeding on `first` must not lift its bench.
+        self.assertGreater(auto._cooldown_until['first'], time.monotonic())
+
+    async def test_window_failing_everywhere_cancels_the_rest_for_a_demo_plan(self):
+        cancelled = asyncio.Event()
+        class Hanging:
+            name = 'hanging'
+            async def generate_json(self, system, prompt):
+                if '1: 2026-11-01' in prompt:
+                    raise RuntimeError('offline')
+                try:
+                    await asyncio.sleep(10)
+                except asyncio.CancelledError:
+                    cancelled.set()
+                    raise
+        started = time.monotonic()
+        with patch.object(auto, '_FALLBACK_ORDER', [Hanging, window_provider('broken', fail_from_day={1})]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-09', provider='auto'))
+        self.assertTrue(cancelled.is_set())
+        self.assertLess(time.monotonic() - started, 1)
+        self.assertEqual(result.provider_used, 'mock')
+        self.assertEqual(len(result.days), 9)
+
+    async def test_each_provider_gets_a_fresh_budget(self):
+        from services import itinerary_builder as builder
+        class SlowThenBroken:
+            name = 'slow_broken'
+            async def generate_json(self, system, prompt):
+                await asyncio.sleep(.15)
+                return '{"days": []}'
+        class SlowGood:
+            name = 'slow_good'
+            async def generate_json(self, system, prompt):
+                await asyncio.sleep(.15)
+                return window_reply(prompt)
+        # A shared .2 s budget would leave the second provider only ~.05 s.
+        with patch.object(builder, 'WAVE_BUDGET_SECONDS', .2), \
+                patch.object(auto, '_FALLBACK_ORDER', [SlowThenBroken, SlowGood]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+        self.assertEqual(result.provider_used, 'slow_good')
+
+    async def test_rate_limited_window_waits_and_retries_same_provider(self):
+        # The logged case (DECISIONS 061): of three windows sent at once, one gets a
+        # 429 with Retry-After. It waits, asks again, and the plan stays with groq.
+        attempts = []
+        class Limited:
+            name = 'limited'
+            async def generate_json(self, system, prompt):
+                first = window_reply(prompt)
+                attempts.append(json.loads(first)['days'][0]['day'])
+                if attempts.count(1) == 1 and json.loads(first)['days'][0]['day'] == 1:
+                    raise status_error(429, {'retry-after-ms': '50'})
+                return first
+        started = time.monotonic()
+        with patch.object(auto, '_RETRY_AFTER_MIN_SECONDS', .01), \
+                patch.object(auto, '_FALLBACK_ORDER', [Limited, window_provider('backup')]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-09', provider='auto'))
+        self.assertEqual(result.provider_used, 'limited')
+        self.assertEqual(sorted(attempts), [1, 1, 4, 7])  # only the limited window asked twice
+        self.assertGreaterEqual(time.monotonic() - started, .05)
+        self.assertNotIn('limited', auto._cooldown_until)
+
+    async def test_rate_limit_wait_that_does_not_fit_moves_to_next_provider(self):
+        from services import itinerary_builder as builder
+        limited = provider('limited', status_error(429, {'retry-after': '60'}))
+        with patch.object(builder, 'WAVE_BUDGET_SECONDS', 30.0), \
+                patch.object(auto, '_FALLBACK_ORDER', [limited, window_provider('backup')]):
+            started = time.monotonic()
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+        self.assertLess(time.monotonic() - started, 1)  # no 60 s wait in a 30 s budget
+        self.assertEqual(result.provider_used, 'backup')
+        self.assertEqual(limited.calls, 1)
+        self.assertAlmostEqual(auto._cooldown_until['limited'] - time.monotonic(), 60, delta=1)
+
+    async def test_broken_output_after_rate_limit_moves_to_next_provider(self):
+        calls = []
+        class LimitedThenBroken:
+            name = 'lb'
+            async def generate_json(self, system, prompt):
+                calls.append(1)
+                if len(calls) == 1:
+                    raise status_error(429, {'retry-after-ms': '20'})
+                return '{"days": []}'
+        with patch.object(auto, '_RETRY_AFTER_MIN_SECONDS', .01), \
+                patch.object(auto, '_FALLBACK_ORDER', [LimitedThenBroken, window_provider('backup')]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+        self.assertEqual(len(calls), 3)  # 429, wait, bad output, one retry, bad output
+        self.assertEqual(result.provider_used, 'backup')
+
+    async def test_cooling_provider_is_skipped_for_the_plan(self):
+        cooled = window_provider('cooled')
+        auto._cooldown_until['cooled'] = time.monotonic() + 60
+        with patch.object(auto, '_FALLBACK_ORDER', [cooled, window_provider('good')]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+        self.assertEqual(result.provider_used, 'good')
+        self.assertEqual(cooled.first_days, [])
+
+    async def test_groq_takes_one_window_at_a_time(self):
+        # Groq's tokens-per-minute limit (DECISIONS 065): its windows queue, and each
+        # window's budget starts when it gets Groq, not while it waits.
+        from services import itinerary_builder as builder
+        active = peak = 0
+        class Groq:
+            name = 'groq'
+            async def generate_json(self, system, prompt):
+                nonlocal active, peak
+                active += 1
+                peak = max(peak, active)
+                try:
+                    await asyncio.sleep(.12)
+                finally:
+                    active -= 1
+                return window_reply(prompt)
+        calls = []
+        # Three windows of .12 s each, one after another, would starve the third
+        # under a .2 s budget counted from when it took its plan slot.
+        with patch.object(builder, 'WAVE_BUDGET_SECONDS', .2),                 patch.object(builder, 'generation_budget_seconds', return_value=10.0), \
+                patch.object(auto, '_FALLBACK_ORDER', [Groq]), \
+                patch.object(auto, 'attempt_provider', attempt_spy(calls)):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-09', provider='auto'))
+        self.assertEqual(peak, 1)
+        self.assertEqual(result.provider_used, 'groq')
+        self.assertEqual([d.day for d in result.days], list(range(1, 10)))
+        self.assertTrue(all(kwargs['remaining'] > .15 for kwargs in calls), calls)
+
+    async def test_other_providers_still_take_three_windows_at_once(self):
+        active = peak = 0
+        class OpenRouter:
+            name = 'openrouter'
+            async def generate_json(self, system, prompt):
+                nonlocal active, peak
+                active += 1
+                peak = max(peak, active)
+                await asyncio.sleep(.02)
+                active -= 1
+                return window_reply(prompt)
+        with patch.object(auto, '_FALLBACK_ORDER', [OpenRouter]):
+            await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-09', provider='auto'))
+        self.assertEqual(peak, 3)
+
+    async def test_gemini_also_takes_one_window_at_a_time(self):
+        from services import itinerary_builder as builder
+        self.assertEqual(builder.PROVIDER_MAX_CONCURRENT_WINDOWS, {'groq': 1, 'gemini': 1})
+
+    async def test_window_queued_for_groq_skips_it_once_benched(self):
+        seen = []
+        class Groq:
+            name = 'groq'
+            async def generate_json(self, system, prompt):
+                day = json.loads(window_reply(prompt))['days'][0]['day']
+                seen.append(day)
+                return '{"days": []}'  # bad output: benched 30 s
+        backup = window_provider('backup')
+        with patch.object(auto, '_FALLBACK_ORDER', [Groq, backup]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-09', provider='auto'))
+        self.assertEqual(seen, [1, 1])  # window 1 and its one retry; the queued windows never asked
+        self.assertEqual(result.provider_used, 'backup')
+        self.assertEqual(sorted(backup.first_days), [1, 4, 7])
+
+    # One retry on the same provider after bad output (DECISIONS 067).
+    async def test_bad_output_retries_same_provider_once(self):
+        prompts = []
+        class OnceBad:
+            name = 'oncebad'
+            async def generate_json(self, system, prompt):
+                prompts.append(prompt)
+                return '{"days": []}' if len(prompts) == 1 else window_reply(prompt)
+        backup = window_provider('backup')
+        with patch.object(auto, '_FALLBACK_ORDER', [OnceBad, backup]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+        self.assertEqual(result.provider_used, 'oncebad')
+        self.assertEqual(len(prompts), 2)
+        self.assertIn('previous response was incomplete or invalid', prompts[1])
+        self.assertNotIn('previous response', prompts[0])
+        self.assertEqual(backup.first_days, [])
+        self.assertNotIn('oncebad', auto._cooldown_until)  # a recovered retry records no bench
+
+    async def test_no_bad_output_retry_without_time_left(self):
+        from services import itinerary_builder as builder
+        bad = window_provider('bad', fail_from_day={1})
+        with patch.object(builder, 'WAVE_BUDGET_SECONDS', 10.0),                 patch.object(auto, '_FALLBACK_ORDER', [bad, window_provider('backup')]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+        self.assertEqual(bad.first_days, [1])  # 10 s budget < 15 s margin: straight on
+        self.assertEqual(result.provider_used, 'backup')
+
+    async def test_other_failures_do_not_retry_same_provider(self):
+        for error in (status_error(503), RuntimeError('offline')):
+            with self.subTest(type(error).__name__):
+                auto._cooldown_until.clear()
+                failing = provider('failing', error)
+                with patch.object(auto, '_FALLBACK_ORDER', [failing, window_provider('backup')]):
+                    result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+                self.assertEqual(failing.calls, 1)
+                self.assertEqual(result.provider_used, 'backup')
+
+    async def test_all_providers_failing_gives_a_whole_demo_plan(self):
+        # Window 1 fails on both providers; window 4's real days must not survive.
+        with patch.object(auto, '_FALLBACK_ORDER', [window_provider('a', fail_from_day={1}),
+                                                   window_provider('b', fail_from_day={1})]):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-06', provider='auto'))
+        self.assertEqual(result.provider_used, 'mock')
+        self.assertIn('demo', result.summary)
+        self.assertEqual([d.day for d in result.days], [1, 2, 3, 4, 5, 6])
+        self.assertTrue(all(a.activity == 'Explore the city center' for d in result.days for a in d.activities))
+
+    async def test_auto_plan_cap_allows_one_turn_per_provider(self):
+        from services import itinerary_builder as builder
+        calls = []
+        with patch.object(auto, '_FALLBACK_ORDER', [window_provider('a', fail_from_day={1}),
+                                                   window_provider('b', fail_from_day={1}),
+                                                   window_provider('c')]), \
+                patch.object(auto, 'attempt_provider', attempt_spy(calls)), \
+                patch.object(builder, 'generation_budget_seconds', return_value=4.0):
+            result = await build_itinerary(TripRequest(destination='Kyoto', start_date='2026-11-01', end_date='2026-11-03', provider='auto'))
+        # 12 s left is under the 15 s retry margin, so no bad-output retries here.
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(all(3.0 < kwargs['remaining'] <= 12.0 for kwargs in calls), calls)
+        self.assertGreater(calls[0]['remaining'], 11.0)  # capped by 3 turns, not 1
+        self.assertEqual(result.provider_used, 'c')
 
     async def test_long_real_plan_combines_out_of_order_windows(self):
         from services import itinerary_builder as builder
@@ -557,6 +875,17 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
                 instance._client = FakeOpenAIClient(['{"ok"', ': true}'])
                 self.assertEqual(await instance.generate_json('s', 'u'), '{"ok": true}')
                 self.assertTrue(instance._client.kwargs['stream'])
+                # Only Groq asks for low reasoning effort (DECISIONS 066).
+                self.assertEqual(instance._client.kwargs.get('extra_body'),
+                                 {'reasoning_effort': 'low'} if module_name == 'groq_provider' else None)
+
+    async def test_groq_reasoning_effort_can_be_turned_off(self):
+        module, _ = load_real_adapter('groq_provider')
+        instance = module.GroqProvider()
+        module.settings.GROQ_REASONING_EFFORT = '  '
+        instance._client = FakeOpenAIClient(['{}'])
+        await instance.generate_json('s', 'u')
+        self.assertNotIn('extra_body', instance._client.kwargs)
 
     async def test_gemini_stream_runs_off_the_event_loop(self):
         module, _ = load_real_adapter('gemini_provider')
@@ -622,6 +951,19 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         failure.code = 404
         self.assertEqual(error_details(failure), {'error_type': 'RuntimeError', 'status': 404, 'reason': 'not_found'})
 
+    async def test_diagnostics_name_mid_stream_errors_by_label_only(self):
+        # openai SDK APIError raised from an error event inside a stream: no status,
+        # just .code / .type labels. Those are logged; free text never is.
+        from services.llm_providers.diagnostics import error_details
+        class APIError(Exception):
+            pass
+        failure = APIError('Rate limit reached for model in organization org_secret')
+        failure.code, failure.type = 'rate_limit_exceeded', 'tokens'
+        self.assertEqual(error_details(failure), {'error_type': 'APIError',
+            'provider_code': 'rate_limit_exceeded', 'provider_type': 'tokens'})
+        failure.code, failure.type = 'Please try again in 2s', 'x' * 80
+        self.assertEqual(error_details(failure), {'error_type': 'APIError'})
+
     async def test_diagnostics_identify_stage(self):
         with patch.object(auto, '_FALLBACK_ORDER', [provider('bad', '{"interests": null, "reply": "private"}')]):
             with self.assertLogs('lemon_ai', level='INFO') as logs:
@@ -663,19 +1005,36 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         return auto._cooldown_until.pop('p', 1000) - 1000
 
     async def test_hard_failures_keep_five_minute_cooldown(self):
-        for status in (401, 403, 404, 503):
+        for status in (401, 403, 404):
             with self.subTest(status=status):
                 self.assertEqual(await self._cooldown_after(status_error(status)), 300)
         with self.subTest('missing key'):
             self.assertEqual(await self._cooldown_after(ValueError('GROQ_API_KEY is not set')), 300)
         with self.subTest('genai-style code'):
-            self.assertEqual(await self._cooldown_after(status_error(503, attr='code')), 300)
+            self.assertEqual(await self._cooldown_after(status_error(404, attr='code')), 300)
+
+    async def test_unavailable_503_gets_short_cooldown(self):
+        # Google's "overloaded, try again" (DECISIONS 061): 30 s, not 5 minutes.
+        self.assertEqual(await self._cooldown_after(status_error(503)), 30)
+        self.assertEqual(await self._cooldown_after(status_error(503, attr='code')), 30)
 
     async def test_invalid_output_gets_short_cooldown(self):
         self.assertEqual(await self._cooldown_after(output='not json'), 30)
         with patch.object(auto, '_FALLBACK_ORDER', [provider('bad', '{"days": []}')]):
             await parse_chat(LemonChatRequest(provider='auto', messages=[]))
         self.assertAlmostEqual(auto._cooldown_until['bad'] - time.monotonic(), 30, delta=1)
+
+    async def test_rejected_json_mid_stream_gets_short_cooldown(self):
+        # Groq's JSON mode rejecting the model's reply mid-stream: an APIError with
+        # no HTTP status, only code 'json_validate_failed' (DECISIONS 064).
+        class APIError(Exception):
+            pass
+        failure = APIError('Failed to validate JSON')
+        failure.code, failure.type = 'json_validate_failed', 'invalid_request_error'
+        self.assertEqual(await self._cooldown_after(failure), 30)
+        other = APIError('something else')
+        other.code = 'internal_error'
+        self.assertEqual(await self._cooldown_after(other), 300)
 
     async def test_sdk_timeout_error_gets_short_cooldown(self):
         class APITimeoutError(Exception):
@@ -720,8 +1079,10 @@ class AutoTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('bad', auto._cooldown_until)
 
     async def test_chat_exhaustion_matches_explicit_mock(self):
+        # Dates relative to today: past dates are refused since DECISIONS 059.
+        start = datetime.now().date() + timedelta(days=30)
         messages = [{'role': 'user', 'content': value} for value in
-                    ['Kyoto', '2026-11-01', '2026-11-03', '2', 'medium', 'food']]
+                    ['Kyoto', start.isoformat(), (start + timedelta(days=2)).isoformat(), '2', 'medium', 'food']]
         with patch.object(auto, '_FALLBACK_ORDER', [provider('bad', RuntimeError())]):
             result = await parse_chat(LemonChatRequest(provider='auto', messages=messages))
         expected = await parse_chat(LemonChatRequest(provider='mock', messages=messages))
