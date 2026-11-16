@@ -4,7 +4,21 @@
 
 Reconstructed on 2026-10-08 from current source. The initial task authorized documentation only. Subsequent repairs were separately authorized; unchecked work remains a proposed backlog. KI identifiers refer to `KNOWN_ISSUES.md`. Sections are chronological; items completed by later batches were ticked on 2026-10-17 with a pointer to the batch that did them.
 
-## Open work snapshot — 2026-11-08 (phase 3 built) — next up: the user's look at photos and links
+## Open work snapshot — 2026-11-16 — next up: build DECISIONS 074 (itinerary: travel, reachability, moving stops, map)
+
+- [x] **DECISIONS 074 settled with the user** (not built; the user said to save it for next session). It covers:
+  - travel times between stops on foot, by taxi and by bus/subway (Geoapify now, Google later);
+  - a reachability check with no fixed distance: the next stop must be reachable in the gap between slot times; auto-fix, then warn;
+  - drag and "Move to…" for stops, with times staying with the slots;
+  - an embedded Google Map with pins.
+  Adding `google_maps_flutter` (and its web part if needed) is authorized.
+- [ ] **Build 074** in order: A (travel) → B (reachability) → C (moving stops) → D (map). First ask whether to build all four in one go or stop after each part so the user can look.
+- [ ] For D: the user creates a Google Maps key (Maps JavaScript API and Maps SDK for Android, billing on) and puts it in place. Until then the map panel falls back to "Open in Google Maps".
+- [ ] Still open from phase 3, to pick up later (the user's choice): the phase 3 app check, the Osaka re-run (KI-37), the fifth-run retest, and Scripts 1–4 and 6–9.
+- [ ] **Phase 4 (videos) is pushed back** by the user until after 074.
+- [ ] Commit only when the user asks (nothing committed since `bdd4c1a`).
+
+## Superseded — open work snapshot — 2026-11-08 (phase 3 built) — next up: the user's look at photos and links
 
 - [x] **Phase 3 — places from photos and links (DECISIONS 073):** design settled with the user, plan approved, built. Backend 236 of 236 offline, frontend 187 of 187, analyze clean, web build passes. Live: YouTube oEmbed works, TikTok gives nothing readable (KI-38), Groq vision named Fushimi Inari from a photo and nothing from generic sand.
 - [ ] **The user's look in the running app** (restart the backend: new route `/lemon/media`; full restart of the app, since `image_picker` is a new plugin). Try: a landmark photo with a destination set, a photo with no destination (expect "Plan a trip to …?"), a YouTube link in a message, an Instagram link (expect a screenshot request), and a place in a nearby city (day trip).

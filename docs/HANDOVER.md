@@ -1,4 +1,22 @@
-# Session handover — 2026-11-08 (DECISIONS 072 and 073 built; next: the user's look at photos and links)
+# Session handover — 2026-11-16 (DECISIONS 074 settled, not built; next: build it)
+
+## ▶ Start here
+
+1. **Build DECISIONS 074.** The full plan is in `docs/DECISIONS.md` #074: A, travel between stops (`POST /lemon/legs`, Geoapify); B, the reachability check and auto-fix; C, moving stops; D, the embedded Google Map. Before starting, ask the user whether to build all four in one go or stop after each part so they can look. The user said "don't make changes yet" in this session, so no code was touched.
+2. **The user's choices:**
+   - Geoapify now, Google later, with public transport labelled "Bus/subway (est.)".
+   - An embedded Google Map.
+   - When a stop moves, times stay with the slots.
+   - Auto-fix, then warn.
+   - **No fixed distance limit:** a hop only fails when the next stop can't be reached in the gap between the two slot times, or can't be reached at all. In the user's words, nothing like "100km between point a and point b, which would be impossible to achieve".
+3. **Dependency authorized:** `google_maps_flutter` (and `google_maps_flutter_web` if needed). The user supplies the Google Maps key. Never touch `.env` or key files.
+4. **Later (the user's choice):** the phase 3 app check, the Osaka re-run, the fifth-run retest and the unreported scripts (the 2026-11-08 handover below). Phase 4 (videos) is pushed back until after 074.
+
+Nothing changed in code this session; only DECISIONS 074, TASKS and this handover. Nothing committed (still nothing since `bdd4c1a`).
+
+---
+
+# Superseded — session handover — 2026-11-08 (DECISIONS 072 and 073 built; next: the user's look at photos and links)
 
 ## ▶ Start here
 

@@ -684,3 +684,49 @@ Status: **built 2026-11-08, offline-tested, with a few live checks (TESTING 2026
 - App: a photo button in the chat box, a tray with ✕ per photo, photos in the traveller's bubble, the checklist card, and "Yes, plan Kyoto" / "No thanks".
 
 **Found in the live checks:** TikTok's oEmbed now returns only the embed iframe (no title, author or thumbnail), and its page, as served to the backend, is the generic "TikTok - Make Your Day". So a TikTok link currently ends in "send me a screenshot". YouTube's oEmbed returns the title, author and thumbnail.
+
+## 074 - Itinerary phase: travel between stops, reachability check, moving stops, map with pins (2026-11-16) — settled, not built
+
+Status: **design settled with the user 2026-11-16; not built.** The user said "don't make changes yet, save the decisions and task for next session". Phase 4 (videos) is pushed back until after this. The user authorized adding `google_maps_flutter` (and its web part, `google_maps_flutter_web`, if needed); no other dependency is approved.
+
+**The user's choices:**
+- **Routing:** Geoapify now (key already in use); Google later. Geoapify's public-transport figure is an estimate and can't split bus from subway, so it's labelled "Bus/subway (est.)" until transit moves to Google Routes (the Maps key will already exist).
+- **Map:** an embedded Google Map in the Itinerary view.
+- **Moving stops:** times stay with the slots. A moved stop takes the time of the slot it lands in, and the other stops fill the remaining slots.
+- **Fact check:** auto-fix, then warn. **No fixed distance limit** (the user's words: just never "100 km between point A and point B, which would be impossible to achieve"). The rule is reachability: the fastest way from one stop to the next (taxi or public transport) must fit in the gap between their slot times.
+
+**Plan (build in this order; ask the user whether to stop after each part):**
+
+A. **Travel between stops.**
+- New `POST /lemon/legs`: one day's stops in, and for each pair of consecutive placed stops the distance and time on foot, by taxi (driving) and by public transport.
+- Geoapify Routing: modes walk, drive, approximated transit. Cached by coordinates and mode, through the existing 5-per-second limiter, and never errors (a leg it can't work out is `unavailable`).
+- No taxi fares (the no-invented-prices rule).
+- App: a travel row between stops (e.g. "🚶 12 min · 900 m   🚕 5 min   🚇 9 min (est.)"). A slot with no fixed place (meal, free time) shows "No set place — walk around the area to find somewhere to eat", and the row bridges from the stop before it to the stop after it. An unverified stop shows "Route unavailable — place not confirmed".
+- Legs load per day as the days appear, not during planning, and reload after a move or edit.
+- Timeouts: to be set and recorded here, with backend and app values consistent.
+
+B. **Fact check (reachability) and auto-fix.**
+- Places: the existing Verified / Unverified grounding (069) stays.
+- During planning (after grounding, no extra calls): a hop is impossible when the straight-line distance at a generous driving speed can't be covered in the gap between the two slot times, or when the next stop can't be reached at all. Times that can't be read (e.g. "Morning") skip the time part.
+- A day with an impossible hop gets **one** corrective redo through the day-edit path (it also replaces unverified stops, never must-visits). The redo runs only in time left in the plan's existing cap (3 × 75 s × waves), so the backend and app plan timeouts don't change. Lemon keeps the better version.
+- If the problem remains, the day shows a warning naming the stops and the fastest time (e.g. "You may not make it from Gion to Arashiyama by 11:30 (fastest: 50 min by taxi)") with a **Fix this day** button (existing `/lemon/edit`).
+- `/lemon/legs` repeats the check with real route times after moves and edits, so the rule lives on the backend only.
+
+C. **Moving stops.**
+- Long-press or drag handle to move a stop within its day or onto another day, using Flutter's built-in widgets (no new package). Times stay with the slots.
+- Undo after each move.
+- A **Move to…** menu per stop (day + position) for keyboard, screen readers and small phones.
+- Moves are part of the plan: later day edits, Copy plan and must-visit checks see the new order.
+
+D. **Map with pins.**
+- `google_maps_flutter` (+ web part if needed; approved). Numbered pins matching stop numbers, day chips, and tapping a pin highlights its stop.
+- 1440 px: the map sits beside the days. 360 / 800 px: a collapsible **Map** panel above them.
+- The key: the user creates it (Maps JavaScript API, Maps SDK for Android, billing on, restricted to the site/app) and puts it in place. The app reads it at build time (`--dart-define`), and Android reads it from the manifest. It's never committed, and the agent doesn't touch `.env` or key files.
+- No key, or an unsupported platform (the plugin doesn't support Windows desktop): an **Open in Google Maps** button with the day's route.
+- Tests use a fake map.
+
+**Tests:**
+- Backend offline: routing faked like the other network edges in `test_auto_provider.py`; legs, reachability, auto-fix within budget, never-error.
+- Frontend: travel rows, empty and unavailable legs, drag within and across days, Move to…, Undo, warning + Fix, map panel and fallback, at 360 / 800 / 1440 px.
+
+**Docs to update when built:** API, ARCHITECTURE, TASKS, KNOWN_ISSUES, TESTING, CLAUDE.md (new endpoint, timing values).
