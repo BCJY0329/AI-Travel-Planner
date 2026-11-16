@@ -1,4 +1,37 @@
-# Session handover — 2026-11-07 (DECISIONS 071 built; next: the user re-runs Script 5)
+# Session handover — 2026-11-08 (DECISIONS 072 and 073 built; next: the user's look at photos and links)
+
+## ▶ Start here
+
+1. **The user tries phase 3 in the running app.** First restart the backend (new route `POST /lemon/media`) and **fully restart** the app (`image_picker` is a new plugin; hot restart won't load it). Try:
+   - a landmark photo with a destination set → checklist, map-confirmed places ticked, "Add selected (n)";
+   - a photo with no destination → "Want to plan a trip to X?" with **Yes, plan X** / **No thanks**;
+   - a YouTube link inside a message → the words go to the chat, the link is read (caption, then thumbnail);
+   - an Instagram (or TikTok) link → Lemon asks for a screenshot;
+   - a place in a nearby city → "In <city> · N km away, day trip", unticked; once added it gets its own day with travel there and back.
+2. **The user re-runs the Osaka chat (KI-37, DECISIONS 072):** "osaka, with 6 people with me" then "5 days, starting from december 18" should no longer say "I assumed 6 travelers / until 22 December".
+3. The fifth-run retest (spot list right before the brief, after the not-found questions), then Scripts 1–4 and 6–9 (listed in the 2026-11-07 section below). Fix what they find.
+4. Then **phase 4 — videos** (frames first). Settle its design with the user before building (memory rule: clarify, then a full plan, then go-ahead).
+
+## What was decided this session (the user's choices)
+
+- **072:** stricter prompt + a server check (`chat_parser._drop_stated` replays the local parser and drops `travelers` / `end_date` from `inferred` when they were stated). "6 people with me" = 6, no question asked. ISO date wording in model replies left as is (negligible).
+- **073 (phase 3):** Instagram/Facebook/Threads never read → screenshot request; vision **Groq only** (the user picked Llama 4 Scout; Groq no longer lists it, so `qwen/qwen3.8-27b` with `reasoning_effort: "none"`, set by `GROQ_VISION_MODEL` / `GROQ_VISION_REASONING_EFFORT`; tell the user if they ask why); places outside the destination are offered (day trip, or "plan a trip to X?"); `image_picker`, up to 3 photos; one checklist + one Add button; links read alone or in a message; **no usage limit for now**; a few live checks were authorized and done.
+
+## State of the work
+
+- Backend 236 of 236 offline; frontend 187 of 187, analyze clean, `flutter build web` passes. Live: YouTube oEmbed works; TikTok gives nothing readable (oEmbed = iframe only, page = "TikTok - Make Your Day"); Groq vision named Fushimi Inari (1.5 s) and nothing for generic sand (1.2 s). Not run: the app; a full `/lemon/media` request with a live map check.
+- Open limits in KI-38: no usage limit, TikTok unreadable, DNS rebinding in the link guard (pin the checked address before deployment), Groq's limits for the vision model unpublished, HEIC only when the picker converts it, Windows desktop builds need Developer Mode for plugins.
+- **Nothing committed** (still nothing since `bdd4c1a`). Commit only when the user asks.
+
+## New files this session
+
+Backend: `models/media.py`, `services/link_preview.py`, `services/media_finder.py`, `tests/test_media.py`. Frontend: `lib/models/media_models.dart`, `lib/services/photo_picker.dart`, `test/lemon_media_test.dart`. Dependency added (authorized): `image_picker: ^1.2.4` in `pubspec.yaml` / `pubspec.lock` (plus generated plugin registrants).
+
+Changed: `config.py`, `.env.example` (`.env` untouched), `routers/lemon.py`, `services/chat_parser.py`, `services/itinerary_builder.py` (day trips), `llm_providers/groq_provider.py` (`vision_json`), `tests/test_auto_provider.py`, `tests/test_chat_intake.py`; `chat_message.dart`, `lemon_chat_controller.dart`, `lemon_api_service.dart` (`findPlaces`), `chat_bubble.dart`, `lemon_chat_panel.dart` (`photoPicker`). Docs: DECISIONS 072/073, KNOWN_ISSUES (KI-37 fixed in code, KI-38), TASKS, TESTING, API, ARCHITECTURE, CLAUDE.md.
+
+---
+
+# Superseded — session handover — 2026-11-07 (DECISIONS 071 built; next: the user re-runs Script 5)
 
 ## ▶ Start here
 

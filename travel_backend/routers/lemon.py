@@ -7,6 +7,8 @@ from models.chat import LemonChatRequest, LemonChatResponse
 from services.itinerary_builder import EditFailed, build_itinerary, edit_day
 from services.chat_parser import parse_chat
 from services import popular_spots as spots_service
+from models.media import MediaRequest, MediaResponse
+from services import media_finder
 
 logger = logging.getLogger("lemon_ai")
 
@@ -20,6 +22,8 @@ _EDIT_FAILED = "Lemon couldn't change that day right now. Your plan is unchanged
 # The spots lookup can take ~35 s for a big city (Wikidata); it keeps running
 # and caching after this, so a later request gets it at once.
 SPOTS_WAIT_SECONDS = 60.0
+# Places from photos and links (DECISIONS 073); the app waits 50 s.
+MEDIA_WAIT_SECONDS = 45.0
 
 
 @router.post("/plan", response_model=ItineraryResponse)
@@ -77,6 +81,29 @@ async def popular_spots(destination: str = Query(..., min_length=1, max_length=1
     except Exception as e:
         logger.warning("Popular spots unavailable (%s)", type(e).__name__)
     return {"status": "unavailable", "destination": destination, "spots": [], "picks": []}
+
+
+@router.post("/media", response_model=MediaResponse)
+async def media_places(payload: MediaRequest):
+    """
+    Places in up to 3 photos (base64) and up to 2 links (DECISIONS 073):
+    {status, reply, candidates: [{name, city, country, confidence, evidence,
+    source, status, place_id, lat, lon, matched_name, in_destination,
+    distance_km}], suggested_destination}. Nothing is added to the trip here;
+    the traveller confirms in the app. Images are never stored. Invalid images
+    are a 422; everything else answers with a status (never a 502).
+    """
+    if not payload.images and not payload.links:
+        raise HTTPException(status_code=422, detail="Send at least one photo or link.")
+    try:
+        return await asyncio.wait_for(media_finder.find_places(payload), MEDIA_WAIT_SECONDS)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except asyncio.TimeoutError:
+        logger.warning("Media check took over %.0fs", MEDIA_WAIT_SECONDS)
+    except Exception as e:
+        logger.warning("Media check failed (%s)", type(e).__name__)
+    return MediaResponse(status="unavailable", reply=media_finder.REPLY_UNAVAILABLE)
 
 
 @router.post("/chat", response_model=LemonChatResponse)

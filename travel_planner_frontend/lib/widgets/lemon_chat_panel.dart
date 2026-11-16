@@ -4,6 +4,8 @@ import '../chat/chat_message.dart';
 import '../chat/lemon_chat_controller.dart';
 import '../config/app_theme.dart';
 import '../models/itinerary_models.dart';
+import '../models/media_models.dart';
+import '../services/photo_picker.dart';
 import 'chat_bubble.dart';
 import 'chat_parts.dart';
 import 'trip_date_dialog.dart';
@@ -15,12 +17,16 @@ class LemonChatPanel extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback? onViewItinerary;
   final ValueChanged<Offset>? onResize;
+
+  /// Picks photos for Lemon (DECISIONS 073); tests pass a fake.
+  final PhotoPicker? photoPicker;
   const LemonChatPanel(
       {super.key,
       required this.controller,
       required this.onClose,
       this.onViewItinerary,
-      this.onResize});
+      this.onResize,
+      this.photoPicker});
   @override
   State<LemonChatPanel> createState() => _LemonChatPanelState();
 }
@@ -80,7 +86,11 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
   }
 
   void _send() {
-    if (c.isBusy || c.error != null || _text.text.trim().isEmpty) return;
+    if (c.isBusy ||
+        c.error != null ||
+        (_text.text.trim().isEmpty && c.pendingPhotos.isEmpty)) {
+      return;
+    }
     if (_text.value.composing.isValid && !_text.value.composing.isCollapsed) {
       return;
     }
@@ -89,6 +99,22 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
     _text.clear();
     c.draft = '';
     c.handleUserInput(value);
+  }
+
+  bool _picking = false;
+
+  Future<void> _pickPhotos() async {
+    final room = LemonChatController.maxPhotos - c.pendingPhotos.length;
+    if (c.isBusy || _picking || room <= 0) return;
+    setState(() => _picking = true);
+    try {
+      final picked = await (widget.photoPicker ?? PhotoPicker()).pick(limit: room);
+      if (mounted) c.addPhotos(picked.photos, skipped: picked.skipped);
+    } catch (_) {
+      // A closed or failed picker leaves the message as it was.
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
   }
 
   void _submitTravelers() {
@@ -260,6 +286,10 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                                     ? Alignment.topLeft
                                     : Alignment.bottomRight,
                                 child: switch (message.type) {
+                                  _ when message.photos.isNotEmpty =>
+                                    _photoMessage(message),
+                                  ChatMessageType.media =>
+                                    _mediaMessage(message),
                                   ChatMessageType.spots =>
                                     _spotMessage(message),
                                   ChatMessageType.editPreview =>
@@ -379,15 +409,20 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : AppTheme.motionFast;
+    final canAddPhoto = canSend &&
+        !_picking &&
+        c.pendingPhotos.length < LemonChatController.maxPhotos;
     return Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
         decoration: const BoxDecoration(
             color: AppTheme.surface,
             border: Border(top: BorderSide(color: AppTheme.borderLight))),
-        child: AnimatedContainer(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (c.pendingPhotos.isNotEmpty || c.photoNote != null) _photoTray(),
+          AnimatedContainer(
             duration: duration,
             constraints: const BoxConstraints(minHeight: 52),
-            padding: const EdgeInsets.fromLTRB(18, 5, 6, 5),
+            padding: const EdgeInsets.fromLTRB(4, 5, 6, 5),
             decoration: BoxDecoration(
                 color: AppTheme.surface,
                 borderRadius: BorderRadius.circular(28),
@@ -406,6 +441,15 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                       offset: const Offset(0, 2)),
                 ]),
             child: Row(children: [
+              IconButton(
+                  onPressed: canAddPhoto ? _pickPhotos : null,
+                  tooltip: 'Add photos (up to ${LemonChatController.maxPhotos})',
+                  style: IconButton.styleFrom(
+                      foregroundColor: AppTheme.primary,
+                      fixedSize: const Size(40, 40),
+                      minimumSize: const Size(40, 40)),
+                  icon: const Icon(Icons.add_photo_alternate_outlined, size: 22)),
+              const SizedBox(width: 2),
               Expanded(
                   child: CallbackShortcuts(
                       bindings: {
@@ -461,7 +505,213 @@ class _LemonChatPanelState extends State<LemonChatPanel> {
                           elevation:
                               AppTheme.solidElevation(rest: 2, hover: 4)),
                   icon: const Icon(Icons.arrow_upward_rounded, size: 21)),
-            ])));
+            ])),
+        ]));
+  }
+
+  /// Photos waiting to be sent, each with a ✕, and the privacy note.
+  Widget _photoTray() => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (c.pendingPhotos.isNotEmpty)
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final (i, photo) in c.pendingPhotos.indexed)
+              Stack(clipBehavior: Clip.none, children: [
+                _thumbnail(photo, 60),
+                Positioned(
+                    top: -8,
+                    right: -8,
+                    child: IconButton(
+                        onPressed: c.isBusy ? null : () => c.removePhoto(i),
+                        tooltip: 'Remove photo ${i + 1}',
+                        style: IconButton.styleFrom(
+                            backgroundColor: AppTheme.textPrimary,
+                            foregroundColor: AppTheme.surface,
+                            fixedSize: const Size(26, 26),
+                            minimumSize: const Size(26, 26),
+                            padding: EdgeInsets.zero),
+                        icon: const Icon(Icons.close_rounded, size: 15))),
+              ]),
+          ]),
+        const SizedBox(height: 6),
+        Text(
+            c.photoNote ??
+                'Photos are only used to find places and aren\'t kept.',
+            style: const TextStyle(
+                fontFamily: AppTheme.chatFont,
+                fontSize: 12,
+                color: AppTheme.textSecondary)),
+      ]));
+
+  Widget _thumbnail(PickedPhoto photo, double size) => ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.memory(photo.bytes,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          semanticLabel: 'Your photo',
+          errorBuilder: (_, __, ___) => Container(
+              width: size,
+              height: size,
+              color: AppTheme.sandBorder,
+              child: const Icon(Icons.image_outlined,
+                  color: AppTheme.textSecondary))));
+
+  /// The traveller's message with its photos.
+  Widget _photoMessage(ChatMessage message) => Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final photo in message.photos) _thumbnail(photo, 96)
+                    ])),
+            if ((message.text ?? '').isNotEmpty)
+              ChatBubbleWidget(
+                  message: ChatMessage.text(ChatSender.user, message.text!),
+                  onQuickReply: c.handleQuickReply,
+                  onPickDate: (_) {}),
+          ]);
+
+  static String _whereLine(MediaCandidate c) {
+    final city = [c.city, c.country].whereType<String>().where((s) => s.isNotEmpty).join(', ');
+    return switch (c.status) {
+      'not_found' => "Couldn't find this on the map",
+      'unchecked' => "Couldn't check the map just now",
+      _ when c.isDayTrip =>
+        'In ${c.city ?? city} · ${c.distanceKm?.round() ?? '?'} km away, day trip',
+      _ when c.matchedName != null => 'On the map as ${c.matchedName}',
+      _ => city.isEmpty ? 'On the map' : 'On the map · $city',
+    };
+  }
+
+  /// Places found in photos or links: a checklist and one "Add selected"
+  /// (DECISIONS 073). Map-confirmed places in the destination start ticked.
+  Widget _mediaMessage(ChatMessage message) {
+    final finding = message.finding!;
+    final editable = c.canEditFinding(finding);
+    final asking = finding.suggestedDestination != null &&
+        !finding.offerAnswered &&
+        c.placeName == null;
+    final count = finding.selected.length;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ChatBubbleWidget(
+          message: ChatMessage.text(ChatSender.bot, message.text ?? ''),
+          onQuickReply: c.handleQuickReply,
+          onPickDate: (_) {}),
+      Container(
+          margin: const EdgeInsets.only(left: 44, top: 6, bottom: 4),
+          padding: const EdgeInsets.fromLTRB(6, 8, 14, 14),
+          decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.sandBorder)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            for (final (i, cand) in finding.candidates.indexed)
+              _candidateRow(finding, i, cand, editable),
+            if (asking && !c.isBusy) ...[
+              const SizedBox(height: 8),
+              Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: _spaced([
+                        _primaryAction(
+                            'Yes, plan ${finding.suggestedCity}',
+                            Icons.flight_takeoff_rounded,
+                            () => c.acceptSuggestedDestination(finding)),
+                        _secondaryAction('No thanks', Icons.close_rounded,
+                            () => c.declineSuggestedDestination(finding)),
+                      ]))),
+            ] else if (editable && c.placeName == null)
+              const Padding(
+                  padding: EdgeInsets.fromLTRB(8, 8, 0, 0),
+                  child: Text('Tell me where you\'re going first, then add these.',
+                      style: TextStyle(
+                          fontFamily: AppTheme.chatFont,
+                          fontSize: 13,
+                          color: AppTheme.textSecondary)))
+            else if (editable) ...[
+              const SizedBox(height: 8),
+              Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: _primaryAction(
+                      count == 0 ? 'Add selected' : 'Add selected ($count)',
+                      Icons.add_location_alt_outlined,
+                      count == 0 ? null : () => c.addSelected(finding))),
+            ] else if (finding.state == 'added')
+              const Padding(
+                  padding: EdgeInsets.fromLTRB(8, 8, 0, 0),
+                  child: Row(children: [
+                    Icon(Icons.check_circle_rounded, size: 18, color: AppTheme.primary),
+                    SizedBox(width: 6),
+                    Flexible(
+                        child: Text('Added to your trip brief',
+                            style: TextStyle(
+                                fontFamily: AppTheme.chatFont,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textPrimary))),
+                  ])),
+          ])),
+    ]);
+  }
+
+  Widget _candidateRow(MediaFinding finding, int i, MediaCandidate cand, bool editable) {
+    final usable = cand.canAdd;
+    final ink = usable ? AppTheme.textPrimary : AppTheme.textSecondary;
+    return Semantics(
+        label: '${cand.name}, ${_whereLine(cand)}',
+        child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: editable && usable ? () => c.toggleCandidate(finding, i) : null,
+            child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Checkbox(
+                      value: finding.selected.contains(i),
+                      onChanged: editable && usable
+                          ? (_) => c.toggleCandidate(finding, i)
+                          : null),
+                  Expanded(
+                      child: Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      Text(cand.name,
+                                          style: TextStyle(
+                                              fontFamily: AppTheme.chatFont,
+                                              fontSize: 14.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: ink)),
+                                      _BriefTag(cand.confidence == 'high' ? 'High' : 'Maybe'),
+                                    ]),
+                                const SizedBox(height: 2),
+                                Text(_whereLine(cand),
+                                    style: const TextStyle(
+                                        fontFamily: AppTheme.chatFont,
+                                        fontSize: 12.5,
+                                        color: AppTheme.textSecondary)),
+                                if (cand.evidence.isNotEmpty)
+                                  Text('Seen: ${cand.evidence}',
+                                      style: const TextStyle(
+                                          fontFamily: AppTheme.chatFont,
+                                          fontSize: 12.5,
+                                          fontStyle: FontStyle.italic,
+                                          color: AppTheme.textSecondary)),
+                              ]))),
+                ]))));
   }
 
   /// The step's main action: bold sky blue with a soft glow so it stands out.

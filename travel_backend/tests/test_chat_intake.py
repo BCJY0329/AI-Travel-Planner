@@ -288,6 +288,46 @@ class ParseChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(r.fallback_used)
         self.assertEqual(r.inferred, ['travelers'])
 
+    async def _stated_check(self, messages, model_fields):
+        reply = json.dumps({'reply': 'Lovely!', 'intent': 'trip', **model_fields})
+        class Good:
+            name = 'good'
+            async def generate_json(self, *args):
+                return reply
+        with patch.object(auto, '_FALLBACK_ORDER', [Good]):
+            return await parse_chat(LemonChatRequest(provider='auto', messages=[
+                {'role': 'user', 'content': m} for m in messages]), place_lookup=lookup_returning(KYOTO))
+
+    async def test_stated_travelers_and_end_date_are_never_assumed(self):
+        # KI-37 / DECISIONS 072: the model flagged both, but the traveller said them.
+        start = date.today() + timedelta(days=40)
+        end = start + timedelta(days=4)
+        r = await self._stated_check(
+            ['i would like to go to osaka, with 6 people with me',
+             f"5 days, starting from {start.strftime('%B')} {start.day}"],
+            {'destination': 'Osaka', 'start_date': start.isoformat(), 'end_date': end.isoformat(),
+             'travelers': 6, 'inferred': ['travelers', 'end_date']})
+        self.assertEqual((r.travelers, r.end_date), (6, end.isoformat()))
+        self.assertEqual(r.inferred, [])
+
+    async def test_real_guesses_stay_assumed(self):
+        start = date.today() + timedelta(days=40)
+        end = start + timedelta(days=2)
+        r = await self._stated_check(
+            [f"Kyoto honeymoon, a long weekend from {start.strftime('%B')} {start.day}"],
+            {'destination': 'Kyoto', 'start_date': start.isoformat(), 'end_date': end.isoformat(),
+             'travelers': 2, 'inferred': ['travelers', 'end_date']})
+        self.assertEqual(sorted(r.inferred), ['end_date', 'travelers'])
+
+    async def test_model_value_that_differs_from_the_words_stays_assumed(self):
+        # "6 people with me" read as 7: not what was said, so it stays flagged.
+        start = date.today() + timedelta(days=40)
+        r = await self._stated_check(
+            [f"osaka with 6 people with me from {start.strftime('%B')} {start.day} for 3 days"],
+            {'destination': 'Osaka', 'start_date': start.isoformat(),
+             'end_date': (start + timedelta(days=2)).isoformat(), 'travelers': 7, 'inferred': ['travelers']})
+        self.assertEqual(r.inferred, ['travelers'])
+
     async def test_auto_exhaustion_reports_fallback(self):
         with patch.object(auto, '_FALLBACK_ORDER', []):
             r = await parse_chat(LemonChatRequest(provider='auto', messages=[

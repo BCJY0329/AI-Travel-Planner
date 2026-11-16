@@ -641,3 +641,46 @@ Status: **built 2026-11-07** (the user said "go ahead and build 071", with the a
 - **Fourth run:** a made-up place typed without Swap ("Hanamiya Tea House") was queued as a new question and the same question was repeated; typing it again did nothing new, because a not-found name was only ever reported once. Now, while Lemon asks, a typed place the map doesn't know gets "I couldn't find … either" and opens the swap (spot buttons); and a place reported before is reported again whenever the latest message names it (not while it is the question being asked). So a skipped place named again in a later message is asked about again (the user's Test 3, sent in the same trip after "Edit trip details"); skipped places not named again stay skipped.
 - **Fifth run (user's choice, 2026-11-07):** the spot list now comes once, after every not-found place is cleared up, right before the brief: "All set! 🎯", the list, then the brief (or "Here's your updated brief…"). Swap keeps its spot buttons (the user's choice), but they no longer count as the list. A first brief in free text also gets the list just before it when the spots are ready; if they are still loading, the brief comes first and the list follows, as before.
 - Seen and working as designed: a must-visit typed as a normal message ("sensen cafe") raised the question; Swap → typed "Kyoto Tower" was added and the brief shown without planning.
+
+## 072 - Stated details are never called "assumed" (2026-11-07) — proposed, not built
+
+**Status: built 2026-11-08.** The user chose options 1 and 2. On option 3 they chose to take the number as said, with no question ("6 people with me" = 6, including the traveller). They dropped option 4 as negligible, so model replies may still show ISO dates and the brief's date format is unchanged.
+
+**Built:** (1) the chat system prompt now says a number of people is taken as said, including the traveller ("6 people with me" = 6), and that a given count, or an end date worked out from a stated start and length, is stated, not inferred; (2) `chat_parser._drop_stated` runs in `_finalize` after the empty-field filter: it replays the user's messages through the local parser and drops `travelers` / `end_date` from `inferred` when the local parser gets the same value and reads it as stated. A value that differs from what the local parser reads (the model says 7) stays flagged, and so do real guesses (honeymoon, long weekend). Offline-tested only (TESTING 2026-11-08).
+
+**Original record (2026-11-07):** logged only; settled and built 2026-11-08.
+
+**What the user saw (screenshots, free text, new chat):** "i would like to go to osaka, with 6 people with me", then "5 days, starting from december 18". The brief message said "I assumed 6 travelers and a trip until 22 December from what you said", although both were stated: 6 people outright, and the end date follows exactly from "5 days" + the start date. Lemon's own reply in the same chat also showed the dates as raw ISO ("from 2026-12-18 to 2026-12-22").
+
+**Likely cause (source-inspected, not confirmed live):** the AI extractor fills `inferred` itself (`chat_parser.py` system prompt: "fields you filled by inference rather than plain statement"). The server only drops names whose field is empty (`chat_parser.py` around line 418); it doesn't check whether the value was stated. The app trusts the list (`_applyFree` → `mark()`; `_announceBrief` writes "I assumed …"). So the model probably flagged `travelers` (perhaps reading "6 people with me" as possibly 7) and `end_date` (a computed end date) as inferred. The local parser already treats "N days from <date>" as stated (`_apply_message` discards `end_date` from inferred).
+
+**Options to settle next session (not decided):**
+1. Tighten the prompt: a number of people the traveller gives is stated; an end date computed from a stated length is stated; "inferred" only for true guesses ("honeymoon" → 2, "a long weekend" → 3 days).
+2. Server-side check: keep `travelers` / `end_date` in `inferred` only when the latest user messages don't contain a number of people / a length or end date (the local parser's patterns can decide), so a model slip can't reach the brief.
+3. Ambiguity ("6 people with me" = 6 or 7?): either take the number as said, or have Lemon ask once ("Is that 6 including you?"). Needs the user's choice.
+4. Also: Lemon's model reply should write dates in words ("18 to 22 December"), like her fixed messages since DECISIONS 071; and the open question of showing the brief's dates as "18 Dec → 22 Dec".
+
+## 073 - Phase 3: places from photos and links (2026-11-08)
+
+Status: **built 2026-11-08, offline-tested, with a few live checks (TESTING 2026-11-08); not yet seen in the running app.** Phase 3 of 058. Every design choice was settled with the user before building, and the user approved the plan ("go ahead"), including adding `image_picker`.
+
+**The user's choices:**
+- **Instagram/Facebook links:** Lemon asks for a screenshot. Meta's tokenless oEmbed is confirmed (developer blog, 2026-06-15), but the reference lists only `html`/`width`/`type`/provider fields (no caption, author or thumbnail), and the oEmbed page limits the data to showing the embed. So they're never fetched. Threads is treated the same.
+- **Photos:** Groq only. The user picked Llama 4 Scout, but Groq's vision page (2026-11-08) no longer lists it; the agent used Groq's current vision model, `qwen/qwen3.8-27b` (3 images per request, JSON mode), with `reasoning_effort: "none"` (instruct mode). New settings: `GROQ_VISION_MODEL`, `GROQ_VISION_REASONING_EFFORT` (`config.py`, `.env.example`; `.env` untouched).
+- **Places outside the destination:** offered, never added on their own. With no destination yet, Lemon asks "Want to plan a trip to Kyoto?" (Yes / No thanks); Yes sends the city through the chat like a typed answer. A place more than 25 km from a city's centre (80 km for a region) is shown as "In Nara · 36 km away, day trip".
+- **Confirming:** a checklist with one "Add selected (n)" button. Map-confirmed places in the destination start ticked; day trips, places the map check couldn't run for, and (with no destination) places outside the offered city start unticked; places the map can't find are greyed out and can't be ticked.
+- **Links:** read whether alone or inside a message. The words around a link go to `/lemon/chat` first (without the link), then the link to `/lemon/media`. At most 2 links per message; shorteners stay blocked.
+- **Photo picking:** `image_picker`, up to 3 photos per message, resized on the device to 1600 px (quality 85); JPEG, PNG or WebP under 4 MB. A note says photos are only used to find places and aren't kept.
+- **Limit:** none for now (the user's choice, after the agent explained that a per-device limit is easy to get around without accounts and would block planning several trips). Results are cached instead (KI-38).
+
+**Built:**
+- `POST /lemon/media` (`routers/lemon.py`, `models/media.py`, `services/media_finder.py`): up to 3 base64 images and 2 links, plus the destination. Never a 502: a status (`ok`, `nothing_found`, `needs_screenshot`, `busy`, `unavailable`) and Lemon's fixed reply. Invalid images (bad base64, wrong type, over 4 MB) are a 422. 45 s on the backend, 50 s in the app.
+- Photos: one vision request for all of them; candidates are name, city, country, confidence (high / maybe) and evidence. A 429 is `busy` ("try again in a minute") and isn't cached; other failures are `unavailable`.
+- Links (`services/link_preview.py`): YouTube oEmbed; TikTok oEmbed, then its page's Open Graph tags; other pages' Open Graph tags (first 1 MB). The caption goes to the auto text chain; only when that finds nothing does the thumbnail go to the vision model; nothing usable means "send a screenshot". Every fetch is http(s) on default ports, at most 3 redirects, and each host must resolve only to public addresses.
+- Map check: each candidate is looked for near the destination, else near its own city (`poi_lookup`, cached); found ones carry `place_id`, coordinates, `matched_name`, `in_destination` and `distance_km`.
+- Caches: vision answers by the images' SHA-256, link results by URL, 24 h, in memory. Images are never stored.
+- Chat: readable links are taken out before the filter and the model (a link-only message gets "Let me take a look at that link!" with no provider call). Found places are never added to the chat transcript, so the model can't read them as must-visits.
+- Plans: a must-visit further than a day trip from the centre is tagged "day trip about N km from the centre" in the known places, gets a day without other must-visits when possible, and the window prompt says to plan the travel there and back.
+- App: a photo button in the chat box, a tray with ✕ per photo, photos in the traveller's bubble, the checklist card, and "Yes, plan Kyoto" / "No thanks".
+
+**Found in the live checks:** TikTok's oEmbed now returns only the embed iframe (no title, author or thumbnail), and its page, as served to the backend, is the generic "TikTok - Make Your Day". So a TikTok link currently ends in "send me a screenshot". YouTube's oEmbed returns the title, author and thumbnail.

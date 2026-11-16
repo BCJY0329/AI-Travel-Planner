@@ -108,6 +108,29 @@ Response: `status` (`ready`, `none`, `too_broad` for a whole country, or `unavai
 - Cached 24 h per destination; errors are not cached. The route waits up to 60 s (Paris took 27 s live, Kuala Lumpur 12 s, Lisbon 14 s) and keeps loading in the background after that, so a later request is quick. `/lemon/chat` starts this lookup in the background whenever it verifies a destination.
 - Wikidata needs no key; its User-Agent carries `WIKIDATA_CONTACT` (Wikimedia bot policy). Cost per new destination: about 25 Geoapify credits plus 3 Wikidata requests.
 
+## POST /lemon/media
+
+Places in photos and links (DECISIONS 073). Nothing is added to a trip here; the app shows a checklist and the traveller confirms.
+
+Request: `{"images": [{"mime": "image/jpeg" | "image/png" | "image/webp", "data": "<base64>"}], "links": ["https://..."], "destination": "Kyoto, Japan"}`. Up to 3 images (each at most 4 MB decoded) and 2 links; at least one of them. `destination` is optional.
+
+Response (always 200 unless the request is invalid):
+
+```json
+{"status": "ok", "reply": "I spotted 2 places! 📸 Tick the ones you'd like in your trip.",
+ "suggested_destination": null,
+ "candidates": [{"name": "Fushimi Inari Shrine", "city": "Kyoto", "country": "Japan",
+   "confidence": "high", "evidence": "sign reads 伏見稲荷大社", "source": "photo",
+   "status": "verified", "place_id": "...", "lat": 34.967, "lon": 135.772,
+   "matched_name": "Fushimi Inari-taisha", "in_destination": true, "distance_km": 4.9}]}
+```
+
+- `status`: `ok`, `nothing_found`, `needs_screenshot` (Instagram/Facebook, or a link with no usable preview), `busy` (the image model is rate limited) or `unavailable` (a failure or the 45 s limit).
+- Candidate `status`: `verified` (found on the map), `not_found`, or `unchecked` (the map check failed). `in_destination` is null without a destination; false means further than a day trip (25 km from a city's centre, 80 km for a region).
+- `suggested_destination`: only without a destination, the city most candidates are in.
+- 422: no images or links, more than the limits, an unknown type, bad base64, content that doesn't match its type, or an image over 4 MB.
+- Images are processed in memory and never stored. Results are cached for 24 h by image fingerprint and by link URL.
+
 ## POST /lemon/chat
 
 Request fields:
@@ -185,10 +208,11 @@ Current values as of 2026-10-17; earlier 36/12/60-second plan values are superse
 - **Plan context:** weather, attraction, popular-spot and destination-centre lookups run concurrently with ten-second wait bounds, using an explicit 5 km attraction radius (spots and centre skipped for demo plans). After generation, grounding lookups run at most 5 per second, at most 100 per plan, within 20 s.
 - **Day edits** (`/lemon/edit`): one window; 75 s per provider, at most 3 × 75 s with `auto`. Frontend edit timeout: 25 s + 75 s, times 3 for `auto` (250 s; 100 s for one named provider), `LemonApiService.editTimeoutFor`.
 - **Spots** (`/lemon/spots`): the route waits up to 60 s; the frontend waits 65 s.
+- **Media** (`/lemon/media`): the route answers within 45 s (vision 30 s, map checks 12 s); the frontend waits 50 s.
 - **Plan generation:** the inclusive date range is divided into windows of up to three days, at most three concurrent. Each window gets 75 seconds from when it starts, under an overall cap of 75 seconds per wave of three windows (75/150/225/300 s for 1–9/10–18/19–27/28–30 days). Auto attempts stream: a provider is cut off only after 10 seconds without a new chunk (25 seconds before the first chunk), otherwise it may use the window's remaining budget; direct providers share the same window budget. Each real response must include exactly its requested dates and absolute day numbers in order, with nonempty activities; invalid partial responses are never returned as a successful complete plan. Direct providers get one corrective retry per window. With `auto`, a window that gets a 429 waits its Retry-After and asks the same provider again if at least 15 s of its budget would remain (DECISIONS 061); any other failed window ends that provider's turn: the rest of its windows are cancelled and the whole plan restarts with the next provider (Groq → Gemini → OpenRouter), each turn with a fresh budget; if all fail, the whole plan is demo. Frontend plan timeout: 25 seconds plus 75 seconds per wave, times 3 for `auto` (250/475/700/925 s); a single named provider gets one turn (100/175/250/325 s).
 
 These are asynchronous wait bounds. Event-loop blocking, local processing, and network delivery are not hard wall-clock guarantees, and late SDK cancellation may continue in the background. Restart both frontend and backend after changing coordinated timeout values.
 
 ## Client usage
 
-The LemonTrip UI has two chat modes (DECISIONS 059). **Free text** (default): every user message goes to /lemon/chat, and the app merges the non-null fields it gets back. **Guided**: /lemon/chat interprets only the destination, and the rest is collected through structured controls. Both call /lemon/plan after explicit confirmation, filling travelers 1, budget `medium`, pace `balanced` and empty interests for anything left out. Since DECISIONS 069 the app also calls /lemon/spots once the destination is known, sends the chosen must-visits with the plan, keeps the chat open after the plan (sending `plan_summary`), and calls /lemon/edit for day edits, replacing a day only after the traveller accepts the preview. /lemon/plan itself still accepts historical date ranges; /lemon/chat and the UI date picker start at today.
+The LemonTrip UI has two chat modes (DECISIONS 059). **Free text** (default): every user message goes to /lemon/chat, and the app merges the non-null fields it gets back. **Guided**: /lemon/chat interprets only the destination, and the rest is collected through structured controls. Both call /lemon/plan after explicit confirmation, filling travelers 1, budget `medium`, pace `balanced` and empty interests for anything left out. Since DECISIONS 069 the app also calls /lemon/spots once the destination is known, sends the chosen must-visits with the plan, keeps the chat open after the plan (sending `plan_summary`), and calls /lemon/edit for day edits, replacing a day only after the traveller accepts the preview. Since DECISIONS 073, photos and readable links go to /lemon/media (the words around a link still go to /lemon/chat, without the link), and chosen places join the must-visits only after "Add selected". /lemon/plan itself still accepts historical date ranges; /lemon/chat and the UI date picker start at today.

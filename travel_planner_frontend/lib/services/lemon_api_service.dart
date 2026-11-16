@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/chat_models.dart';
 import '../models/itinerary_models.dart';
+import '../models/media_models.dart';
 
 class LemonApiException implements Exception {
   final String message;
@@ -73,6 +74,40 @@ class LemonApiService {
       // Falls through to 'unavailable'.
     }
     return SpotsResult(status: 'unavailable', destination: destination);
+  }
+
+  /// Places in photos and links (DECISIONS 073). The backend answers within
+  /// 45 s with a status, never an error, so this never throws either: a
+  /// failure is status 'unavailable'. Photos are sent once and not kept.
+  static const mediaTimeout = Duration(seconds: 50);
+
+  Future<MediaResult> findPlaces(
+      {List<PickedPhoto> photos = const [],
+      List<String> links = const [],
+      String? destination}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/lemon/media');
+    try {
+      final response = await http
+          .post(uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'images': [
+                  for (final p in photos.take(3))
+                    {'mime': p.mime, 'data': base64Encode(p.bytes)}
+                ],
+                'links': links.take(2).toList(),
+                if (destination != null) 'destination': destination,
+              }))
+          .timeout(mediaTimeout);
+      if (response.statusCode == 200) {
+        return MediaResult.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>);
+      }
+    } catch (_) {
+      // Falls through to 'unavailable'.
+    }
+    return const MediaResult(
+        status: 'unavailable', reply: MediaResult.unavailableReply);
   }
 
   /// Mirrors travel_backend/services/itinerary_builder.py: 3-day windows run

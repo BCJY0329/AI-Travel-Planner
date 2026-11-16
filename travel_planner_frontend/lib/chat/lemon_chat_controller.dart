@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/chat_models.dart';
 import '../models/itinerary_models.dart';
+import '../models/media_models.dart';
 import '../models/travel_models.dart';
 import '../services/chat_settings.dart';
 import '../services/lemon_api_service.dart';
@@ -729,9 +730,16 @@ class LemonChatController extends ChangeNotifier {
 
   Future<void> handleUserInput(String raw) async {
     final text = raw.trim();
-    if (_busy || text.isEmpty || error != null) return;
+    if (_busy || error != null || (text.isEmpty && pendingPhotos.isEmpty)) {
+      return;
+    }
     if (text.length > 600) {
       _bot('Please keep your message under 600 characters. $_stepReminder');
+      return;
+    }
+    final links = readableLinks(text);
+    if (pendingPhotos.isNotEmpty || links.isNotEmpty) {
+      await _handleMedia(text, links);
       return;
     }
     if (isFree && wantsGuided.hasMatch(text)) {
@@ -818,6 +826,202 @@ class LemonChatController extends ChangeNotifier {
     _user(text);
     draft = '';
     await _sendToLemon();
+  }
+
+  // --- Photos and links (DECISIONS 073) ---
+
+  static const maxPhotos = 3;
+
+  /// Photos waiting to go with the next message (in memory only).
+  final List<PickedPhoto> pendingPhotos = [];
+
+  /// A short note under the photo tray ("Up to 3 photos per message").
+  String? photoNote;
+
+  void addPhotos(List<PickedPhoto> photos, {int skipped = 0}) {
+    if (_busy) return;
+    final room = maxPhotos - pendingPhotos.length;
+    final taken = photos.take(room < 0 ? 0 : room).toList();
+    pendingPhotos.addAll(taken);
+    final over = photos.length - taken.length;
+    photoNote = over > 0
+        ? 'Up to $maxPhotos photos per message.'
+        : skipped > 0
+            ? 'Some photos couldn\'t be used (JPEG, PNG or WebP under 4 MB work).'
+            : null;
+    _changed();
+  }
+
+  void removePhoto(int index) {
+    if (_busy || index < 0 || index >= pendingPhotos.length) return;
+    pendingPhotos.removeAt(index);
+    photoNote = null;
+    _changed();
+  }
+
+  static final _linkRe =
+      RegExp(r"""(?:https?://|www\.)[^\s<>"']+""", caseSensitive: false);
+  static const _shorteners = {
+    'bit.ly', 't.co', 'tinyurl.com', 'goo.gl', 'ow.ly', 'is.gd', 'buff.ly',
+    'rebrand.ly', 'cutt.ly', 'shorturl.at', 'rb.gy', 'tiny.cc', 'lnkd.in'
+  };
+
+  static String _cleanLink(String url) {
+    final trimmed = url.replaceAll(RegExp(r"""[.,!?;:)\]}'"]+$"""), '');
+    return trimmed.toLowerCase().startsWith('http')
+        ? trimmed
+        : 'https://$trimmed';
+  }
+
+  static bool _readable(String url) {
+    final host = (Uri.tryParse(url)?.host ?? '').toLowerCase();
+    if (host.isEmpty || !host.contains('.') || host == 'localhost') return false;
+    return !_shorteners.any((s) => host == s || host.endsWith('.$s'));
+  }
+
+  /// Links Lemon can look at (or ask a screenshot for), as the backend reads
+  /// them (travel_backend/services/link_preview.py): not shorteners.
+  static List<String> readableLinks(String text) => [
+        for (final m in _linkRe.allMatches(text))
+          if (_readable(_cleanLink(m.group(0)!))) _cleanLink(m.group(0)!)
+      ];
+
+  /// The message without its readable links.
+  static String withoutLinks(String text) => text
+      .replaceAllMapped(_linkRe,
+          (m) => _readable(_cleanLink(m.group(0)!)) ? ' ' : m.group(0)!)
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .join(' ');
+
+  Future<void> _handleMedia(String text, List<String> links) async {
+    final photos = List.of(pendingPhotos);
+    pendingPhotos.clear();
+    photoNote = null;
+    switchOffer = null;
+    _userSpoke = true;
+    messages.add(ChatMessage.userPhotos(text, photos));
+    draft = '';
+    _changed();
+    // The words around a link are trip text like any other message; they go
+    // first, so a destination they name is known for the map check.
+    final rest = withoutLinks(text);
+    final canChat = rest.isNotEmpty &&
+        !_obviousNoise(rest) &&
+        heldPlan == null &&
+        unfoundPlace == null &&
+        (isFree || phase == ChatPhase.done || nextField == 'destination');
+    if (canChat) {
+      _history.add(ChatTurn(role: 'user', content: rest));
+      await _sendToLemon();
+      if (_disposed || error != null) return;
+    }
+    await _readMedia(photos, links.take(2).toList());
+  }
+
+  Future<void> _readMedia(List<PickedPhoto> photos, List<String> links) async {
+    _busy = true;
+    busyLabel = photos.isEmpty
+        ? 'Lemon is reading your link…'
+        : photos.length == 1
+            ? 'Lemon is looking at your photo…'
+            : 'Lemon is looking at your photos…';
+    _changed();
+    final result = await _api.findPlaces(
+        photos: photos, links: links, destination: placeName);
+    _busy = false;
+    busyLabel = null;
+    if (_disposed) return;
+    final reply =
+        result.reply.isEmpty ? MediaResult.unavailableReply : result.reply;
+    // Not added to the transcript: the chat model must never read a found
+    // place as one the traveller asked for (nothing joins without a tap).
+    if (result.status == 'ok' && result.candidates.isNotEmpty) {
+      messages.add(ChatMessage.mediaResult(
+          reply,
+          MediaFinding(result.candidates,
+              suggestedDestination:
+                  placeName == null ? result.suggestedDestination : null,
+              hasDestination: placeName != null)));
+    } else {
+      messages.add(ChatMessage.text(ChatSender.bot, reply));
+    }
+    _changed();
+  }
+
+  bool canEditFinding(MediaFinding finding) =>
+      !_busy && finding.state == 'pending' && phase == ChatPhase.chatting;
+
+  void toggleCandidate(MediaFinding finding, int index) {
+    if (!canEditFinding(finding) ||
+        index < 0 ||
+        index >= finding.candidates.length) {
+      return;
+    }
+    if (!finding.candidates[index].canAdd) return;
+    if (!finding.selected.remove(index)) finding.selected.add(index);
+    _changed();
+  }
+
+  /// "Add selected": the ticked places join the must-visits.
+  void addSelected(MediaFinding finding) {
+    if (!canEditFinding(finding) || placeName == null) return;
+    final added = <String>[], already = <String>[], trips = <String>[];
+    var full = false;
+    for (final i in finding.selected.toList()..sort()) {
+      final c = finding.candidates[i];
+      if (!c.canAdd) continue;
+      if (mustVisit.any((m) => m.sameAs(c.name, c.placeId))) {
+        already.add(c.name);
+        continue;
+      }
+      if (mustVisit.length >= maxMustVisit) {
+        full = true;
+        break;
+      }
+      mustVisit.add(MustVisitPlace(
+          name: c.name,
+          status: c.status == 'verified' ? 'verified' : 'unverified',
+          placeId: c.placeId,
+          lat: c.lat,
+          lon: c.lon,
+          matchedName: c.matchedName));
+      _removedMustVisit.remove(c.name.toLowerCase());
+      added.add(c.name);
+      if (c.isDayTrip) trips.add(c.name);
+    }
+    finding.state = 'added';
+    final parts = <String>[
+      if (added.isNotEmpty)
+        'Added ${_join(added)} to your must-visits! ✨'
+      else if (already.isNotEmpty)
+        'Those are already on your trip brief! 🍋'
+      else
+        'No problem, I didn\'t add any. 🍋',
+      if (trips.isNotEmpty) 'I\'ll plan ${_join(trips)} as a day trip.',
+      if (full)
+        'I can keep up to $maxMustVisit must-visit spots, so I stopped there.',
+    ];
+    messages.add(ChatMessage.text(ChatSender.bot, parts.join(' ')));
+    _changed();
+  }
+
+  /// "Yes, plan Kyoto": the city goes through the chat like a typed answer.
+  Future<void> acceptSuggestedDestination(MediaFinding finding) async {
+    final city = finding.suggestedDestination;
+    if (_busy || city == null || finding.offerAnswered) return;
+    finding.offerAnswered = true;
+    _user(city);
+    draft = '';
+    await _sendToLemon();
+  }
+
+  void declineSuggestedDestination(MediaFinding finding) {
+    if (_busy || finding.offerAnswered) return;
+    finding.offerAnswered = true;
+    finding.state = 'dismissed';
+    _echo('No thanks');
+    _bot('No problem! 🍋 $_stepReminder');
   }
 
   void _dropLastUserTurn() {

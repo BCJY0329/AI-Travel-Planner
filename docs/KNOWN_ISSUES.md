@@ -4,7 +4,27 @@
 
 Source-inspected on 2026-10-08 against the current working tree. The initial review made no application fixes; subsequent repairs are recorded below, and the dated sections are chronological (later entries supersede earlier ones).
 
-**Open as of 2026-11-07 (after DECISIONS 071 was built):** as below. KI-35 and KI-36 are fixed in code and pass offline tests; both wait for the user's re-run of Script 5. Lesson: a long Python edit script passed inline to the Bash tool as a heredoc failed with "unexpected EOF"; writing it to a scratchpad file and running that works.
+**Open as of 2026-11-08 (after DECISIONS 073):** as below, plus KI-38 (phase 3 limits). Phase 3 is offline-tested with a few live checks; not seen in the running app.
+
+## Photos and links: known limits (KI-38) — 2026-11-08
+
+**Open, by design for now.**
+- **No usage limit** on `/lemon/media` (the user's choice). Only caching (24 h, by image fingerprint / URL) and Groq's own rate limits protect the free quota. Revisit before any deployment, with KI-12.
+- **TikTok links can't be read:** its oEmbed returns only the iframe, and its page served to the backend is the generic "TikTok - Make Your Day" (live check 2026-11-08). Lemon asks for a screenshot. Instagram/Facebook are never read (Meta's terms).
+- **DNS rebinding:** the link guard checks that a host resolves only to public addresses before connecting, but a host that changes its answer between the check and the connection isn't covered. Low risk on a local dev server; fix (pin the checked address) before deployment.
+- **Groq's free-tier limits for `qwen/qwen3.8-27b`** aren't published on its model page; a 429 shows "busy, try again in a minute".
+- **HEIC photos** (some iPhones) are accepted only when the picker converts them; otherwise the tray says some photos couldn't be used.
+- Lesson: `flutter pub add` on Windows printed "Building with plugins requires symlink support" (Developer Mode). Tests, analysis and the web build still pass; Windows desktop builds would need Developer Mode.
+
+**Superseded — open as of 2026-11-08:** as below. KI-37 is fixed in code (DECISIONS 072) and passes offline tests; it waits for the user's re-run in the app. ISO dates in Lemon's model replies are left as is (the user's choice).
+
+**Superseded — open as of 2026-11-07 (end of session):** as below, plus KI-37 (stated details called "assumed"; logged, fix proposed in DECISIONS 072, not built). The spot list now comes right before the brief (DECISIONS 071, fifth run).
+
+## Stated details called "assumed" (KI-37) — 2026-11-07
+
+**Fixed in code 2026-11-08 (DECISIONS 072; offline-tested, not re-run in the app).** Earlier status: open, minor; logged only. Found by the user in the running app, free text: after "osaka, with 6 people with me" and "5 days, starting from december 18", the brief said "I assumed 6 travelers and a trip until 22 December from what you said", although both were stated. Likely cause (source-inspected): the AI model's `inferred` list is trusted as is; the server only removes empty fields from it, and the app turns it into "I assumed …". The same chat also had Lemon's model reply showing raw ISO dates ("2026-12-18 to 2026-12-22"). Not reproduced offline; not checked which provider answered.
+
+**Superseded — open as of 2026-11-07 (after DECISIONS 071 was built):** as below. KI-35 and KI-36 are fixed in code and pass offline tests; both wait for the user's re-run of Script 5. Lesson: a long Python edit script passed inline to the Bash tool as a heredoc failed with "unexpected EOF"; writing it to a scratchpad file and running that works.
 
 **Superseded — open as of 2026-11-07:** as below, plus KI-35 (fix agreed in DECISIONS 071, not built).
 

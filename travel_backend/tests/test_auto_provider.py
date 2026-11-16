@@ -46,6 +46,10 @@ _chat._default_spot_finder = _offline_lookup
 # The network edges themselves, for code that reaches them another way.
 _spots._search_destination = _spots._wikidata = _offline_lookup
 _poi._geocode = _poi.destination_centre = _offline_lookup
+# DECISIONS 073: photos and links (image model, caption reading, link fetches, map checks).
+from services import media_finder as _media, link_preview as _link
+_media._vision = _media._text_places = _media._centre = _media._find = _offline_lookup
+_link._fetch = _offline_lookup
 from services.chat_parser import parse_chat
 from services.itinerary_builder import build_itinerary
 from models.chat import LemonChatRequest

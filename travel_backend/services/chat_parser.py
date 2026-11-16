@@ -35,6 +35,7 @@ from services.llm_providers.factory import get_provider
 from services.llm_providers.auto_provider import AutoProvider
 from services.place_check import Lookup, check_destination
 from services.text_sanitize import strip_markdown
+from services.link_preview import strip_links
 from models.chat import PlanEdit
 
 # A must-visit check: (place name, destination) -> {name, place_id, lat, lon},
@@ -64,8 +65,9 @@ country or region they did not say ("Paris" stays "Paris"). Null if unclear. Nev
 Saturday", "tomorrow", "Dec 3 for 5 days" means Dec 3 to Dec 7). If only vague timing is given ("next \
 month", "in summer", "sometime in December"), leave the dates null and ask for the exact days. A trip \
 length without a start ("5 days") leaves both null until the start is known.
-- travelers: integer or null. Infer it only when the wording implies a number ("me and my wife" = 2, \
-"solo" = 1, "family of 4" = 4, "honeymoon" = 2). Null if never mentioned.
+- travelers: integer or null. A number of people the traveller gives is taken as said, including \
+them ("6 people", "6 people with me" and "we are 6" all = 6). Infer it only when the wording implies a \
+number ("me and my wife" = 2, "solo" = 1, "family of 4" = 4, "honeymoon" = 2). Null if never mentioned.
 - budget_level: "low", "medium" or "high", or null if never mentioned ("mid-range" = medium, \
 "backpacking" = low, "luxury" = high).
 - interests: a short list. Use these labels when they fit: {interest_labels}. Otherwise a short phrase \
@@ -78,7 +80,10 @@ Tower"]. Not the destination itself, not general wishes ("good food"). Empty if 
 - spots_to_lemon: true only when the LATEST message leaves the choice of places to visit to you \
 ("up to you", "surprise me", "you pick", "whatever you recommend"). Otherwise false.
 - inferred: the names of fields you filled by inference rather than plain statement \
-(any of "travelers", "budget_level", "interests", "end_date", "pace"). Empty if none.
+(any of "travelers", "budget_level", "interests", "end_date", "pace"). Empty if none. A number of \
+people the traveller gave is stated, not inferred; an end date worked out from a stated start and a \
+stated length ("5 days, starting December 18") is stated, not inferred. Only true guesses count \
+("honeymoon" = 2 travelers, "a long weekend" = 3 days).
 - intent: what the traveller's LATEST message is:
   "trip" (trip details, answers, corrections, confirmations), "small_talk" (greetings, thanks, \
 chit-chat), "off_topic" (unrelated requests such as code, homework, news), "gibberish" (no meaning), \
@@ -171,8 +176,29 @@ def prefilter(text: str) -> Optional[tuple]:
     if _INJECTION_RE.search(value):
         return ("unsafe", "I'll stick to planning trips! 🧭 Where would you like to go?")
     if _LINK_RE.search(value):
-        return ("off_topic", "I can't open links yet. 🗺️ Tell me the place in words and I'll take it from there!")
+        # Readable links (TikTok, YouTube, web, Instagram/Facebook) are taken out
+        # before this (DECISIONS 073); what's left is a shortener or junk.
+        return ("off_topic", "I can't open that kind of link. 🗺️ TikTok, YouTube and web page links work, "
+                             "or tell me the place in words!")
     return None
+
+
+LINK_ONLY_REPLY = "Let me take a look at that link! 🔎"
+
+
+def _without_links(messages: List[ChatTurn]) -> List[ChatTurn]:
+    """User turns with readable links taken out; a turn that was only links is dropped."""
+    out = []
+    for turn in messages:
+        if turn.role != "user":
+            out.append(turn)
+            continue
+        text, readable, other = strip_links(turn.content)
+        if not readable or other:
+            out.append(turn)
+        elif text:
+            out.append(ChatTurn(role="user", content=text))
+    return out
 
 
 def _filtered_response(intent: str, reply: str) -> LemonChatResponse:
@@ -186,9 +212,16 @@ async def parse_chat(request: LemonChatRequest, place_lookup: Optional[Lookup] =
                      spot_lookup: Optional[SpotFinder] = None) -> LemonChatResponse:
     latest = request.messages[-1] if request.messages else None
     if latest is not None and latest.role == "user":
-        flagged = prefilter(latest.content)
+        text, readable, other = strip_links(latest.content)
+        if readable and not other and not text:
+            # The app sends links to /lemon/media; a link alone has no trip text.
+            return _filtered_response("trip", LINK_ONLY_REPLY)
+        flagged = prefilter(text if readable and not other else latest.content)
         if flagged:
             return _filtered_response(*flagged)
+    # Links are read by /lemon/media, never by the chat model (DECISIONS 073).
+    request = request.model_copy(update={"messages": _without_links(request.messages)})
+    latest = request.messages[-1] if request.messages else None
 
     has_plan = bool((request.plan_summary or "").strip())
     explicit_mock = request.provider.lower() == "mock"
@@ -202,7 +235,8 @@ async def parse_chat(request: LemonChatRequest, place_lookup: Optional[Lookup] =
         spot_lookup = _default_spot_finder
     return await _finalize(result, check_place=not explicit_mock, lookup=place_lookup,
                            spot_lookup=spot_lookup, has_plan=has_plan, plan_days=request.plan_days,
-                           latest=latest.content if latest is not None and latest.role == "user" else "")
+                           latest=latest.content if latest is not None and latest.role == "user" else "",
+                           user_messages=[m.content.strip() for m in request.messages if m.role == "user"])
 
 
 async def _default_spot_finder(name: str, destination: str) -> Optional[dict]:
@@ -347,10 +381,29 @@ async def _check_must_visit(result: LemonChatResponse, spot_lookup: Optional[Spo
     await asyncio.gather(*(check(item) for item in items))
 
 
+def _drop_stated(result: LemonChatResponse, user_messages: List[str], today: date) -> None:
+    """Never call a stated detail "assumed" (DECISIONS 072). The model's
+    `inferred` list is checked against the local parser: when the traveller's
+    own words give the same travelers count or end date, and the local parser
+    reads it as stated (a number of people, a stated end, or a stated length
+    from a stated start), the field is dropped from `inferred`."""
+    if not user_messages or not result.inferred:
+        return
+    fields, local_inferred = _replay(user_messages, today)
+    stated = set()
+    if result.travelers is not None and fields["travelers"] == result.travelers \
+            and "travelers" not in local_inferred:
+        stated.add("travelers")
+    if result.end_date and fields["end_date"] == result.end_date and "end_date" not in local_inferred:
+        stated.add("end_date")
+    result.inferred = [f for f in result.inferred if f not in stated]
+
+
 async def _finalize(result: LemonChatResponse, check_place: bool,
                     lookup: Optional[Lookup] = None, today: Optional[date] = None,
                     spot_lookup: Optional[SpotFinder] = None, has_plan: bool = False,
-                    plan_days: Optional[int] = None, latest: str = "") -> LemonChatResponse:
+                    plan_days: Optional[int] = None, latest: str = "",
+                    user_messages: Optional[List[str]] = None) -> LemonChatResponse:
     today = today or date.today()
     problems: List[str] = []
 
@@ -417,6 +470,7 @@ async def _finalize(result: LemonChatResponse, check_place: bool,
 
     result.inferred = [f for f in result.inferred
                        if (f == "interests" and result.interests) or (f != "interests" and getattr(result, f, None))]
+    _drop_stated(result, user_messages or [], today)
 
     # Plan edits and trip questions (DECISIONS 069): replies are fixed here, so
     # Lemon never claims a change she hasn't made.

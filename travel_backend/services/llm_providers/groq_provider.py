@@ -41,3 +41,21 @@ class GroqProvider(LLMProvider):
 
     async def generate_json(self, system_prompt: str, user_prompt: str) -> str:
         return await collect(self.stream_text(system_prompt, user_prompt))
+
+    async def vision_json(self, system_prompt: str, user_text: str, images: list) -> str:
+        """One JSON answer about up to 3 images (DECISIONS 073), from
+        GROQ_VISION_MODEL. `images`: [(mime, base64 text)]. Not streamed: the
+        answer is short. Errors (including 429) propagate to the caller."""
+        if not settings.GROQ_API_KEY:
+            raise ValueError("Groq vision selected but GROQ_API_KEY is not set in .env")
+        content = [{"type": "text", "text": user_text}] + [
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}} for mime, data in images]
+        effort = settings.GROQ_VISION_REASONING_EFFORT.strip()
+        response = await self._client.chat.completions.create(
+            model=settings.GROQ_VISION_MODEL,
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": content}],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+            **({"extra_body": {"reasoning_effort": effort}} if effort else {}),
+        )
+        return response.choices[0].message.content or ""

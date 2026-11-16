@@ -142,6 +142,7 @@ class ChatBubbleWidget extends StatelessWidget {
       // The chat panel draws these with their buttons; this is the text alone.
       case ChatMessageType.spots:
       case ChatMessageType.editPreview:
+      case ChatMessageType.media:
         return _row(true, _textBubble(message.text ?? '', true));
     }
   }

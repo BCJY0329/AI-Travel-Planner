@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     # Sent as reasoning_effort (low/medium/high) for reasoning models like gpt-oss.
     # Leave blank for a model that doesn't take it (DECISIONS 066).
     GROQ_REASONING_EFFORT: str = "low"
+    # Places from photos (DECISIONS 073): Groq's image model. qwen3.8-27b takes up
+    # to 3 images per request (console.groq.com/docs/vision, 2026-11-08). It is a
+    # reasoning model; "none" answers directly (instruct mode), blank sends nothing.
+    GROQ_VISION_MODEL: str = "qwen/qwen3.8-27b"
+    GROQ_VISION_REASONING_EFFORT: str = "none"
 
     # Google Gemini — free tier via AI Studio.
     # Sign up: https://aistudio.google.com/apikey

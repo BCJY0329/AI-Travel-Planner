@@ -280,8 +280,29 @@ def _places_block(places: List[dict]) -> str:
     def where(p):
         return f"{p['lat']:.4f}, {p['lon']:.4f}" if p["lat"] is not None and p["lon"] is not None else "location unknown"
     tags = {"must_visit": "must-visit", "popular": "popular", "nearby": "nearby"}
+    def kind(p):
+        trip = p.get("day_trip_km")
+        return tags[p["source"]] + (f", day trip about {trip} km from the centre" if trip else "")
     return ("Known places (ref | name | coordinates | kind):\n"
-            + "\n".join(f"{p['ref']} | {p['name']} | {where(p)} | {tags[p['source']]}" for p in places))
+            + "\n".join(f"{p['ref']} | {p['name']} | {where(p)} | {kind(p)}" for p in places))
+
+
+DAY_TRIP_METRES = 25000          # matches media_finder: further than this is a day trip
+REGION_DAY_TRIP_METRES = 80000
+
+
+def mark_day_trips(places: List[dict], centre: Optional[dict]) -> None:
+    """A must-visit outside the destination (offered from a photo or link,
+    DECISIONS 073) is tagged as a day trip, so it gets a day of its own and the
+    model plans the travel there and back."""
+    if not centre:
+        return
+    limit = REGION_DAY_TRIP_METRES if centre.get("radius_m", 0) >= 80000 else DAY_TRIP_METRES
+    for p in places:
+        if p["source"] == "must_visit" and p["lat"] is not None and p["lon"] is not None:
+            metres = metres_between(centre["lat"], centre["lon"], p["lat"], p["lon"])
+            if metres > limit:
+                p["day_trip_km"] = round(metres / 1000)
 
 
 async def gather_context(trip: TripRequest, demo: bool = False) -> PlanContext:
@@ -303,6 +324,7 @@ async def gather_context(trip: TripRequest, demo: bool = False) -> PlanContext:
     centre = found[3] if len(found) > 3 and isinstance(found[3], dict) and "lat" in found[3] else None
 
     places = known_places(trip, spots, attractions)
+    mark_day_trips(places, centre)
     wet = {day for day, w in weather_by_day(weather).items() if w["wet"]}
     pace = trip.pace or "balanced"
     prompt = f"""Trip request:
@@ -326,6 +348,10 @@ def _near(a: dict, b: dict) -> bool:
             and metres_between(a["lat"], a["lon"], b["lat"], b["lon"]) <= NEAR_METRES)
 
 
+def _has_day_trip(places: List[dict]) -> bool:
+    return any(q.get("day_trip_km") for q in places)
+
+
 def assign_must_visits(places: List[dict], dates: List[str], wet_days: set, pace: str) -> Dict[int, List[dict]]:
     """{day index: [must-visit places]}. Nearby places share a day; outdoor ones
     avoid days with rain likely; otherwise the emptiest day, earliest first."""
@@ -341,6 +367,10 @@ def assign_must_visits(places: List[dict], dates: List[str], wet_days: set, pace
             dry = [i for i in open_days if dates[i] not in wet_days]
             open_days = dry or open_days
         near = [i for i in open_days if any(_near(place, q) for q in plan[i])]
+        if not place.get("day_trip_km"):
+            # A day trip keeps its day: other places go elsewhere when they can.
+            near = [i for i in near if not _has_day_trip(plan[i])]
+            open_days = [i for i in open_days if not _has_day_trip(plan[i])] or open_days
         pick = near[0] if near else min(open_days, key=lambda i: (len(plan[i]), i))
         plan[pick].append(place)
     return plan
@@ -358,7 +388,10 @@ def _missing_must_visits(day: ItineraryDay, required: List[dict]) -> List[str]:
 
 
 def _must_visit_lines(assigned: Dict[int, List[dict]], indexes) -> str:
-    lines = [f"- Day {i + 1}: {p['ref']} {p['name']}" for i in indexes for p in assigned.get(i, [])]
+    lines = [f"- Day {i + 1}: {p['ref']} {p['name']}"
+             + (f" (a day trip about {p['day_trip_km']} km away: plan the travel there and back)"
+                if p.get("day_trip_km") else "")
+             for i in indexes for p in assigned.get(i, [])]
     if not lines:
         return ""
     return ("\nMust-visit places for these days (each one must appear as an activity on its day, "

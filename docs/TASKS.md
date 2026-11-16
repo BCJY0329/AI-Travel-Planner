@@ -4,7 +4,28 @@
 
 Reconstructed on 2026-10-08 from current source. The initial task authorized documentation only. Subsequent repairs were separately authorized; unchecked work remains a proposed backlog. KI identifiers refer to `KNOWN_ISSUES.md`. Sections are chronological; items completed by later batches were ticked on 2026-10-17 with a pointer to the batch that did them.
 
-## Open work snapshot — 2026-11-07 (071 built) — next up: the user re-runs Script 5
+## Open work snapshot — 2026-11-08 (phase 3 built) — next up: the user's look at photos and links
+
+- [x] **Phase 3 — places from photos and links (DECISIONS 073):** design settled with the user, plan approved, built. Backend 236 of 236 offline, frontend 187 of 187, analyze clean, web build passes. Live: YouTube oEmbed works, TikTok gives nothing readable (KI-38), Groq vision named Fushimi Inari from a photo and nothing from generic sand.
+- [ ] **The user's look in the running app** (restart the backend: new route `/lemon/media`; full restart of the app, since `image_picker` is a new plugin). Try: a landmark photo with a destination set, a photo with no destination (expect "Plan a trip to …?"), a YouTube link in a message, an Instagram link (expect a screenshot request), and a place in a nearby city (day trip).
+- [ ] The user re-runs the Osaka chat (KI-37) and the fifth-run retest; then the scripts not yet reported (1–4, 6–9).
+- [ ] Then phase 4 — videos (frames first). Commit only when the user asks.
+
+## Superseded — open work snapshot — 2026-11-08 (072 built) — next up: the user re-runs the Osaka chat
+
+- [x] **DECISIONS 072 built** (KI-37): the prompt now says how to read a stated count and end date, and the server checks `inferred` against the local parser. "6 people with me" = 6, with no question (the user's choice). Date wording is dropped as negligible (the user's choice). Backend 207 of 207 offline.
+- [ ] **The user re-runs the Osaka chat** (restart the backend): expect no "I assumed 6 travelers / until 22 December".
+- [ ] The user re-runs the fifth-run retest (spot list right before the brief, after the not-found questions).
+- [ ] Then: the scripts not yet reported (1–4, 6–9), then phase 3. Commit only when the user asks.
+
+## Superseded — open work snapshot — 2026-11-07 (end of session) — next up: settle and build DECISIONS 072
+
+- [ ] **Settle DECISIONS 072 with the user, then build it** (KI-37): stated travelers / end dates must not be called "assumed". Choose among: stricter prompt, a server-side check of `inferred`, and whether Lemon asks about "N people with me" (N or N+1).
+- [ ] Lemon's model replies show ISO dates ("2026-12-18 to 2026-12-22"); fold into 072. Still waiting on the user: show the brief's dates as "18 Dec → 22 Dec"?
+- [ ] The user re-runs the fifth-run retest (spot list right before the brief, after the not-found questions).
+- [ ] Then: the scripts not yet reported (1–4, 6–9), then phase 3. Nothing committed since `ed0f4d3`; commit only when the user asks.
+
+## Superseded — open work snapshot — 2026-11-07 (071 built) — next up: the user re-runs Script 5
 
 - [x] Second Script 5 run (fresh chat) reproduced KI-35 and found three more problems; a live lookup showed "Hanamiya Kissa" matched **Kissa Gobo Gobo** (KI-36). All added to DECISIONS 071 with the user.
 - [x] **DECISIONS 071 built** (the user said go ahead): Swap it / Continue without it, "plan it" waits, Lemon's own words while holding, spots wait, dates in words, stricter place matching, "Matched: …" under stops. Backend 204 of 204, frontend 167 of 167, analyze clean, web build passes. Not run in the app.
